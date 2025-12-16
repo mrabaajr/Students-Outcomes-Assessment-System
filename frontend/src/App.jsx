@@ -4,6 +4,7 @@ import ProgramChairDashboard from './pages/programchair/Dashboard'
 import StaffHome from './pages/staff/Home'
 import StaffLogin from './pages/staff/Login'
 import StaffDashboard from './pages/staff/Dashboard'
+import ProtectedRoute from './components/ProtectedRoute'
 
 
 export default function App() {
@@ -12,12 +13,33 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         {/* Program Chair Routes */}
-        <Route path="/programchair/dashboard" element={<ProgramChairDashboard />} />
+        <Route 
+          path="/programchair/dashboard" 
+          element={
+            <ProtectedRoute>
+              <ProgramChairDashboard />
+            </ProtectedRoute>
+          } 
+        />
         
         {/* Staff Routes */}
-        <Route path="/staff" element={<StaffHome />} />
+        <Route 
+          path="/staff" 
+          element={
+            <ProtectedRoute>
+              <StaffHome />
+            </ProtectedRoute>
+          } 
+        />
         <Route path="/staff/login" element={<StaffLogin />} />
-        <Route path="/staff/dashboard" element={<StaffDashboard />} />
+        <Route 
+          path="/staff/dashboard" 
+          element={
+            <ProtectedRoute>
+              <StaffDashboard />
+            </ProtectedRoute>
+          } 
+        />
         
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" />} />
