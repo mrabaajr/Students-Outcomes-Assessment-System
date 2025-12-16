@@ -61,14 +61,14 @@ const Login = () => {
         <div className="w-full max-w-md animate-slide-up">
           {/* Mobile branding */}
           <div className="lg:hidden text-center mb-10">
-            <h1 className="font-display text-5xl text-black tracking-wide">
+            <h1 className="font-display text-5xl tracking-wide" style={{ color: '#231f20' }}>
               WELCOME <span className="text-yellow-400">BACK</span>
             </h1>
           </div>
 
           {/* Role Selection */}
           <div className="mb-8">
-            <p className="text-sm font-medium text-black mb-4">Select your role to continue</p>
+            <p className="text-sm font-medium mb-4" style={{ color: '#231f20' }}>Select your role to continue</p>
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
@@ -79,8 +79,8 @@ const Login = () => {
                     : "border-gray-200 hover:border-yellow-400/50 hover:bg-gray-50"
                 }`}
               >
-                <User className={`w-8 h-8 mb-3 ${selectedRole === "program-chair" ? "text-yellow-400" : "text-gray-500"}`} />
-                <span className={`font-semibold ${selectedRole === "program-chair" ? "text-black" : "text-gray-600"}`}>
+                <User className={`w-8 h-8 mb-3 ${selectedRole === "program-chair" ? "text-yellow-400" : ""}`} style={{ color: selectedRole === "program-chair" ? undefined : '#a5a8ab' }} />
+                <span className={`font-semibold`} style={{ color: selectedRole === "program-chair" ? '#231f20' : '#a5a8ab' }}>
                   Program Chair
                 </span>
               </button>
@@ -93,8 +93,8 @@ const Login = () => {
                     : "border-gray-200 hover:border-yellow-400/50 hover:bg-gray-50"
                 }`}
               >
-                <Users className={`w-8 h-8 mb-3 ${selectedRole === "staff" ? "text-yellow-400" : "text-gray-500"}`} />
-                <span className={`font-semibold ${selectedRole === "staff" ? "text-black" : "text-gray-600"}`}>
+                <Users className={`w-8 h-8 mb-3 ${selectedRole === "staff" ? "text-yellow-400" : ""}`} style={{ color: selectedRole === "staff" ? undefined : '#a5a8ab' }} />
+                <span className={`font-semibold`} style={{ color: selectedRole === "staff" ? '#231f20' : '#a5a8ab' }}>
                   Staff
                 </span>
               </button>
@@ -104,42 +104,45 @@ const Login = () => {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-black">
+              <label htmlFor="email" className="text-sm font-medium" style={{ color: '#231f20' }}>
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: '#a5a8ab' }} />
                 <Input
                   id="email"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-12 bg-white border-gray-300 text-black placeholder:text-gray-400"
+                  className="pl-12"
+                  style={{ backgroundColor: '#ffffff', borderColor: '#a5a8ab', color: '#231f20' }}
                   required
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium text-black">
+              <label htmlFor="password" className="text-sm font-medium" style={{ color: '#231f20' }}>
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: '#a5a8ab' }} />
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-12 pr-12 bg-white border-gray-300 text-black placeholder:text-gray-400"
+                  className="pl-12 pr-12"
+                  style={{ backgroundColor: '#ffffff', borderColor: '#a5a8ab', color: '#231f20' }}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
+                  style={{ color: '#a5a8ab' }}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -169,7 +172,7 @@ const Login = () => {
           </form>
 
           {/* Footer text */}
-          <p className="text-center text-sm text-gray-500 mt-8">
+          <p className="text-center text-sm mt-8" style={{ color: '#a5a8ab' }}>
             By continuing, you agree to our{' '}
             <button className="text-yellow-400 hover:underline">Terms of Service</button>
             {' '}and{' '}
