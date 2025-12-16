@@ -61,14 +61,14 @@ const Login = () => {
         <div className="w-full max-w-md animate-slide-up">
           {/* Mobile branding */}
           <div className="lg:hidden text-center mb-10">
-            <h1 className="font-display text-5xl tracking-wide" style={{ color: '#231f20' }}>
+            <h1 className="font-display text-5xl tracking-wide text-dark-gray">
               WELCOME <span className="text-yellow-400">BACK</span>
             </h1>
           </div>
 
           {/* Role Selection */}
           <div className="mb-8">
-            <p className="text-sm font-medium mb-4" style={{ color: '#231f20' }}>Select your role to continue</p>
+            <p className="text-sm font-medium mb-4 text-dark-gray">Select your role to continue</p>
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
@@ -79,8 +79,8 @@ const Login = () => {
                     : "border-gray-200 hover:border-yellow-400/50 hover:bg-gray-50"
                 }`}
               >
-                <User className={`w-8 h-8 mb-3 ${selectedRole === "program-chair" ? "text-yellow-400" : ""}`} style={{ color: selectedRole === "program-chair" ? undefined : '#a5a8ab' }} />
-                <span className={`font-semibold`} style={{ color: selectedRole === "program-chair" ? '#231f20' : '#a5a8ab' }}>
+                <User className={`w-8 h-8 mb-3 ${selectedRole === "program-chair" ? "text-yellow-400" : "text-gray"}`} />
+                <span className={`font-semibold ${selectedRole === "program-chair" ? "text-dark-gray" : "text-gray"}`}>
                   Program Chair
                 </span>
               </button>
@@ -93,8 +93,8 @@ const Login = () => {
                     : "border-gray-200 hover:border-yellow-400/50 hover:bg-gray-50"
                 }`}
               >
-                <Users className={`w-8 h-8 mb-3 ${selectedRole === "staff" ? "text-yellow-400" : ""}`} style={{ color: selectedRole === "staff" ? undefined : '#a5a8ab' }} />
-                <span className={`font-semibold`} style={{ color: selectedRole === "staff" ? '#231f20' : '#a5a8ab' }}>
+                <Users className={`w-8 h-8 mb-3 ${selectedRole === "staff" ? "text-yellow-400" : "text-gray"}`} />
+                <span className={`font-semibold ${selectedRole === "staff" ? "text-dark-gray" : "text-gray"}`}>
                   Staff
                 </span>
               </button>
@@ -104,45 +104,42 @@ const Login = () => {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium" style={{ color: '#231f20' }}>
+              <label htmlFor="email" className="text-sm font-medium text-dark-gray">
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: '#a5a8ab' }} />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 icon-gray" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-12"
-                  style={{ backgroundColor: '#ffffff', borderColor: '#a5a8ab', color: '#231f20' }}
+                  className="pl-12 bg-white border-gray text-dark-gray"
                   required
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium" style={{ color: '#231f20' }}>
+              <label htmlFor="password" className="text-sm font-medium text-dark-gray">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: '#a5a8ab' }} />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 icon-gray" />
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-12 pr-12"
-                  style={{ backgroundColor: '#ffffff', borderColor: '#a5a8ab', color: '#231f20' }}
+                  className="pl-12 pr-12 bg-white border-gray text-dark-gray"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
-                  style={{ color: '#a5a8ab' }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors icon-gray hover:text-gray-dark"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -162,9 +159,8 @@ const Login = () => {
               type="submit" 
               variant="yellow" 
               size="lg" 
-              className="w-full group"
+              className="w-full group bg-yellow"
               disabled={!selectedRole}
-              style={{ backgroundColor: '#ffc203' }}
             >
               Sign In as {selectedRole === "program-chair" ? "Program Chair" : selectedRole === "staff" ? "Staff" : "..."}
               <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
@@ -172,7 +168,7 @@ const Login = () => {
           </form>
 
           {/* Footer text */}
-          <p className="text-center text-sm mt-8" style={{ color: '#a5a8ab' }}>
+          <p className="text-center text-sm mt-8 text-dark-gray">
             By continuing, you agree to our{' '}
             <button className="text-yellow-400 hover:underline">Terms of Service</button>
             {' '}and{' '}

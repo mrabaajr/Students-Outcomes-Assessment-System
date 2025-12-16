@@ -1,3 +1,10 @@
+/*Color Pallete
+Dark gray: #231F20
+White: #FFFFFF
+Grey: #A5A8AB
+Yellow: #FFC20E
+*/
+
 @import "tailwindcss";
 
 /* Global Styles */
@@ -40,6 +47,13 @@
   --color-border: #E5E7EB;
   --color-input: #E5E7EB;
   --color-ring: #FFC20E;
+  
+  --color-dark-gray: #231F20;
+  --color-gray: #A5A8AB;
+  --color-yellow: #FFC203;
+  
+  --font-display: 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
   
   --radius: 0.5rem;
 }
