@@ -1,0 +1,111 @@
+/*Color Pallete
+Dark gray: #231F20
+White: #FFFFFF
+Grey: #A5A8AB
+Yellow: #FFC20E
+*/
+
+@import "tailwindcss";
+
+/* Global Styles */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@theme {
+  --color-background: #F5F5F0;
+  --color-foreground: #FFFFFF;
+  
+  --color-card: #2A2626;
+  --color-card-foreground: #FFFFFF;
+  
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #231F20;
+  
+  --color-primary: #FFC20E;
+  --color-primary-foreground: #231F20;
+  
+  --color-secondary: #F5F5F5;
+  --color-secondary-foreground: #231F20;
+  
+  --color-muted: #F5F5F5;
+  --color-muted-foreground: #A5A8AB;
+  
+  --color-accent: #FFC20E;
+  --color-accent-foreground: #231F20;
+  
+  --color-destructive: #DC2626;
+  --color-destructive-foreground: #FFFFFF;
+  
+  --color-success: #16A34A;
+  --color-success-foreground: #FFFFFF;
+  
+  --color-warning: #FFC20E;
+  --color-warning-foreground: #231F20;
+  
+  --color-info: #3B82F6;
+  --color-info-foreground: #FFFFFF;
+  
+  --color-border: #E5E7EB;
+  --color-input: #E5E7EB;
+  --color-ring: #FFC20E;
+  
+  --color-dark-gray: #231F20;
+  --color-gray: #A5A8AB;
+  --color-yellow: #FFC203;
+  
+  --font-display: 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  
+  --radius: 0.5rem;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.glass-card {
+  background: #f6f6f6;
+  border: 1px solid #666666;
+  border-radius: var(--radius);
+}
+
+.hover-lift {
+  transition: all 0.2s ease-out;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+.progress-bar {
+  height: 0.5rem;
+  background: var(--color-secondary);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: all 0.5s;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #A5A8AB;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6B6B6B;
+}
