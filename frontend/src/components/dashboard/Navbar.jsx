@@ -1,0 +1,48 @@
+import { GraduationCap, BookOpen, FileText, BarChart3, User } from "lucide-react";
+
+const navItems = [
+  { icon: GraduationCap, label: "Student Outcomes" },
+  { icon: BookOpen, label: "Courses" },
+  { icon: FileText, label: "Assessment" },
+  { icon: BarChart3, label: "Reports" },
+];
+
+const Navbar = () => {
+  return (
+    <nav className="bg-[#231F20]/90 backdrop-blur-sm border-b-2 border-[#FFC20E] fixed top-0 left-0 right-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
+          {/* Logo */}
+          <a href="#" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <div>
+              <span className="font-bold text-white">SO Assessment</span>
+              <span className="text-xs text-[#FFC20E] block">T.I.P. ENGINEERING</span>
+            </div>
+          </a>
+
+          {/* Navigation Links */}
+          <div className="hidden md:flex items-center gap-1">
+            {navItems.map((item, index) => (
+              <a
+                key={index}
+                href="#"
+                className="flex items-center gap-2 px-4 py-2 text-sm text-[#A5A8AB] hover:text-white transition-colors"
+              >
+                <item.icon size={16} />
+                <span>{item.label}</span>
+              </a>
+            ))}
+          </div>
+
+          {/* Sign In Button */}
+          <button className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+            <User size={16} />
+            <span>Log out</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+  );
+};
+
+export default Navbar;
