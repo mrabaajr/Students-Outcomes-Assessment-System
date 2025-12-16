@@ -161,6 +161,7 @@ const Login = () => {
               size="lg" 
               className="w-full group"
               disabled={!selectedRole}
+              style={{ backgroundColor: '#ffc203' }}
             >
               Sign In as {selectedRole === "program-chair" ? "Program Chair" : selectedRole === "staff" ? "Staff" : "..."}
               <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
