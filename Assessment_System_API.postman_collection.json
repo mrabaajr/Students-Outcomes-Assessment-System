@@ -1,0 +1,165 @@
+{
+  "info": {
+    "name": "Assessment System - Email SMTP",
+    "description": "API endpoints for user account creation with email SMTP",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create Program Chair Account",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"programchair@example.com\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Smith\",\n  \"role\": \"admin\",\n  \"department\": \"Engineering\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/users/create_account/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "users", "create_account", ""]
+        },
+        "description": "Creates a new program chair account with temporary password sent via email"
+      },
+      "response": []
+    },
+    {
+      "name": "Create Staff Account",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"staff@example.com\",\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Doe\",\n  \"role\": \"staff\",\n  \"department\": \"IT\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/users/create_account/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "users", "create_account", ""]
+        },
+        "description": "Creates a new staff account with temporary password sent via email"
+      },
+      "response": []
+    },
+    {
+      "name": "Login with Temporary Password",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"programchair@example.com\",\n  \"password\": \"replace_with_temp_password\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/token/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "token", ""]
+        },
+        "description": "Login with email and temporary password to receive JWT tokens"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Current User (Authenticated)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8000/api/users/me/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "users", "me", ""]
+        },
+        "description": "Get current user details (requires valid JWT token)"
+      },
+      "response": []
+    },
+    {
+      "name": "Refresh JWT Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/token/refresh/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "token", "refresh", ""]
+        },
+        "description": "Refresh the JWT access token using the refresh token"
+      },
+      "response": []
+    },
+    {
+      "name": "Get User by ID",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8000/api/users/1/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "users", "1", ""]
+        },
+        "description": "Get user details by ID (requires valid JWT token)"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
