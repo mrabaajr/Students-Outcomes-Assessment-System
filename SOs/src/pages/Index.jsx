@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useStudentOutcomes } from '../../hooks/useStudentOutcomes';
-import { SOTabs } from '../../components/StudentOutcomes/SOTabs';
-import { SODetails } from '../../components/StudentOutcomes/SODetails';
-import { PITable } from '../../components/StudentOutcomes/PITable';
-import { Button } from '../../components/ui/button';
-import { useToast } from '../../hooks/use-toast';
+import { useStudentOutcomes } from '@/hooks/useStudentOutcomes';
+import { Header } from '@/components/StudentOutcomes/Header';
+import { SOTabs } from '@/components/StudentOutcomes/SOTabs';
+import { SODetails } from '@/components/StudentOutcomes/SODetails';
+import { PITable } from '@/components/StudentOutcomes/PITable';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
-const StudentOutcomes = () => {
+const Index = () => {
   const {
     outcomes,
     hasUnsavedChanges,
@@ -52,7 +53,8 @@ const StudentOutcomes = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
+      <Header />
       <SOTabs
         outcomes={outcomes}
         selectedId={selectedId}
@@ -90,7 +92,7 @@ const StudentOutcomes = () => {
             </div>
           </>
         ) : (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-muted-foreground">
             No student outcomes yet. Click "Add new SO" to create one.
           </div>
         )}
@@ -99,4 +101,4 @@ const StudentOutcomes = () => {
   );
 };
 
-export default StudentOutcomes;
+export default Index;

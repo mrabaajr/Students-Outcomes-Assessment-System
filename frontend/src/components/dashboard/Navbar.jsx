@@ -2,10 +2,10 @@ import { GraduationCap, BookOpen, FileText, BarChart3, User } from "lucide-react
 import { useNavigate } from "react-router-dom";
 
 const navItems = [
-  { icon: GraduationCap, label: "Student Outcomes" },
-  { icon: BookOpen, label: "Courses" },
-  { icon: FileText, label: "Assessment" },
-  { icon: BarChart3, label: "Reports" },
+  { icon: GraduationCap, label: "Student Outcomes", link: "/programchair/student-outcomes" },
+  { icon: BookOpen, label: "Courses", link: "#" },
+  { icon: FileText, label: "Assessment", link: "#" },
+  { icon: BarChart3, label: "Reports", link: "#" },
 ];
 
 const Navbar = () => {
@@ -35,14 +35,14 @@ const Navbar = () => {
           {/* Navigation Links */}
           <div className="hidden md:flex items-center gap-1">
             {navItems.map((item, index) => (
-              <a
+              <button
                 key={index}
-                href="#"
+                onClick={() => navigate(item.link)}
                 className="flex items-center gap-2 px-4 py-2 text-sm text-[#A5A8AB] hover:text-white transition-colors"
               >
                 <item.icon size={16} />
                 <span>{item.label}</span>
-              </a>
+              </button>
             ))}
           </div>
 

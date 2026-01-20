@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
 import { Plus, FileText, Settings, GitBranch, ClipboardList, BarChart3, ArrowRight, Target, BookOpen, Users, TrendingUp, CheckCircle, Clock, AlertCircle } from "lucide-react";
@@ -42,24 +43,28 @@ const actions = [
     title: "Manage SOs",
     description: "Create and edit student outcomes and rubrics",
     color: "text-primary",
+    link: "/programchair/student-outcomes",
   },
   {
     icon: GitBranch,
     title: "Course Mapping",
     description: "Map courses to student outcomes for assessment",
     color: "text-primary",
+    link: "#",
   },
   {
     icon: ClipboardList,
     title: "Input Scores",
     description: "Enter student assessment scores and evaluations",
     color: "text-primary",
+    link: "#",
   },
   {
     icon: BarChart3,
     title: "View Reports",
     description: "Generate summaries and analytics reports",
     color: "text-primary",
+    link: "#",
   },
 ];
 
@@ -130,6 +135,8 @@ const activities = [
 ];
 
 const App = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
@@ -199,7 +206,11 @@ const App = () => {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {actions.map((action, index) => (
-                <a key={index} href="#" className="glass-card p-5 hover-lift group cursor-pointer">
+                <div 
+                  key={index} 
+                  onClick={() => navigate(action.link)}
+                  className="glass-card p-5 hover-lift group cursor-pointer"
+                >
                   <div className="flex items-start justify-between mb-3">
                     <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                       <action.icon size={20} className={action.color} />
@@ -214,7 +225,7 @@ const App = () => {
                     {action.title}
                   </h3>
                   <p className="text-xs text-[#6B6B6B]">{action.description}</p>
-                </a>
+                </div>
               ))}
             </div>
           </div>
