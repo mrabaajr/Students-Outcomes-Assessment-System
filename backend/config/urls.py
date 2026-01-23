@@ -3,10 +3,23 @@ URL configuration for config project.
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework.routers import DefaultRouter
 from users.views import UserViewSet
 from assessments.views import LearningOutcomeViewSet, AssessmentViewSet, AssessmentResultViewSet
+
+def root_view(request):
+    return JsonResponse({
+        'message': 'Students Outcomes Assessment System API',
+        'version': '1.0',
+        'endpoints': {
+            'api': '/api/',
+            'admin': '/admin/',
+            'token': '/api/token/',
+            'token_refresh': '/api/token/refresh/',
+        }
+    })
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -15,6 +28,7 @@ router.register(r'assessments/assessments', AssessmentViewSet, basename='assessm
 router.register(r'assessments/results', AssessmentResultViewSet, basename='assessment-result')
 
 urlpatterns = [
+    path('', root_view, name='root'),
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
     path('api/auth/', include('rest_framework.urls')),
