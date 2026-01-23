@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import ProgramChairDashboard from './pages/programchair/Dashboard'
+import StudentOutcomes from './pages/programchair/StudentOutcomes'
 import StaffHome from './pages/staff/Home'
 import StaffLogin from './pages/staff/Login'
 import StaffDashboard from './pages/staff/Dashboard'
@@ -20,6 +21,18 @@ export default function App() {
               <ProgramChairDashboard />
             </ProtectedRoute>
           } 
+        />
+        <Route 
+          path="/programchair/student-outcomes" 
+          element={
+            <ProtectedRoute>
+              <StudentOutcomes />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/programchair" 
+          element={<Navigate to="/programchair/dashboard" />} 
         />
         
         {/* Staff Routes */}
