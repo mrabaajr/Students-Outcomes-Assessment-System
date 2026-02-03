@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { Eye, EyeOff, Mail, Lock, ArrowRight, User, Users } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 

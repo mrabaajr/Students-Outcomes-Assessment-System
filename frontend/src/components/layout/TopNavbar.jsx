@@ -7,8 +7,8 @@ import {
   LogOut,
   Target,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { cn } from "../../lib/utils";
+import { Button } from "../ui/button";
 
 const navLinks = [
   { to: "/", label: "Student Outcomes", icon: Target },

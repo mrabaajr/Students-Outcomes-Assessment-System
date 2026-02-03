@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Search, ChevronLeft, ChevronRight, Filter, BookOpen } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { departments, academicYears } from '@/data/mockCoursesData';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
+import { departments, academicYears } from '../../data/mockCoursesData';
 
 const CoursesSidebar = ({ 
   collapsed, 

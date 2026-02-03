@@ -1,6 +1,5 @@
 import { Check, X } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { studentOutcomes } from '@/data/mockCoursesData';
+import { studentOutcomes } from '../../data/mockCoursesData';
 
 const SOMappingMatrix = ({ courses, onToggleMapping }) => {
   const handleCellClick = (courseId, soId, isMapped) => {
@@ -10,87 +9,83 @@ const SOMappingMatrix = ({ courses, onToggleMapping }) => {
   };
 
   return (
-    <Card className="bg-card">
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold">Course-to-SO Mapping Matrix</CardTitle>
-        <p className="text-sm text-muted-foreground">
+    <div className="glass-card p-6">
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-[#231F20] mb-2">Course-to-SO Mapping Matrix</h3>
+        <p className="text-sm text-[#6B6B6B]">
           Click on cells to toggle mappings. Yellow indicates a mapped relationship.
         </p>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className="p-3 text-left font-medium text-foreground bg-muted border border-border">
-                  Course
-                </th>
-                {studentOutcomes.map((so) => (
-                  <th 
-                    key={so.id} 
-                    className="p-3 text-center font-medium text-foreground bg-muted border border-border min-w-[80px]"
-                    title={so.description}
-                  >
-                    {so.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {courses.map((course) => (
-                <tr key={course.id}>
-                  <td className="p-3 font-medium text-foreground border border-border bg-card">
-                    <div>
-                      <span className="font-bold">{course.code}</span>
-                      <span className="text-muted-foreground ml-2 text-sm">
-                        ({course.section})
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{course.name}</p>
-                  </td>
-                  {studentOutcomes.map((so) => {
-                    const isMapped = course.mappedSOs.includes(so.id);
-                    return (
-                      <td 
-                        key={so.id}
-                        onClick={() => handleCellClick(course.id, so.id, isMapped)}
-                        className={`p-3 text-center border border-border cursor-pointer transition-colors ${
-                          isMapped 
-                            ? 'bg-primary/20 hover:bg-primary/30' 
-                            : 'bg-card hover:bg-muted'
-                        }`}
-                      >
-                        {isMapped ? (
-                          <Check className="h-5 w-5 mx-auto text-primary" />
-                        ) : (
-                          <X className="h-5 w-5 mx-auto text-muted-foreground/30" />
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-6 mt-4 pt-4 border-t border-border">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-primary/20 rounded flex items-center justify-center">
-              <Check className="h-4 w-4 text-primary" />
-            </div>
-            <span className="text-sm text-muted-foreground">Mapped</span>
+      <div className="overflow-x-auto rounded-lg border border-[#E5E7EB] bg-white">
+        <table className="w-full border-collapse">
+          <thead className="bg-[#F5F5F5]">
+            <tr>
+              <th className="p-4 text-left font-semibold text-[#231F20] border-b border-[#E5E7EB] sticky left-0 bg-[#F5F5F5] z-10">
+                Course
+              </th>
+              {studentOutcomes.map((so) => (
+                <th 
+                  key={so.id} 
+                  className="p-4 text-center font-semibold text-[#231F20] border-b border-[#E5E7EB] min-w-[100px]"
+                  title={so.description}
+                >
+                  <div className="text-xs">{so.code}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {courses.map((course, index) => (
+              <tr key={course.id} className="hover:bg-[#F9FAFB] transition-colors">
+                <td className="p-4 font-medium text-[#231F20] border-b border-[#E5E7EB] bg-white sticky left-0 z-10">
+                  <div>
+                    <span className="font-bold">{course.code}</span>
+                  </div>
+                  <p className="text-xs text-[#6B6B6B] mt-1">{course.name}</p>
+                </td>
+                {studentOutcomes.map((so) => {
+                  const isMapped = course.mappedSOs.includes(so.id);
+                  return (
+                    <td 
+                      key={so.id}
+                      onClick={() => handleCellClick(course.id, so.id, isMapped)}
+                      className={`p-4 text-center border-b border-[#E5E7EB] cursor-pointer transition-colors ${
+                        isMapped 
+                          ? 'bg-[#FFC20E]/20 hover:bg-[#FFC20E]/30' 
+                          : 'bg-white hover:bg-[#F5F5F5]'
+                      }`}
+                    >
+                      {isMapped ? (
+                        <Check className="h-5 w-5 mx-auto text-[#FFC20E]" />
+                      ) : (
+                        <X className="h-5 w-5 mx-auto text-[#A5A8AB]/30" />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-6 mt-6 pt-4 border-t border-[#E5E7EB]">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-[#FFC20E]/20 rounded flex items-center justify-center">
+            <Check className="h-5 w-5 text-[#FFC20E]" />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-muted rounded flex items-center justify-center">
-              <X className="h-4 w-4 text-muted-foreground/30" />
-            </div>
-            <span className="text-sm text-muted-foreground">Not Mapped</span>
-          </div>
+          <span className="text-sm text-[#6B6B6B]">Mapped to SO</span>
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-[#F5F5F5] rounded flex items-center justify-center">
+            <X className="h-5 w-5 text-[#A5A8AB]/30" />
+          </div>
+          <span className="text-sm text-[#6B6B6B]">Not Mapped</span>
+        </div>
+      </div>
+    </div>
   );
 };
 

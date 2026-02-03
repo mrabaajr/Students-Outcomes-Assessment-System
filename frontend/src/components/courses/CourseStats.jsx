@@ -1,60 +1,55 @@
 import { BookOpen, CheckCircle, Link, BarChart3 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 
-const StatCard = ({ icon: Icon, label, value, subtext, iconBgClass }) => (
-  <Card className="bg-card">
-    <CardContent className="p-4">
-      <div className="flex items-start gap-4">
-        <div className={`p-3 rounded-lg ${iconBgClass}`}>
-          <Icon className="h-5 w-5 text-primary-foreground" />
-        </div>
-        <div>
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="text-2xl font-bold text-foreground">{value}</p>
-          {subtext && <p className="text-xs text-muted-foreground">{subtext}</p>}
-        </div>
+const StatCard = ({ icon: Icon, label, value, subtext, iconColor }) => (
+  <div className="glass-card p-5 hover-lift">
+    <div className="flex items-start justify-between mb-3">
+      <div className={`w-10 h-10 ${iconColor}/10 rounded-lg flex items-center justify-center`}>
+        <Icon className={`h-5 w-5 ${iconColor}`} />
       </div>
-    </CardContent>
-  </Card>
+    </div>
+    <p className="text-xs text-[#6B6B6B] font-medium mb-1">{label}</p>
+    <p className="text-3xl font-bold text-[#231F20] mb-1">{value}</p>
+    {subtext && <p className="text-xs text-[#6B6B6B]">{subtext}</p>}
+  </div>
 );
 
 const CourseStats = ({ courses }) => {
   const totalCourses = courses.length;
-  const activeCourses = courses.filter(c => c.status === 'active').length;
+  const activeCourses = courses.filter(c => (c.status || 'active') === 'active').length;
   const mappedCourses = courses.filter(c => c.mappedSOs.length > 0).length;
   const avgSOCoverage = Math.round(
-    (courses.reduce((acc, c) => acc + c.mappedSOs.length, 0) / (totalCourses * 6)) * 100
+    (courses.reduce((acc, c) => acc + c.mappedSOs.length, 0) / (totalCourses * 7)) * 100
   );
 
   return (
-    <div className="grid grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <StatCard
         icon={BookOpen}
-        label="Total Courses"
+        label="TOTAL COURSES"
         value={totalCourses}
         subtext="All registered courses"
-        iconBgClass="bg-header"
+        iconColor="text-primary"
       />
       <StatCard
         icon={CheckCircle}
-        label="Active Courses"
+        label="ACTIVE COURSES"
         value={activeCourses}
         subtext={`${totalCourses - activeCourses} inactive`}
-        iconBgClass="bg-success"
+        iconColor="text-success"
       />
       <StatCard
         icon={Link}
-        label="Mapped to SOs"
+        label="MAPPED TO SOs"
         value={mappedCourses}
-        subtext={`${Math.round((mappedCourses / totalCourses) * 100)}% mapped`}
-        iconBgClass="bg-primary"
+        subtext={`${Math.round((mappedCourses / totalCourses) * 100)}% coverage`}
+        iconColor="text-primary"
       />
       <StatCard
         icon={BarChart3}
-        label="Avg SO Coverage"
+        label="AVG SO COVERAGE"
         value={`${avgSOCoverage}%`}
         subtext="Across all courses"
-        iconBgClass="bg-warning"
+        iconColor="text-primary"
       />
     </div>
   );

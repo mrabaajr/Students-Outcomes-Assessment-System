@@ -8,7 +8,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from '../ui/alert-dialog';
 
 const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, course }) => {
   return (

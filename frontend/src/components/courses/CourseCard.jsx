@@ -1,75 +1,84 @@
 import { Eye, Pencil, Trash2, Users, BookMarked } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '../ui/button';
 
 const CourseCard = ({ course, onView, onEdit, onDelete }) => {
   return (
-    <Card className="bg-card hover:shadow-lg transition-shadow">
-      <CardContent className="p-4">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-foreground">{course.code}</h3>
-              <Badge 
-                variant={course.status === 'active' ? 'default' : 'secondary'}
-                className={course.status === 'active' ? 'bg-success text-success-foreground' : ''}
-              >
-                {course.status}
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">{course.name}</p>
+    <div className="glass-card p-5 hover-lift">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-bold text-[#231F20] text-lg">{course.code}</h3>
+            <span className={`text-xs px-2 py-0.5 rounded ${
+              course.status === 'active' 
+                ? 'bg-success/10 text-success font-medium' 
+                : 'bg-[#A5A8AB]/20 text-[#6B6B6B] font-medium'
+            }`}>
+              {course.status || 'active'}
+            </span>
           </div>
-          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-            Section {course.section}
-          </span>
+          <p className="text-sm text-[#6B6B6B]">{course.name}</p>
         </div>
+      </div>
 
-        {/* Details */}
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <BookMarked className="h-4 w-4" />
-            <span>{course.department}</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Users className="h-4 w-4" />
-            <span>{course.studentCount} Students</span>
-          </div>
+      {/* Details */}
+      <div className="space-y-2 mb-4">
+        <div className="flex items-center gap-2 text-sm text-[#6B6B6B]">
+          <BookMarked className="h-4 w-4" />
+          <span>{course.department}</span>
         </div>
+        <div className="flex items-center gap-2 text-sm text-[#6B6B6B]">
+          <Users className="h-4 w-4" />
+          <span>{course.enrolledStudents} Students • {course.academicYear}</span>
+        </div>
+      </div>
 
-        {/* SO Badges */}
-        <div className="mb-4">
-          <p className="text-xs text-muted-foreground mb-2">Mapped SOs:</p>
-          <div className="flex flex-wrap gap-1">
-            {course.mappedSOs.length > 0 ? (
-              course.mappedSOs.map((so) => (
-                <Badge key={so} variant="outline" className="bg-primary/10 text-primary border-primary/30 text-xs">
-                  {so}
-                </Badge>
-              ))
-            ) : (
-              <span className="text-xs text-muted-foreground italic">No SOs mapped</span>
-            )}
-          </div>
+      {/* SO Badges */}
+      <div className="mb-4 pb-4 border-b border-[#E5E7EB]">
+        <p className="text-xs text-[#6B6B6B] mb-2">Mapped SOs:</p>
+        <div className="flex flex-wrap gap-1">
+          {course.mappedSOs.length > 0 ? (
+            course.mappedSOs.map((so) => (
+              <span key={so} className="bg-[#FFC20E]/20 text-[#231F20] border border-[#FFC20E]/30 text-xs px-2 py-1 rounded font-medium">
+                {so}
+              </span>
+            ))
+          ) : (
+            <span className="text-xs text-[#A5A8AB] italic">No SOs mapped</span>
+          )}
         </div>
+      </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 pt-3 border-t border-border">
-          <Button variant="outline" size="sm" onClick={() => onView(course)} className="flex-1">
-            <Eye className="h-4 w-4 mr-1" />
-            View
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => onEdit(course)} className="flex-1">
-            <Pencil className="h-4 w-4 mr-1" />
-            Edit
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => onDelete(course)} className="text-destructive hover:text-destructive">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Actions */}
+      <div className="flex items-center gap-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => onView(course)} 
+          className="flex-1 border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#231F20]"
+        >
+          <Eye className="h-4 w-4 mr-1" />
+          View
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => onEdit(course)} 
+          className="flex-1 border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#231F20]"
+        >
+          <Pencil className="h-4 w-4 mr-1" />
+          Edit
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => onDelete(course)} 
+          className="border-[#E5E7EB] hover:bg-destructive/10 text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
   );
 };
 

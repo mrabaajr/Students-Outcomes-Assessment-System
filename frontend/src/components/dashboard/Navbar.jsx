@@ -1,15 +1,21 @@
 import { GraduationCap, BookOpen, FileText, BarChart3, User } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const navItems = [
   { icon: GraduationCap, label: "Student Outcomes", link: "/programchair/student-outcomes" },
-  { icon: BookOpen, label: "Courses", link: "#" },
-  { icon: FileText, label: "Assessment", link: "#" },
+  { icon: BookOpen, label: "Courses", link: "/programchair/courses" },
+  { icon: FileText, label: "Assessment", link: "/programchair/assessment" },
   { icon: BarChart3, label: "Reports", link: "#" },
 ];
 
 const Navbar = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isActive = (link) => {
+    if (link === "#") return false;
+    return location.pathname === link;
+  };
 
   const handleLogout = () => {
     // Clear tokens from localStorage
@@ -25,12 +31,15 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <a href="#" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <button 
+            onClick={() => navigate("/programchair/dashboard")}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
             <div>
               <span className="font-bold text-white">SO Assessment</span>
               <span className="text-xs text-[#FFC20E] block">T.I.P. ENGINEERING</span>
             </div>
-          </a>
+          </button>
 
           {/* Navigation Links */}
           <div className="hidden md:flex items-center gap-1">
@@ -38,7 +47,11 @@ const Navbar = () => {
               <button
                 key={index}
                 onClick={() => navigate(item.link)}
-                className="flex items-center gap-2 px-4 py-2 text-sm text-[#A5A8AB] hover:text-white transition-colors"
+                className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
+                  isActive(item.link)
+                    ? "text-[#FFC20E] font-semibold"
+                    : "text-[#A5A8AB] hover:text-white"
+                }`}
               >
                 <item.icon size={16} />
                 <span>{item.label}</span>

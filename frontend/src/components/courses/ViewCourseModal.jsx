@@ -1,7 +1,7 @@
 import { BookOpen, Users, Calendar, Building, Tag } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { studentOutcomes } from '@/data/mockCoursesData';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Badge } from '../ui/badge';
+import { studentOutcomes } from '../../data/mockCoursesData';
 
 const ViewCourseModal = ({ isOpen, onClose, course }) => {
   if (!course) return null;

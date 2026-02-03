@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 
 export function GradeInput({ value, onChange, disabled }) {
   const [localValue, setLocalValue] = useState(value?.toString() ?? "");

@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './pages/Login'
 import ProgramChairDashboard from './pages/programchair/Dashboard'
 import StudentOutcomes from './pages/programchair/StudentOutcomes'
+import Courses from './pages/programchair/Courses'
+import SOAssessment from './pages/programchair/SOAssessment'
 import StaffHome from './pages/staff/Home'
 import StaffLogin from './pages/staff/Login'
 import StaffDashboard from './pages/staff/Dashboard'
@@ -27,6 +29,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <StudentOutcomes />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/programchair/courses" 
+          element={
+            <ProtectedRoute>
+              <Courses />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/programchair/assessment" 
+          element={
+            <ProtectedRoute>
+              <SOAssessment />
             </ProtectedRoute>
           } 
         />
