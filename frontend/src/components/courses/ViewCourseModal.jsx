@@ -1,12 +1,14 @@
 import { BookOpen, Users, Calendar, Building, Tag } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
-import { studentOutcomes } from '../../data/mockCoursesData';
 
-const ViewCourseModal = ({ isOpen, onClose, course }) => {
+const ViewCourseModal = ({ isOpen, onClose, course, studentOutcomes = [] }) => {
   if (!course) return null;
 
-  const mappedSODetails = studentOutcomes.filter(so => course.mappedSOs.includes(so.id));
+  // Filter mapped SOs - handle both string and number IDs
+  const mappedSODetails = studentOutcomes.filter(so => 
+    course.mappedSOs.some(id => String(id) === String(so.id))
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -48,7 +50,7 @@ const ViewCourseModal = ({ isOpen, onClose, course }) => {
               <Users className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">Students</p>
-                <p className="text-sm font-medium">{course.studentCount}</p>
+                <p className="text-sm font-medium">{course.studentCount || course.enrolledStudents || 0}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -75,9 +77,12 @@ const ViewCourseModal = ({ isOpen, onClose, course }) => {
                 {mappedSODetails.map((so) => (
                   <div key={so.id} className="flex items-start gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
                     <Badge className="bg-primary text-primary-foreground shrink-0">
-                      {so.name}
+                      SO {so.number}
                     </Badge>
-                    <p className="text-sm text-muted-foreground">{so.description}</p>
+                    <div>
+                      <p className="text-sm font-medium">{so.title}</p>
+                      <p className="text-xs text-muted-foreground">{so.description}</p>
+                    </div>
                   </div>
                 ))}
               </div>

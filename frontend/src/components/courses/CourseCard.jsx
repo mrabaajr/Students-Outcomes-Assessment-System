@@ -29,7 +29,7 @@ const CourseCard = ({ course, onView, onEdit, onDelete }) => {
         </div>
         <div className="flex items-center gap-2 text-sm text-[#6B6B6B]">
           <Users className="h-4 w-4" />
-          <span>{course.enrolledStudents} Students • {course.academicYear}</span>
+          <span>{course.studentCount || course.enrolledStudents || 0} Students • {course.academicYear}</span>
         </div>
       </div>
 
@@ -37,10 +37,10 @@ const CourseCard = ({ course, onView, onEdit, onDelete }) => {
       <div className="mb-4 pb-4 border-b border-[#E5E7EB]">
         <p className="text-xs text-[#6B6B6B] mb-2">Mapped SOs:</p>
         <div className="flex flex-wrap gap-1">
-          {course.mappedSOs.length > 0 ? (
-            course.mappedSOs.map((so) => (
-              <span key={so} className="bg-[#FFC20E]/20 text-[#231F20] border border-[#FFC20E]/30 text-xs px-2 py-1 rounded font-medium">
-                {so}
+          {course.mappedSOs && course.mappedSOs.length > 0 ? (
+            course.mappedSOs.map((soId) => (
+              <span key={soId} className="bg-[#FFC20E]/20 text-[#231F20] border border-[#FFC20E]/30 text-xs px-2 py-1 rounded font-medium">
+                SO {soId}
               </span>
             ))
           ) : (

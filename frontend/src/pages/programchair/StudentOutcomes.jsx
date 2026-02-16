@@ -7,13 +7,15 @@ import { Button } from '../../components/ui/button';
 import { useToast } from '../../hooks/use-toast';
 import Navbar from '../../components/dashboard/Navbar';
 import Footer from '../../components/dashboard/Footer';
-import { Plus, Settings } from 'lucide-react';
+import { Plus, Settings, Loader2 } from 'lucide-react';
 
 const StudentOutcomes = () => {
   const {
     outcomes,
     hasUnsavedChanges,
-    saveToStorage,
+    isLoading,
+    error,
+    saveToBackend,
     updateOutcome,
     addOutcome,
     deleteOutcome,
@@ -23,6 +25,7 @@ const StudentOutcomes = () => {
   } = useStudentOutcomes();
 
   const [selectedId, setSelectedId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -46,13 +49,40 @@ const StudentOutcomes = () => {
     }
   };
 
-  const handleSave = () => {
-    saveToStorage();
-    toast({
-      title: 'Changes saved',
-      description: 'Your changes have been saved to local storage.',
-    });
+  const handleSave = async () => {
+    setIsSaving(true);
+    const result = await saveToBackend();
+    setIsSaving(false);
+    
+    if (result.success) {
+      toast({
+        title: 'Changes saved',
+        description: 'Your changes have been saved to the database.',
+      });
+    } else {
+      toast({
+        title: 'Error saving changes',
+        description: result.message,
+        variant: 'destructive',
+      });
+    }
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-[#FFC20E]" />
+            <p className="text-[#6B6B6B]">Loading student outcomes...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -87,11 +117,15 @@ const StudentOutcomes = () => {
               </button>
               <button 
                 onClick={handleSave}
-                disabled={!hasUnsavedChanges}
+                disabled={!hasUnsavedChanges || isSaving}
                 className="flex items-center gap-2 bg-transparent text-white px-6 py-3 rounded-lg font-medium hover:bg-[#3A3A3A] transition-colors border border-[#A5A8AB] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Settings size={18} />
-                <span>SAVE CHANGES</span>
+                {isSaving ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Settings size={18} />
+                )}
+                <span>{isSaving ? 'SAVING...' : 'SAVE CHANGES'}</span>
               </button>
             </div>
           </div>

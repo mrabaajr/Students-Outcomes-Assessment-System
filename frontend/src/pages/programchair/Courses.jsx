@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { Plus, Grid, TableIcon, BookOpen, Filter, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Grid, TableIcon, BookOpen, Filter, Search, Loader2 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { useToast } from '../../hooks/use-toast';
-import { initialCourses, departments, academicYears } from '../../data/mockCoursesData';
+import { useCourses } from '../../hooks/useCourses';
+import { useStudentOutcomes } from '../../hooks/useStudentOutcomes';
+import { departments, academicYears } from '../../data/mockCoursesData';
 import Navbar from '../../components/dashboard/Navbar';
 import Footer from '../../components/dashboard/Footer';
 
@@ -15,8 +17,19 @@ import SOMappingMatrix from '../../components/courses/SOMappingMatrix';
 
 const Courses = () => {
   const { toast } = useToast();
-  const [courses, setCourses] = useState(initialCourses);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { 
+    courses, 
+    isLoading, 
+    error, 
+    addCourse, 
+    updateCourse, 
+    deleteCourse, 
+    toggleSOMapping 
+  } = useCourses();
+  
+  // Fetch student outcomes from backend
+  const { outcomes: studentOutcomes, isLoading: soLoading } = useStudentOutcomes();
+  
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'matrix'
   
   // Filters
@@ -30,8 +43,9 @@ const Courses = () => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Filter courses
+  // Filter courses locally (in addition to backend filtering)
   const filteredCourses = courses.filter(course => {
     const matchesSearch = course.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          course.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -63,52 +77,100 @@ const Courses = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const handleSaveCourse = (courseData) => {
+  const handleSaveCourse = async (courseData) => {
+    setIsSaving(true);
+    let success = false;
+    
     if (editingCourse) {
-      setCourses(prev => prev.map(c => 
-        c.id === editingCourse.id ? { ...c, ...courseData } : c
-      ));
-      toast({
-        title: "Course Updated",
-        description: `${courseData.code} has been updated successfully.`,
-      });
+      const result = await updateCourse(editingCourse.id, courseData);
+      if (result.success) {
+        toast({
+          title: "Course Updated",
+          description: `${courseData.code} has been updated successfully.`,
+        });
+        success = true;
+      } else {
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
+        });
+      }
     } else {
-      setCourses(prev => [...prev, courseData]);
-      toast({
-        title: "Course Added",
-        description: `${courseData.code} has been added successfully.`,
-      });
+      const result = await addCourse(courseData);
+      if (result.success) {
+        toast({
+          title: "Course Added",
+          description: `${courseData.code} has been added successfully.`,
+        });
+        success = true;
+      } else {
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
+        });
+      }
+    }
+    
+    setIsSaving(false);
+    if (success) {
+      setIsAddModalOpen(false);
     }
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (selectedCourse) {
-      setCourses(prev => prev.filter(c => c.id !== selectedCourse.id));
-      toast({
-        title: "Course Deleted",
-        description: `${selectedCourse.code} has been deleted.`,
-        variant: "destructive",
-      });
+      const result = await deleteCourse(selectedCourse.id);
+      if (result.success) {
+        toast({
+          title: "Course Deleted",
+          description: `${selectedCourse.code} has been deleted.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
+        });
+      }
       setIsDeleteModalOpen(false);
       setSelectedCourse(null);
     }
   };
 
-  const handleToggleMapping = (courseId, soId, shouldMap) => {
-    setCourses(prev => prev.map(course => {
-      if (course.id === courseId) {
-        const newMappedSOs = shouldMap 
-          ? [...course.mappedSOs, soId]
-          : course.mappedSOs.filter(id => id !== soId);
-        return { ...course, mappedSOs: newMappedSOs };
-      }
-      return course;
-    }));
-    toast({
-      title: shouldMap ? "Mapping Added" : "Mapping Removed",
-      description: `SO mapping has been ${shouldMap ? 'added' : 'removed'}.`,
-    });
+  const handleToggleMapping = async (courseId, soId, shouldMap) => {
+    const result = await toggleSOMapping(courseId, soId, shouldMap);
+    if (result.success) {
+      toast({
+        title: shouldMap ? "Mapping Added" : "Mapping Removed",
+        description: `SO mapping has been ${shouldMap ? 'added' : 'removed'}.`,
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      });
+    }
   };
+
+  // Show loading state
+  if (isLoading || soLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-[#FFC20E]" />
+            <p className="text-[#6B6B6B]">Loading courses...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -258,6 +320,7 @@ const Courses = () => {
             ) : (
               <SOMappingMatrix 
                 courses={filteredCourses} 
+                studentOutcomes={studentOutcomes}
                 onToggleMapping={handleToggleMapping}
               />
             )}
@@ -273,6 +336,8 @@ const Courses = () => {
         onClose={() => setIsAddModalOpen(false)}
         onSave={handleSaveCourse}
         editingCourse={editingCourse}
+        studentOutcomes={studentOutcomes}
+        isSaving={isSaving}
       />
       <DeleteConfirmModal
         isOpen={isDeleteModalOpen}
@@ -284,6 +349,7 @@ const Courses = () => {
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
         course={selectedCourse}
+        studentOutcomes={studentOutcomes}
       />
     </div>
   );

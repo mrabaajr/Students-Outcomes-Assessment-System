@@ -11,6 +11,7 @@ export const studentOutcomes = [
 ];
 
 export const departments = [
+  'Computer Engineering',
   'Computer Science',
   'Information Technology',
   'Software Engineering',
@@ -27,8 +28,8 @@ export const academicYears = [
 ];
 
 export const semesters = [
-  'Fall',
-  'Spring',
+  '1st Semester',
+  '2nd Semester',
   'Summer',
 ];
 

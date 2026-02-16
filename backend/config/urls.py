@@ -8,6 +8,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework.routers import DefaultRouter
 from users.views import UserViewSet
 from assessments.views import LearningOutcomeViewSet, AssessmentViewSet, AssessmentResultViewSet
+from so.views import StudentOutcomeViewSet, PerformanceIndicatorViewSet
+from courses.views import CourseViewSet
 
 def root_view(request):
     return JsonResponse({
@@ -26,6 +28,9 @@ router.register(r'users', UserViewSet)
 router.register(r'assessments/outcomes', LearningOutcomeViewSet, basename='learning-outcome')
 router.register(r'assessments/assessments', AssessmentViewSet, basename='assessment')
 router.register(r'assessments/results', AssessmentResultViewSet, basename='assessment-result')
+router.register(r'student-outcomes', StudentOutcomeViewSet, basename='student-outcome')
+router.register(r'performance-indicators', PerformanceIndicatorViewSet, basename='performance-indicator')
+router.register(r'courses', CourseViewSet, basename='course')
 
 urlpatterns = [
     path('', root_view, name='root'),
