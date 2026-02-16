@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 
+const API_BASE_URL = 'http://localhost:8000/api'
+
 export default function Dashboard() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -10,14 +12,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const token = localStorage.getItem('access_token')
+      const token = localStorage.getItem('accessToken')
       if (!token) {
-        navigate('/login')
+        navigate('/')
         return
       }
 
       try {
-        const response = await axios.get('/api/users/me/', {
+        const response = await axios.get(`${API_BASE_URL}/users/me/`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -25,9 +27,9 @@ export default function Dashboard() {
         setUser(response.data)
       } catch (err) {
         setError('Failed to load user data')
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        navigate('/login')
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        navigate('/')
       } finally {
         setLoading(false)
       }
@@ -37,8 +39,8 @@ export default function Dashboard() {
   }, [navigate])
 
   const handleLogout = () => {
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
     navigate('/')
   }
 

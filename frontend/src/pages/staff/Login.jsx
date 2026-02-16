@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 
+const API_BASE_URL = 'http://localhost:8000/api'
+
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -15,14 +17,14 @@ export default function Login() {
     setLoading(true)
 
     try {
-      const response = await axios.post('/api/auth/login/', {
+      const response = await axios.post(`${API_BASE_URL}/users/login/`, {
         email,
         password,
       })
 
-      localStorage.setItem('access_token', response.data.access)
-      localStorage.setItem('refresh_token', response.data.refresh)
-      navigate('/dashboard')
+      localStorage.setItem('accessToken', response.data.access)
+      localStorage.setItem('refreshToken', response.data.refresh)
+      navigate('/staff/dashboard')
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed')
     } finally {
