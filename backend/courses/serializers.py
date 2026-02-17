@@ -3,6 +3,7 @@ from rest_framework import serializers
 from .models import CourseSOMapping
 from so.models import StudentOutcome
 from so.serializers import StudentOutcomeSerializer
+from .models import Curriculum, Course
 
 
 class CourseSOMappingSerializer(serializers.ModelSerializer):
@@ -82,3 +83,14 @@ class CourseSOMappingSOToggleSerializer(serializers.Serializer):
     """Serializer for toggling SO mapping on a CourseSOMapping"""
     so_id = serializers.IntegerField()
     should_map = serializers.BooleanField()
+
+class CurriculumSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Curriculum
+        fields = '__all__'
+
+
+class CourseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Course
+        fields = '__all__'

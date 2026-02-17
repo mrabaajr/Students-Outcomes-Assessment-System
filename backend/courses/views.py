@@ -11,6 +11,9 @@ from .serializers import (
     CourseSOMappingSOToggleSerializer
 )
 from so.models import StudentOutcome
+from .models import Curriculum, Course
+from .serializers import CurriculumSerializer, CourseSerializer
+
 
 
 class CourseSOMappingViewSet(viewsets.ModelViewSet):
@@ -82,3 +85,30 @@ class CourseSOMappingViewSet(viewsets.ModelViewSet):
 
         output_serializer = CourseSOMappingSerializer(mapping)
         return Response({'message': message, 'courseMapping': output_serializer.data})
+    
+class CurriculumViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for listing curricula (2018, 2023, etc.)
+    """
+    queryset = Curriculum.objects.all()
+    serializer_class = CurriculumSerializer
+    permission_classes = [AllowAny]
+
+
+class CourseViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for listing courses
+    """
+    queryset = Course.objects.select_related('curriculum').all()
+    serializer_class = CourseSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        curriculum = self.request.query_params.get('curriculum')
+        if curriculum:
+            queryset = queryset.filter(curriculum_id=curriculum)
+
+        return queryset
+

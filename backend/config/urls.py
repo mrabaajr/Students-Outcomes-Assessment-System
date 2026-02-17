@@ -10,7 +10,8 @@ from rest_framework.routers import DefaultRouter
 from users.views import UserViewSet
 from assessments.views import LearningOutcomeViewSet, AssessmentViewSet, AssessmentResultViewSet
 from so.views import StudentOutcomeViewSet, PerformanceIndicatorViewSet
-from courses.views import CourseSOMappingViewSet  # only the new viewset
+from courses.views import (CourseSOMappingViewSet,CurriculumViewSet,CourseViewSet,)
+
 
 def root_view(request):
     return JsonResponse({
@@ -32,8 +33,11 @@ router.register(r'assessments/results', AssessmentResultViewSet, basename='asses
 router.register(r'student-outcomes', StudentOutcomeViewSet, basename='student-outcome')
 router.register(r'performance-indicators', PerformanceIndicatorViewSet, basename='performance-indicator')
 
-# Only register the new CourseSOMapping endpoint
+
 router.register(r'course-so-mappings', CourseSOMappingViewSet, basename='course-so-mapping')
+router.register(r'curricula', CurriculumViewSet, basename='curriculum')
+router.register(r'courses', CourseViewSet, basename='course')
+
 
 urlpatterns = [
     path('', root_view, name='root'),
