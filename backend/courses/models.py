@@ -1,7 +1,6 @@
 from django.db import models
 from so.models import StudentOutcome
 
-
 class Curriculum(models.Model):
     CURRICULUM_CHOICES = [
         ('2018', '2018'),
@@ -40,13 +39,6 @@ class Course(models.Model):
     credits = models.PositiveIntegerField(default=3, help_text="Number of credits")
     description = models.TextField(blank=True, default='', help_text="Course description")
 
-    mapped_sos = models.ManyToManyField(
-        StudentOutcome,
-        related_name='courses',
-        blank=True,
-        help_text="Student Outcomes mapped to this course"
-    )
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -57,3 +49,40 @@ class Course(models.Model):
 
     def __str__(self):
         return f"{self.code}: {self.name}"
+
+
+# New mapping model
+class CourseSOMapping(models.Model):
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name='so_mappings'
+    )
+    code = models.CharField(max_length=20)
+    name = models.CharField(max_length=255)
+    curriculum = models.ForeignKey(
+        Curriculum,
+        on_delete=models.CASCADE
+    )
+    year_level = models.CharField(max_length=20)
+    semester = models.CharField(max_length=20)
+    credits = models.PositiveIntegerField()
+    description = models.TextField(blank=True, default='')
+
+    mapped_sos = models.ManyToManyField(
+        StudentOutcome,
+        related_name='course_mappings',
+        blank=True
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['code']
+        verbose_name = "Course SO Mapping"
+        verbose_name_plural = "Course SO Mappings"
+
+    def __str__(self):
+        return f"{self.code}: {self.name}"
+    
