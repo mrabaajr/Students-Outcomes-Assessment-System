@@ -13,6 +13,8 @@ from .serializers import (
 from so.models import StudentOutcome
 from .models import Curriculum, Course
 from .serializers import CurriculumSerializer, CourseSerializer
+from rest_framework import viewsets
+from rest_framework.response import Response
 
 
 
@@ -112,3 +114,14 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
 
         return queryset
 
+# Hardcoded academic years for now — you can later pull from your database if needed
+ACADEMIC_YEARS = [
+    {"id": 1, "year": "2023-2024"},
+    {"id": 2, "year": "2024-2025"},
+    {"id": 3, "year": "2025-2026"},
+]
+
+class AcademicYearViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+    def list(self, request):
+        return Response(ACADEMIC_YEARS)

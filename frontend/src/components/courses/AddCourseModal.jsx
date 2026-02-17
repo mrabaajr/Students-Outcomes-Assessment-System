@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
 
-const AddCourseModal = ({ isOpen, onClose, onSave, studentOutcomes = [], isSaving = false }) => {
+const AddCourseModal = ({
+  isOpen,
+  onClose,
+  onSave,
+  studentOutcomes = [],
+  isSaving = false,
+  editingCourse = null,
+}) => {
   const [curricula, setCurricula] = useState([]);
   const [courses, setCourses] = useState([]);
   const [loadingCourses, setLoadingCourses] = useState(false);
@@ -21,6 +28,34 @@ const AddCourseModal = ({ isOpen, onClose, onSave, studentOutcomes = [], isSavin
     status: 'active',
     mappedSOs: [],
   });
+
+  // Autofill form if editingCourse exists
+  useEffect(() => {
+    if (editingCourse) {
+      setFormData({
+        curriculum: editingCourse.curriculum || '',
+        selectedCourseId: editingCourse.id || '',
+        code: editingCourse.code || '',
+        name: editingCourse.name || '',
+        semester: editingCourse.semester || '',
+        academic_year: editingCourse.academic_year || '',
+        status: editingCourse.status || 'active',
+        mappedSOs: editingCourse.mappedSOs?.map(id => String(id)) || [],
+      });
+    } else {
+      // Clear form for new course
+      setFormData({
+        curriculum: '',
+        selectedCourseId: '',
+        code: '',
+        name: '',
+        semester: '',
+        academic_year: '',
+        status: 'active',
+        mappedSOs: [],
+      });
+    }
+  }, [editingCourse, isOpen]);
 
   // Fetch curricula on mount
   useEffect(() => {
@@ -58,7 +93,6 @@ const AddCourseModal = ({ isOpen, onClose, onSave, studentOutcomes = [], isSavin
     fetchCourses();
   }, [formData.curriculum]);
 
-  // Autofill when a course is selected
   const handleCourseSelect = (courseId) => {
     setFormData((prev) => {
       if (!courseId) {
@@ -105,7 +139,9 @@ const AddCourseModal = ({ isOpen, onClose, onSave, studentOutcomes = [], isSavin
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold">Add New Course</DialogTitle>
+          <DialogTitle className="text-xl font-bold">
+            {editingCourse ? 'Edit Course' : 'Add New Course'}
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -251,7 +287,7 @@ const AddCourseModal = ({ isOpen, onClose, onSave, studentOutcomes = [], isSavin
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin inline-block" />
-              ) : 'Add Course'}
+              ) : editingCourse ? 'Update Course' : 'Add Course'}
             </Button>
           </div>
         </form>

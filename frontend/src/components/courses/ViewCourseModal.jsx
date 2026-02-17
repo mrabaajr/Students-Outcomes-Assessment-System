@@ -1,13 +1,16 @@
-import { BookOpen, Users, Calendar, Building, Tag } from 'lucide-react';
+import { BookOpen, Calendar, Tag } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 
 const ViewCourseModal = ({ isOpen, onClose, course, studentOutcomes = [] }) => {
   if (!course) return null;
 
-  // Filter mapped SOs - handle both string and number IDs
+  // Filter mapped SOs - handle both string/number IDs or full objects
   const mappedSODetails = studentOutcomes.filter(so => 
-    course.mappedSOs.some(id => String(id) === String(so.id))
+    course.mappedSOs?.some(mapped => {
+      if (typeof mapped === 'object') return mapped.id === so.id;
+      return String(mapped) === String(so.id);
+    })
   );
 
   return (
@@ -27,32 +30,15 @@ const ViewCourseModal = ({ isOpen, onClose, course, studentOutcomes = [] }) => {
 
         <div className="space-y-4 mt-4">
           {/* Status */}
-          <div className="flex items-center gap-2">
-            <Badge 
-              variant={course.status === 'active' ? 'default' : 'secondary'}
-              className={course.status === 'active' ? 'bg-success text-success-foreground' : ''}
-            >
-              {course.status}
-            </Badge>
-            <span className="text-sm text-muted-foreground">Section {course.section}</span>
-          </div>
+          <Badge 
+            variant={course.status === 'active' ? 'default' : 'secondary'}
+            className={course.status === 'active' ? 'bg-success text-success-foreground' : ''}
+          >
+            {course.status}
+          </Badge>
 
           {/* Details Grid */}
           <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Building className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Department</p>
-                <p className="text-sm font-medium">{course.department}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Students</p>
-                <p className="text-sm font-medium">{course.studentCount || course.enrolledStudents || 0}</p>
-              </div>
-            </div>
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <div>
@@ -69,7 +55,7 @@ const ViewCourseModal = ({ isOpen, onClose, course, studentOutcomes = [] }) => {
             </div>
           </div>
 
-          {/* Mapped SOs */}
+          {/* Mapped Student Outcomes */}
           <div>
             <h4 className="font-medium mb-3">Mapped Student Outcomes</h4>
             {mappedSODetails.length > 0 ? (
