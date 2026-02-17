@@ -26,7 +26,7 @@ class CourseSOMappingViewSet(viewsets.ModelViewSet):
         return CourseSOMappingSerializer
 
     def get_queryset(self):
-        """Filter by curriculum, year_level, semester, or search term"""
+        """Filter by curriculum, year_level, semester, academic_year, or search term"""
         queryset = CourseSOMapping.objects.prefetch_related('mapped_sos').all()
 
         # Filter by curriculum
@@ -43,6 +43,11 @@ class CourseSOMappingViewSet(viewsets.ModelViewSet):
         semester = self.request.query_params.get('semester', None)
         if semester:
             queryset = queryset.filter(semester=semester)
+
+        # Filter by academic_year
+        academic_year = self.request.query_params.get('academic_year', None)
+        if academic_year:
+            queryset = queryset.filter(academic_year=academic_year)
 
         # Search by code or name
         search = self.request.query_params.get('search', None)

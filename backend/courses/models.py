@@ -53,6 +53,12 @@ class Course(models.Model):
 
 # New mapping model
 class CourseSOMapping(models.Model):
+    ACADEMIC_YEAR_CHOICES = [
+        ('2023-2024', '2023-2024'),
+        ('2024-2025', '2024-2025'),
+        ('2025-2026', '2025-2026'),
+    ]
+
     course = models.ForeignKey(
         Course,
         on_delete=models.CASCADE,
@@ -69,6 +75,13 @@ class CourseSOMapping(models.Model):
     credits = models.PositiveIntegerField()
     description = models.TextField(blank=True, default='')
 
+    academic_year = models.CharField(
+        max_length=9,  # enough to hold "2023-2024"
+        choices=ACADEMIC_YEAR_CHOICES,
+        default='2023-2024',
+        help_text="Academic year for this mapping"
+    )
+
     mapped_sos = models.ManyToManyField(
         StudentOutcome,
         related_name='course_mappings',
@@ -84,5 +97,6 @@ class CourseSOMapping(models.Model):
         verbose_name_plural = "Course SO Mappings"
 
     def __str__(self):
-        return f"{self.code}: {self.name}"
+        return f"{self.code}: {self.name} ({self.academic_year})"
+
     

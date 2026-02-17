@@ -1,25 +1,20 @@
-# courses/admin.py
 from django.contrib import admin
-from .models import Curriculum, Course, CourseSOMapping
-from so.models import StudentOutcome
-
-
-@admin.register(Curriculum)
-class CurriculumAdmin(admin.ModelAdmin):
-    list_display = ['year']
-    ordering = ['year']
-
+from .models import Course, Curriculum, CourseSOMapping
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
-    list_display = ['code', 'name', 'curriculum', 'year_level', 'semester', 'credits']
-    list_filter = ['curriculum', 'year_level', 'semester']
-    search_fields = ['code', 'name']
+    list_display = ('code', 'name', 'curriculum', 'year_level', 'semester', 'credits')
+    list_filter = ('curriculum', 'year_level', 'semester')
+    search_fields = ('code', 'name')
 
+@admin.register(Curriculum)
+class CurriculumAdmin(admin.ModelAdmin):
+    list_display = ('year',)
+    search_fields = ('year',)
 
 @admin.register(CourseSOMapping)
 class CourseSOMappingAdmin(admin.ModelAdmin):
-    list_display = ['code', 'name', 'curriculum', 'year_level', 'semester', 'credits']
-    list_filter = ['curriculum', 'year_level', 'semester']
-    search_fields = ['code', 'name']
-    filter_horizontal = ['mapped_sos']  # Makes the M2M field easy to select in the admin
+    list_display = ('code', 'name', 'course', 'curriculum', 'year_level', 'semester', 'credits', 'academic_year')
+    list_filter = ('curriculum', 'year_level', 'semester', 'academic_year')
+    search_fields = ('code', 'name', 'course__code', 'course__name')
+    filter_horizontal = ('mapped_sos',)  # makes the many-to-many field easier to manage

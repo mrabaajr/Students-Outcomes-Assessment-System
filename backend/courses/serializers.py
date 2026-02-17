@@ -23,7 +23,7 @@ class CourseSOMappingSerializer(serializers.ModelSerializer):
         model = CourseSOMapping
         fields = (
             'id', 'course', 'code', 'name', 'curriculum', 'year_level',
-            'semester', 'credits', 'description',
+            'semester', 'credits', 'description', 'academic_year',  # <-- added
             'mapped_sos', 'mapped_sos_details', 'mappedSOs',
             'created_at', 'updated_at'
         )
@@ -31,6 +31,7 @@ class CourseSOMappingSerializer(serializers.ModelSerializer):
 
     def get_mappedSOs(self, obj):
         return [str(so.id) for so in obj.mapped_sos.all()]
+
 
 
 class CourseSOMappingCreateUpdateSerializer(serializers.ModelSerializer):
@@ -45,7 +46,8 @@ class CourseSOMappingCreateUpdateSerializer(serializers.ModelSerializer):
         model = CourseSOMapping
         fields = (
             'id', 'course', 'code', 'name', 'curriculum', 'year_level',
-            'semester', 'credits', 'description', 'mappedSOs'
+            'semester', 'credits', 'description', 'academic_year',  # <-- added
+            'mappedSOs'
         )
         read_only_fields = ('id',)
 
@@ -73,6 +75,7 @@ class CourseSOMappingCreateUpdateSerializer(serializers.ModelSerializer):
             instance.mapped_sos.set(sos)
 
         return instance
+
 
 
 class CourseSOMappingSOToggleSerializer(serializers.Serializer):
