@@ -70,11 +70,22 @@ export function useCourses() {
   const addCourse = async (courseData) => {
     setError(null);
     try {
+      // Map frontend field names to backend expected fields
+      const payload = {
+        course: courseData.selectedCourseId,
+        code: courseData.code,
+        name: courseData.name,
+        curriculum: courseData.curriculum,
+        semester: courseData.semester,
+        academic_year: courseData.academic_year,
+        year_level: courseData.year_level || '',
+        credits: courseData.credits || 3,
+        description: courseData.description || '',
+        mappedSOs: courseData.mappedSOs || [],
+      };
       const response = await axios.post(
         `${API_BASE_URL}/course-so-mappings/`,
-        {
-          ...courseData,
-        },
+        payload,
         { headers: getAuthHeader() }
       );
 
@@ -102,9 +113,22 @@ export function useCourses() {
   const updateCourse = async (courseId, courseData) => {
     setError(null);
     try {
+      // Map frontend field names to backend expected fields
+      const payload = {
+        course: courseData.selectedCourseId || courseData.course,
+        code: courseData.code,
+        name: courseData.name,
+        curriculum: courseData.curriculum,
+        semester: courseData.semester,
+        academic_year: courseData.academic_year,
+        year_level: courseData.year_level || '',
+        credits: courseData.credits || 3,
+        description: courseData.description || '',
+        mappedSOs: courseData.mappedSOs || [],
+      };
       const response = await axios.put(
         `${API_BASE_URL}/course-so-mappings/${courseId}/`,
-        { ...courseData },
+        payload,
         { headers: getAuthHeader() }
       );
 

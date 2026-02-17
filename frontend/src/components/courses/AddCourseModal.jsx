@@ -25,6 +25,9 @@ const AddCourseModal = ({
     name: '',
     semester: '',
     academic_year: '',
+    year_level: '',
+    credits: 3,
+    description: '',
     status: 'active',
     mappedSOs: [],
   });
@@ -34,11 +37,14 @@ const AddCourseModal = ({
     if (editingCourse) {
       setFormData({
         curriculum: editingCourse.curriculum || '',
-        selectedCourseId: editingCourse.id || '',
+        selectedCourseId: editingCourse.course || editingCourse.id || '',
         code: editingCourse.code || '',
         name: editingCourse.name || '',
         semester: editingCourse.semester || '',
         academic_year: editingCourse.academic_year || '',
+        year_level: editingCourse.year_level || '',
+        credits: editingCourse.credits || 3,
+        description: editingCourse.description || '',
         status: editingCourse.status || 'active',
         mappedSOs: editingCourse.mappedSOs?.map(id => String(id)) || [],
       });
@@ -51,6 +57,9 @@ const AddCourseModal = ({
         name: '',
         semester: '',
         academic_year: '',
+        year_level: '',
+        credits: 3,
+        description: '',
         status: 'active',
         mappedSOs: [],
       });
@@ -116,6 +125,9 @@ const AddCourseModal = ({
         name: course.name || '',
         semester: course.semester || '',
         academic_year: course.academic_year || '',
+        year_level: course.year_level || '',
+        credits: course.credits || 3,
+        description: course.description || '',
       };
     });
   };
