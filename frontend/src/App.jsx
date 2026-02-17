@@ -4,6 +4,7 @@ import ProgramChairDashboard from './pages/programchair/Dashboard'
 import StudentOutcomes from './pages/programchair/StudentOutcomes'
 import Courses from './pages/programchair/Courses'
 import SOAssessment from './pages/programchair/SOAssessment'
+import Reports from './pages/programchair/Reports'
 import StaffHome from './pages/staff/Home'
 import StaffLogin from './pages/staff/Login'
 import StaffDashboard from './pages/staff/Dashboard'
@@ -51,6 +52,14 @@ export default function App() {
         <Route 
           path="/programchair" 
           element={<Navigate to="/programchair/dashboard" />} 
+        />
+        <Route 
+          path="/programchair/reports" 
+          element={
+            <ProtectedRoute>
+              <Reports />
+            </ProtectedRoute>
+          } 
         />
         
         {/* Staff Routes */}

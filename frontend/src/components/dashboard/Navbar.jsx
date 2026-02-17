@@ -5,7 +5,7 @@ const navItems = [
   { icon: GraduationCap, label: "Student Outcomes", link: "/programchair/student-outcomes" },
   { icon: BookOpen, label: "Courses", link: "/programchair/courses" },
   { icon: FileText, label: "Assessment", link: "/programchair/assessment" },
-  { icon: BarChart3, label: "Reports", link: "#" },
+  { icon: BarChart3, label: "Reports", link: "/programchair/reports" },
 ];
 
 const Navbar = () => {
