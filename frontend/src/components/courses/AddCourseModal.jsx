@@ -6,38 +6,87 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
 
-const AddCourseModal = ({ isOpen, onClose, onSave, editingCourse, studentOutcomes = [], isSaving = false }) => {
+const AddCourseModal = ({ isOpen, onClose, onSave, studentOutcomes = [], isSaving = false }) => {
+  const [curricula, setCurricula] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+
   const [formData, setFormData] = useState({
+    curriculum: '',
+    selectedCourseId: '',
     code: '',
     name: '',
-    department: 'Computer Engineering',
-    semester: '1st Semester',
-    academicYear: '2024-2025',
-    studentCount: 0,
+    semester: '',
+    academic_year: '',
     status: 'active',
     mappedSOs: [],
   });
 
+  // Fetch curricula on mount
   useEffect(() => {
-    if (editingCourse) {
-      setFormData({
-        code: editingCourse.code || '',
-        name: editingCourse.name || '',
-        department: editingCourse.department || 'Computer Engineering',
-        semester: editingCourse.semester || '1st Semester',
-        academicYear: editingCourse.academicYear || '2024-2025',
-        studentCount: editingCourse.studentCount || 0,
-        status: editingCourse.status || 'active',
-        mappedSOs: editingCourse.mappedSOs || [],
-      });
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        mappedSOs: [],
-      }));
-    }
-  }, [editingCourse, isOpen]);
+    const fetchCurricula = async () => {
+      try {
+        const res = await fetch('/api/curricula/');
+        const data = await res.json();
+        setCurricula(data);
+      } catch (err) {
+        console.error('Error fetching curricula:', err);
+      }
+    };
 
+    fetchCurricula();
+  }, []);
+
+  // Fetch courses when curriculum changes
+  useEffect(() => {
+    if (!formData.curriculum) return;
+
+    const fetchCourses = async () => {
+      setLoadingCourses(true);
+      try {
+        const res = await fetch(`/api/courses/?curriculum=${formData.curriculum}`);
+        const data = await res.json();
+        setCourses(data.results || data);
+      } catch (err) {
+        console.error('Error fetching courses:', err);
+        setCourses([]);
+      } finally {
+        setLoadingCourses(false);
+      }
+    };
+
+    fetchCourses();
+  }, [formData.curriculum]);
+
+  // Autofill when a course is selected
+  const handleCourseSelect = (courseId) => {
+    setFormData((prev) => {
+      if (!courseId) {
+        return {
+          ...prev,
+          selectedCourseId: '',
+          code: '',
+          name: '',
+          semester: '',
+          academic_year: '',
+        };
+      }
+
+      const course = courses.find(c => String(c.id) === String(courseId));
+      if (!course) return prev;
+
+      return {
+        ...prev,
+        selectedCourseId: courseId,
+        code: course.code || '',
+        name: course.name || '',
+        semester: course.semester || '',
+        academic_year: course.academic_year || '',
+      };
+    });
+  };
+
+  // Toggle Student Outcome mapping
   const handleSOToggle = (soId) => {
     setFormData(prev => ({
       ...prev,
@@ -56,89 +105,97 @@ const AddCourseModal = ({ isOpen, onClose, onSave, editingCourse, studentOutcome
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold">
-            {editingCourse ? 'Edit Course' : 'Add New Course'}
-          </DialogTitle>
+          <DialogTitle className="text-xl font-bold">Add New Course</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Course Info */}
+          {/* Curriculum + Course */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="code">Course Code *</Label>
+              <Label>Curriculum *</Label>
+              <select
+                value={formData.curriculum}
+                onChange={(e) =>
+                  setFormData(prev => ({
+                    ...prev,
+                    curriculum: e.target.value,
+                    selectedCourseId: '',
+                    code: '',
+                    name: '',
+                    semester: '',
+                    academic_year: '',
+                  }))
+                }
+                className="w-full p-2 bg-background border border-border rounded-md"
+                required
+              >
+                <option value="">Select Curriculum</option>
+                {curricula.map(curr => (
+                  <option key={curr.id} value={curr.id}>
+                    {curr.year}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Course *</Label>
+              <select
+                value={formData.selectedCourseId}
+                onChange={(e) => handleCourseSelect(e.target.value)}
+                className="w-full p-2 bg-background border border-border rounded-md"
+                disabled={!formData.curriculum}
+                required
+              >
+                <option value="">Select Course</option>
+                {loadingCourses && <option>Loading...</option>}
+                {courses.map(course => (
+                  <option key={course.id} value={course.id}>
+                    {course.code} - {course.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Course Code + Name */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Course Code *</Label>
               <Input
-                id="code"
                 value={formData.code}
                 onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
-                placeholder="e.g., CPE 406"
                 required
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="name">Course Name *</Label>
+              <Label>Course Name *</Label>
               <Input
-                id="name"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g., CPE Design 1"
                 required
               />
             </div>
           </div>
 
-          {/* Department / Semester / Academic Year */}
+          {/* Semester + Academic Year */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="department">Department</Label>
-              <select
-                id="department"
-                value={formData.department}
-                onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-                className="w-full p-2 bg-background border border-border rounded-md"
-              >
-                <option value="Computer Engineering">Computer Engineering</option>
-                <option value="Electrical Engineering">Electrical Engineering</option>
-                <option value="Information Technology">Information Technology</option>
-              </select>
+              <Label>Semester</Label>
+              <Input
+                value={formData.semester}
+                onChange={(e) => setFormData(prev => ({ ...prev, semester: e.target.value }))}
+              />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="semester">Semester</Label>
-              <select
-                id="semester"
-                value={formData.semester}
-                onChange={(e) => setFormData(prev => ({ ...prev, semester: e.target.value }))}
-                className="w-full p-2 bg-background border border-border rounded-md"
-              >
-                <option value="1st Semester">1st Semester</option>
-                <option value="2nd Semester">2nd Semester</option>
-              </select>
+              <Label>Academic Year</Label>
+              <Input
+                value={formData.academic_year}
+                onChange={(e) => setFormData(prev => ({ ...prev, academic_year: e.target.value }))}
+              />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="academicYear">Academic Year</Label>
-            <select
-              id="academicYear"
-              value={formData.academicYear}
-              onChange={(e) => setFormData(prev => ({ ...prev, academicYear: e.target.value }))}
-              className="w-full p-2 bg-background border border-border rounded-md"
-            >
-              <option value="2024-2025">2024-2025</option>
-              <option value="2025-2026">2025-2026</option>
-            </select>
-          </div>
-
-          {/* Student Count */}
-          <div className="space-y-2">
-            <Label htmlFor="studentCount">Student Count</Label>
-            <Input
-              id="studentCount"
-              type="number"
-              value={formData.studentCount}
-              onChange={(e) => setFormData(prev => ({ ...prev, studentCount: parseInt(e.target.value) || 0 }))}
-              min="0"
-            />
           </div>
 
           {/* SO Mapping */}
@@ -194,7 +251,7 @@ const AddCourseModal = ({ isOpen, onClose, onSave, editingCourse, studentOutcome
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin inline-block" />
-              ) : editingCourse ? 'Save Changes' : 'Add Course'}
+              ) : 'Add Course'}
             </Button>
           </div>
         </form>
