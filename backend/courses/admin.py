@@ -1,11 +1,24 @@
 from django.contrib import admin
-from .models import Course
+from .models import Course, Curriculum
+
+@admin.register(Curriculum)
+class CurriculumAdmin(admin.ModelAdmin):
+    list_display = ['year']
 
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
-    list_display = ('code', 'name', 'section', 'department', 'semester', 'academic_year', 'status', 'student_count')
-    list_filter = ('department', 'semester', 'academic_year', 'status')
-    search_fields = ('code', 'name', 'description')
-    ordering = ('code',)
-    filter_horizontal = ('mapped_sos',)
+    list_display = [
+        'code',
+        'name',
+        'curriculum',   # FK to Curriculum
+        'year_level',
+        'semester',
+        'credits',
+    ]
+    list_filter = [
+        'curriculum',
+        'year_level',
+        'semester',
+    ]
+    search_fields = ['code', 'name']
