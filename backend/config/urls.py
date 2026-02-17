@@ -6,10 +6,11 @@ from django.urls import path, include
 from django.http import JsonResponse
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework.routers import DefaultRouter
+
 from users.views import UserViewSet
 from assessments.views import LearningOutcomeViewSet, AssessmentViewSet, AssessmentResultViewSet
 from so.views import StudentOutcomeViewSet, PerformanceIndicatorViewSet
-from courses.views import CourseViewSet
+from courses.views import CourseSOMappingViewSet  # only the new viewset
 
 def root_view(request):
     return JsonResponse({
@@ -30,7 +31,9 @@ router.register(r'assessments/assessments', AssessmentViewSet, basename='assessm
 router.register(r'assessments/results', AssessmentResultViewSet, basename='assessment-result')
 router.register(r'student-outcomes', StudentOutcomeViewSet, basename='student-outcome')
 router.register(r'performance-indicators', PerformanceIndicatorViewSet, basename='performance-indicator')
-router.register(r'courses', CourseViewSet, basename='course')
+
+# Only register the new CourseSOMapping endpoint
+router.register(r'course-so-mappings', CourseSOMappingViewSet, basename='course-so-mapping')
 
 urlpatterns = [
     path('', root_view, name='root'),
