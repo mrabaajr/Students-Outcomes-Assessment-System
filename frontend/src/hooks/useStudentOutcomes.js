@@ -1,200 +1,204 @@
-import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import { useState, useCallback } from 'react';
 
-const API_BASE_URL = 'http://localhost:8000/api';
-
-const initialData = [
+export const studentOutcomes = [
   {
-    id: '1',
-    number: 1,
-    title: 'T.I.P. SO 1',
-    description: 'Identify, formulate, and solve complex engineering problems by applying principles of engineering, science, and mathematics.',
+    id: 1,
+    code: "SO 1",
+    title: "Engineering Problem Solving",
+    description: "Identify, formulate, and solve complex engineering problems by applying knowledge and principles of engineering, science, and mathematics",
     performanceIndicators: [
-      { id: '1-1', number: 1, description: 'Identify and describe complex engineering problems.' },
-      { id: '1-2', number: 2, description: 'Formulate mathematical models for engineering problems.' },
-      { id: '1-3', number: 3, description: 'Apply scientific principles to analyze and solve problems.' },
+      { id: "p1", name: "Identify complex engineering problems by applying knowledge and principles of engineering, science, and mathematics", shortName: "Problem Identification" },
+      { id: "p2", name: "Formulate engineering solutions in solving complex engineering problems by applying knowledge and principles of engineering, science, and mathematics", shortName: "Solution Formulation" },
+      { id: "p3.1", name: "Approaches in solving complex engineering problems", shortName: "Problem Solving Approaches" },
+      { id: "p3.2", name: "Application of appropriate mathematical, science, and engineering principles in solving complex engineering problems", shortName: "Principles Application" },
     ],
   },
   {
-    id: '2',
-    number: 2,
-    title: 'T.I.P. SO 2',
-    description: 'Apply engineering design to produce solutions that meet specified needs with consideration of public health, safety, and welfare.',
+    id: 2,
+    code: "SO 2",
+    title: "Engineering Design",
+    description: "Apply engineering design to produce solutions that meet specified needs with consideration of public health, safety, welfare, global, cultural, social, environmental, and economic factors",
     performanceIndicators: [
-      { id: '2-1', number: 1, description: 'Design solutions meeting specified engineering requirements.' },
-      { id: '2-2', number: 2, description: 'Consider public health and safety in design decisions.' },
+      { id: "p1", name: "Identify a problem and formulate engineering solutions and/or satisfy a need", shortName: "Problem & Solution" },
+      { id: "p2", name: "Use trade-offs to determine final design choice", shortName: "Design Trade-offs" },
+      { id: "p3", name: "Solve complex engineering problems by applying knowledge and principles of engineering, science, and mathematics", shortName: "Complex Problem Solving" },
+      { id: "p4", name: "Apply appropriate standards and codes in the design process", shortName: "Standards & Codes" },
+    ],
+  },
+  {
+    id: 3,
+    code: "SO 3",
+    title: "Effective Communication",
+    description: "Communicate effectively on complex engineering activities with various communities including engineering experts and society at large using appropriate levels of discourse",
+    performanceIndicators: [
+      { id: "p1.1", name: "Comprehension on complex engineering activities", shortName: "Comprehension" },
+      { id: "p1.2", name: "Problem Statement or purpose", shortName: "Problem Statement" },
+      { id: "p1.3", name: "Expression of ideas", shortName: "Expression of Ideas" },
+      { id: "p2.1", name: "Illustrations to support the core messages", shortName: "Illustrations" },
+      { id: "p2.2", name: "Conclusion and summary", shortName: "Conclusion" },
+      { id: "p2.3", name: "List of references", shortName: "References" },
+      { id: "p3.1", name: "Confidence in presenting the topic", shortName: "Confidence" },
+      { id: "p3.2", name: "Coherence and consistency", shortName: "Coherence" },
+      { id: "p3.3", name: "Energy and enthusiasm", shortName: "Enthusiasm" },
+    ],
+  },
+  {
+    id: 4,
+    code: "SO 4",
+    title: "Professional & Ethical Responsibility",
+    description: "Recognize ethical and professional responsibilities in engineering situations and make informed judgments, which must consider the impact of engineering solutions in global, economic, environmental, and societal contexts",
+    performanceIndicators: [
+      { id: "p1", name: "Recognize ethical and professional responsibilities in engineering situations", shortName: "Ethical Recognition" },
+      { id: "p2", name: "Make informed judgments considering global impacts", shortName: "Informed Judgments" },
+      { id: "p3", name: "Consider environmental and societal contexts", shortName: "Context Consideration" },
+    ],
+  },
+  {
+    id: 5,
+    code: "SO 5",
+    title: "Teamwork & Leadership",
+    description: "Function effectively as an individual member in diverse and inclusive teams and/or leader who provide leadership, create a collaborative and inclusive environment, establish goals, plan tasks, and meet objectives in multi-disciplinary and long-distance settings by applying knowledge of engineering and management principles",
+    performanceIndicators: [
+      { id: "p1", name: "Ability to function effectively as an individual member in diverse and inclusive teams and/or leader who provide leadership", shortName: "Team Function" },
+      { id: "p2", name: "Ability to create a collaborative and inclusive environment", shortName: "Collaboration" },
+      { id: "p3", name: "Ability to establish goals, plan tasks, and meet objectives in multi-disciplinary, multicultural, and long-distance setting by applying knowledge of engineering and management principles", shortName: "Goal Planning" },
+    ],
+  },
+  {
+    id: 6,
+    code: "SO 6",
+    title: "Experimentation & Analysis",
+    description: "Develop and conduct appropriate experimentation, analyze and interpret data, and use engineering judgment to draw conclusions",
+    performanceIndicators: [
+      { id: "p1", name: "Develop appropriate experimentation", shortName: "Experimentation Design" },
+      { id: "p2", name: "Conduct appropriate experimentation", shortName: "Experimentation Conduct" },
+      { id: "p3", name: "Ability to analyze and interpret data", shortName: "Data Analysis" },
+      { id: "p4", name: "Use of engineering judgment to draw conclusions", shortName: "Engineering Judgment" },
     ],
   },
 ];
 
-// Helper function to get auth header
-const getAuthHeader = () => {
-  const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
+export const generateSampleStudents = (soId, count = 29) => {
+  const so = studentOutcomes.find(s => s.id === soId);
+  if (!so) return [];
+
+  return Array.from({ length: count }, (_, index) => {
+    const grades = {};
+    so.performanceIndicators.forEach(pi => {
+      // Generate random grades between 4-6 for demo, some null
+      grades[pi.id] = Math.random() > 0.1 ? Math.floor(Math.random() * 3) + 4 : null;
+    });
+    return {
+      id: index + 1,
+      name: `Student ${index + 1}`,
+      grades,
+    };
+  });
 };
 
-export function useStudentOutcomes() {
-  const [outcomes, setOutcomes] = useState([]);
+export const courses = [
+  "CPE Design 1",
+  "CPE Design 2",
+  "Methods of Research",
+  "Logic Circuits and Design",
+];
+
+export const sections = ["CPE32S1", "CPE32S2", "CPE32S3", "CPE42S1", "CPE42S2"];
+
+// Hook for managing student outcomes
+export const useStudentOutcomes = () => {
+  const [outcomes, setOutcomes] = useState(studentOutcomes);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch outcomes from backend on mount
-  const fetchOutcomes = useCallback(async () => {
+  const saveToBackend = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
     try {
-      const response = await axios.get(`${API_BASE_URL}/student-outcomes/`, {
-        headers: getAuthHeader(),
-      });
-      
-      // Transform backend data to frontend format
-      const transformedData = response.data.map(so => ({
-        id: String(so.id),
-        number: so.number,
-        title: so.title,
-        description: so.description,
-        performanceIndicators: (so.performanceIndicators || so.performance_indicators || []).map(pi => ({
-          id: String(pi.id),
-          number: pi.number,
-          description: pi.description,
-        })),
-      }));
-      
-      // If no data from backend, use initial data
-      if (transformedData.length === 0) {
-        setOutcomes(initialData);
-        setHasUnsavedChanges(true); // Mark as unsaved so user can save initial data
-      } else {
-        setOutcomes(transformedData);
-      }
+      // TODO: Implement actual API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setHasUnsavedChanges(false);
+      return true;
     } catch (err) {
-      console.error('Error fetching student outcomes:', err);
       setError(err.message);
-      // Fallback to initial data on error
-      setOutcomes(initialData);
+      return false;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchOutcomes();
-  }, [fetchOutcomes]);
-
-  // Save all outcomes to backend
-  const saveToBackend = async () => {
-    setError(null);
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/student-outcomes/bulk_save/`,
-        { outcomes },
-        { headers: getAuthHeader() }
-      );
-      
-      // Update local state with saved data (includes proper IDs)
-      if (response.data.outcomes) {
-        const transformedData = response.data.outcomes.map(so => ({
-          id: String(so.id),
-          number: so.number,
-          title: so.title,
-          description: so.description,
-          performanceIndicators: (so.performanceIndicators || so.performance_indicators || []).map(pi => ({
-            id: String(pi.id),
-            number: pi.number,
-            description: pi.description,
-          })),
-        }));
-        setOutcomes(transformedData);
-      }
-      
-      setHasUnsavedChanges(false);
-      return { success: true, message: response.data.message };
-    } catch (err) {
-      console.error('Error saving student outcomes:', err);
-      setError(err.response?.data?.detail || err.message);
-      return { success: false, message: err.response?.data?.detail || 'Failed to save changes' };
-    }
-  };
-
-  const updateOutcome = (id, updates) => {
-    setOutcomes(prev =>
-      prev.map(so => (so.id === id ? { ...so, ...updates } : so))
-    );
+  const updateOutcome = useCallback((id, updates) => {
+    setOutcomes(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
     setHasUnsavedChanges(true);
-  };
+  }, []);
 
-  const addOutcome = () => {
-    const newNumber = outcomes.length > 0 ? Math.max(...outcomes.map(o => o.number)) + 1 : 1;
+  const addOutcome = useCallback(() => {
+    const newId = Math.max(...outcomes.map(o => o.id), 0) + 1;
     const newOutcome = {
-      id: Date.now().toString(),
-      number: newNumber,
-      title: `T.I.P. SO ${newNumber}`,
-      description: 'New student outcome description.',
+      id: newId,
+      code: `SO ${newId}`,
+      title: `New Student Outcome ${newId}`,
+      description: "",
       performanceIndicators: [],
     };
     setOutcomes(prev => [...prev, newOutcome]);
     setHasUnsavedChanges(true);
     return newOutcome;
-  };
+  }, [outcomes]);
 
-  const deleteOutcome = (id) => {
-    setOutcomes(prev => prev.filter(so => so.id !== id));
+  const deleteOutcome = useCallback((id) => {
+    setOutcomes(prev => prev.filter(o => o.id !== id));
     setHasUnsavedChanges(true);
-  };
+  }, []);
 
-  const addPerformanceIndicator = (outcomeId) => {
-    setOutcomes(prev =>
-      prev.map(so => {
-        if (so.id === outcomeId) {
-          const newNumber = so.performanceIndicators.length > 0
-            ? Math.max(...so.performanceIndicators.map(pi => pi.number)) + 1
-            : 1;
-          return {
-            ...so,
-            performanceIndicators: [
-              ...so.performanceIndicators,
-              { id: `${outcomeId}-${Date.now()}`, number: newNumber, description: 'New performance indicator.' },
-            ],
-          };
-        }
-        return so;
-      })
-    );
+  const addPerformanceIndicator = useCallback((outcomeId) => {
+    setOutcomes(prev => prev.map(o => {
+      if (o.id === outcomeId) {
+        const newId = `p${o.performanceIndicators.length + 1}`;
+        return {
+          ...o,
+          performanceIndicators: [
+            ...o.performanceIndicators,
+            {
+              id: newId,
+              name: "",
+              shortName: "",
+            }
+          ]
+        };
+      }
+      return o;
+    }));
     setHasUnsavedChanges(true);
-  };
+  }, []);
 
-  const updatePerformanceIndicator = (outcomeId, piId, description) => {
-    setOutcomes(prev =>
-      prev.map(so => {
-        if (so.id === outcomeId) {
-          return {
-            ...so,
-            performanceIndicators: so.performanceIndicators.map(pi =>
-              pi.id === piId ? { ...pi, description } : pi
-            ),
-          };
-        }
-        return so;
-      })
-    );
+  const updatePerformanceIndicator = useCallback((outcomeId, piId, updates) => {
+    setOutcomes(prev => prev.map(o => {
+      if (o.id === outcomeId) {
+        return {
+          ...o,
+          performanceIndicators: o.performanceIndicators.map(pi =>
+            pi.id === piId ? { ...pi, ...updates } : pi
+          )
+        };
+      }
+      return o;
+    }));
     setHasUnsavedChanges(true);
-  };
+  }, []);
 
-  const deletePerformanceIndicator = (outcomeId, piId) => {
-    setOutcomes(prev =>
-      prev.map(so => {
-        if (so.id === outcomeId) {
-          return {
-            ...so,
-            performanceIndicators: so.performanceIndicators.filter(pi => pi.id !== piId),
-          };
-        }
-        return so;
-      })
-    );
+  const deletePerformanceIndicator = useCallback((outcomeId, piId) => {
+    setOutcomes(prev => prev.map(o => {
+      if (o.id === outcomeId) {
+        return {
+          ...o,
+          performanceIndicators: o.performanceIndicators.filter(pi => pi.id !== piId)
+        };
+      }
+      return o;
+    }));
     setHasUnsavedChanges(true);
-  };
+  }, []);
 
   return {
     outcomes,
@@ -202,7 +206,6 @@ export function useStudentOutcomes() {
     isLoading,
     error,
     saveToBackend,
-    fetchOutcomes,
     updateOutcome,
     addOutcome,
     deleteOutcome,
@@ -210,4 +213,4 @@ export function useStudentOutcomes() {
     updatePerformanceIndicator,
     deletePerformanceIndicator,
   };
-}
+};

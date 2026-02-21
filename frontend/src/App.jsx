@@ -50,6 +50,14 @@ export default function App() {
           } 
         />
         <Route 
+          path="/assessment/:id" 
+          element={
+            <ProtectedRoute>
+              <SOAssessment />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
           path="/programchair" 
           element={<Navigate to="/programchair/dashboard" />} 
         />
