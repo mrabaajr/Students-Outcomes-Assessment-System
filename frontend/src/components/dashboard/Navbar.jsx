@@ -1,9 +1,10 @@
-import { GraduationCap, BookOpen, FileText, BarChart3, User } from "lucide-react";
+import { GraduationCap, BookOpen, FileText, BarChart3, User, Users } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 const navItems = [
   { icon: GraduationCap, label: "Student Outcomes", link: "/programchair/student-outcomes" },
   { icon: BookOpen, label: "Courses", link: "/programchair/courses" },
+  { icon: Users, label: "Classes", link: "/programchair/classes" },
   { icon: FileText, label: "Assessment", link: "/programchair/assessment" },
   { icon: BarChart3, label: "Reports", link: "/programchair/reports" },
 ];

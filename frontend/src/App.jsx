@@ -5,6 +5,7 @@ import StudentOutcomes from './pages/programchair/StudentOutcomes'
 import Courses from './pages/programchair/Courses'
 import SOAssessment from './pages/programchair/SOAssessment'
 import Reports from './pages/programchair/Reports'
+import Classes from './pages/programchair/Classes'
 import StaffHome from './pages/staff/Home'
 import StaffLogin from './pages/staff/Login'
 import StaffDashboard from './pages/staff/Dashboard'
@@ -66,6 +67,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Reports />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/programchair/classes" 
+          element={
+            <ProtectedRoute>
+              <Classes />
             </ProtectedRoute>
           } 
         />
