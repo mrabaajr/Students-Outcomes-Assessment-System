@@ -9,7 +9,11 @@ from .serializers import (
     SectionDetailSerializer,
     EnrollmentSerializer
 )
-
+import csv
+from io import TextIOWrapper
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework import status
 
 # ------------------------
 # STUDENT VIEWSET
@@ -34,6 +38,47 @@ class StudentViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Only admins can delete students.")
         instance.delete()
 
+    @action(detail=False, methods=['post'], url_path='import-csv')
+    def import_csv(self, request):
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admins can import students.")
+
+        file = request.FILES.get('file')
+
+        if not file:
+            return Response(
+                {"error": "No file uploaded."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        decoded_file = TextIOWrapper(file.file, encoding='utf-8')
+        reader = csv.DictReader(decoded_file)
+
+        created_count = 0
+        skipped_count = 0
+
+        for row in reader:
+            student_id = row.get('student_id')
+
+            if Student.objects.filter(student_id=student_id).exists():
+                skipped_count += 1
+                continue
+
+            Student.objects.create(
+                student_id=student_id,
+                first_name=row.get('first_name'),
+                last_name=row.get('last_name'),
+                program=row.get('program'),
+                year_level=row.get('year_level'),
+            )
+
+            created_count += 1
+
+        return Response({
+            "message": "Import completed",
+            "created": created_count,
+            "skipped": skipped_count
+        })
 
 # ------------------------
 # SECTION VIEWSET

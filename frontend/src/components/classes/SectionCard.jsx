@@ -1,12 +1,32 @@
 import { useState } from "react";
-import { Users, Clock, MapPin, BookOpen, ChevronDown, ChevronUp, Pencil, Trash2, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  Users,
+  Clock,
+  MapPin,
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  Trash2,
+  Plus,
+  Upload,
+  User
+} from "lucide-react";
 
-const SectionCard = ({ section, onEdit, onDelete, onAddStudent, onEditStudent, onDeleteStudent }) => {
+const SectionCard = ({
+  section,
+  onEdit,
+  onDelete,
+  onAddStudent,
+  onEditStudent,
+  onDeleteStudent,
+  onImportCSV, // 🔥 new prop
+}) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
     <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm overflow-hidden transition-shadow hover:shadow-md">
+      {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors"
@@ -15,53 +35,101 @@ const SectionCard = ({ section, onEdit, onDelete, onAddStudent, onEditStudent, o
           <div className="w-12 h-12 rounded-lg bg-[#FFC20E] flex items-center justify-center flex-shrink-0">
             <Users className="w-6 h-6 text-[#231F20]" />
           </div>
+
           <div>
-            <h3 className="font-bold text-base text-[#231F20]">{section.name}</h3>
+            <h3 className="font-bold text-base text-[#231F20]">
+              {section.name}
+            </h3>
+
             <p className="text-sm text-[#6B6B6B] flex items-center gap-1">
               <BookOpen className="w-3.5 h-3.5" />
               {section.courseCode} — {section.courseName}
             </p>
+
+            {/* 🔥 Faculty Display */}
+            <p className="text-xs text-[#6B6B6B] flex items-center gap-1 mt-1">
+              <User className="w-3 h-3" />
+              {section.facultyName || "No faculty assigned"}
+            </p>
           </div>
         </div>
+
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex flex-col items-end text-xs text-[#6B6B6B] gap-0.5">
-            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{section.schedule}</span>
-            <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{section.room}</span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {section.schedule}
+            </span>
+            <span className="flex items-center gap-1">
+              <MapPin className="w-3 h-3" />
+              {section.room}
+            </span>
           </div>
+
           <div className="flex items-center gap-2">
             <span className="bg-[#FFC20E]/20 text-[#231F20] text-xs font-semibold px-2.5 py-1 rounded-full">
               {section.students.length} students
             </span>
-            {expanded ? <ChevronUp className="w-5 h-5 text-[#6B6B6B]" /> : <ChevronDown className="w-5 h-5 text-[#6B6B6B]" />}
+
+            {expanded ? (
+              <ChevronUp className="w-5 h-5 text-[#6B6B6B]" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-[#6B6B6B]" />
+            )}
           </div>
         </div>
       </button>
 
+      {/* Expanded Content */}
       {expanded && (
         <div className="border-t border-[#E5E7EB]">
+          {/* Actions Bar */}
           <div className="px-5 py-3 flex items-center justify-between bg-gray-50">
             <div className="flex gap-2">
               <button
-                onClick={(e) => { e.stopPropagation(); onEdit(section); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(section);
+                }}
                 className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#231F20] hover:bg-gray-200 rounded-md transition-colors"
               >
-                <Pencil className="w-3.5 h-3.5" /> Edit Section
+                <Pencil className="w-3.5 h-3.5" />
+                Edit Section
               </button>
+
               <button
-                onClick={(e) => { e.stopPropagation(); onDelete(section.id); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(section.id);
+                }}
                 className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-md transition-colors"
               >
-                <Trash2 className="w-3.5 h-3.5" /> Delete
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
               </button>
             </div>
-            <button
-              onClick={() => onAddStudent(section.id)}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-[#FFC20E] text-[#231F20] hover:bg-[#FFC20E]/90 rounded-md transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Student
-            </button>
+
+            <div className="flex gap-2">
+              {/* 🔥 Import CSV Button */}
+              <button
+                onClick={() => onImportCSV?.(section.id)}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-[#E5E7EB] hover:bg-gray-100 rounded-md transition-colors"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Import CSV
+              </button>
+
+              <button
+                onClick={() => onAddStudent(section.id)}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-[#FFC20E] text-[#231F20] hover:bg-[#FFC20E]/90 rounded-md transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Student
+              </button>
+            </div>
           </div>
 
+          {/* Table Header */}
           <div className="px-5 py-3 bg-[#F9FAFB]">
             <div className="grid grid-cols-12 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider">
               <span className="col-span-1">#</span>
@@ -72,6 +140,8 @@ const SectionCard = ({ section, onEdit, onDelete, onAddStudent, onEditStudent, o
               <span className="col-span-2 text-right">Actions</span>
             </div>
           </div>
+
+          {/* Students */}
           <ul className="divide-y divide-[#E5E7EB]">
             {section.students.length === 0 ? (
               <li className="px-5 py-6 text-center text-sm text-[#6B6B6B]">
@@ -79,12 +149,25 @@ const SectionCard = ({ section, onEdit, onDelete, onAddStudent, onEditStudent, o
               </li>
             ) : (
               section.students.map((student, idx) => (
-                <li key={student.id} className="px-5 py-3 grid grid-cols-12 text-sm items-center hover:bg-gray-50 transition-colors">
-                  <span className="col-span-1 text-[#6B6B6B] font-medium">{idx + 1}</span>
-                  <span className="col-span-3 font-medium text-[#231F20]">{student.name}</span>
-                  <span className="col-span-2 text-[#6B6B6B] font-mono text-xs">{student.studentId}</span>
-                  <span className="col-span-2 text-[#6B6B6B]">{student.course}</span>
-                  <span className="col-span-2 text-[#6B6B6B]">{student.yearLevel}</span>
+                <li
+                  key={student.id}
+                  className="px-5 py-3 grid grid-cols-12 text-sm items-center hover:bg-gray-50 transition-colors"
+                >
+                  <span className="col-span-1 text-[#6B6B6B] font-medium">
+                    {idx + 1}
+                  </span>
+                  <span className="col-span-3 font-medium text-[#231F20]">
+                    {student.name}
+                  </span>
+                  <span className="col-span-2 text-[#6B6B6B] font-mono text-xs">
+                    {student.studentId}
+                  </span>
+                  <span className="col-span-2 text-[#6B6B6B]">
+                    {student.course}
+                  </span>
+                  <span className="col-span-2 text-[#6B6B6B]">
+                    {student.yearLevel}
+                  </span>
                   <span className="col-span-2 flex justify-end gap-1">
                     <button
                       onClick={() => onEditStudent(section.id, student)}
@@ -93,7 +176,9 @@ const SectionCard = ({ section, onEdit, onDelete, onAddStudent, onEditStudent, o
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => onDeleteStudent(section.id, student.id)}
+                      onClick={() =>
+                        onDeleteStudent(section.id, student.id)
+                      }
                       className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-red-50 text-red-600 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
