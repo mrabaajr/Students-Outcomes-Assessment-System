@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Grid, TableIcon, BookOpen, Filter, Search, Loader2 } from 'lucide-react';
+import { Plus, Grid, TableIcon, BookOpen, Filter, Search } from 'lucide-react';
 import Navbar from '../../components/dashboard/Navbar';
 import Footer from '../../components/dashboard/Footer';
 import CourseStats from '../../components/courses/CourseStats';
@@ -123,73 +123,58 @@ const Courses = () => {
     }
   };
 
-  if (isLoading || soLoading) {
-    return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-[#FFC20E]" />
-            <p className="text-[#6B6B6B]">Loading courses...</p>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navbar />
       <main className="flex-1">
         {/* Hero */}
-        <section className="bg-[#231F20] border-b border-[#A5A8AB]">
-          <div className="max-w-7xl mx-auto px-4 py-20">
+        <section className="bg-[#231F20] border-b border-[#A5A8AB] pt-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-10 sm:pb-14 lg:pb-16">
             <div className="inline-block px-3 py-1 bg-[#3A3A3A] rounded-full text-xs text-[#A5A8AB] mb-4">
               COURSE MANAGEMENT
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 text-white">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4 text-white">
               Course & SO <span className="text-[#FFC20E]">Mapping System</span>
             </h1>
-            <p className="text-[#A5A8AB] max-w-xl mb-8">
+            <p className="text-sm sm:text-base text-[#A5A8AB] max-w-xl mb-6 sm:mb-8">
               Manage courses and Student Outcome mappings. Add, edit, and visualize SOs.
             </p>
 
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-3 sm:gap-4">
               <button
                 onClick={handleAddCourse}
-                className="flex items-center gap-2 px-6 py-3 bg-[#FFC20E] text-[#231F20] rounded-lg font-medium hover:bg-[#FFC20E]/90"
+                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-[#FFC20E] text-[#231F20] rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90"
               >
-                <Plus size={18} /> ADD COURSE
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" /> ADD COURSE
               </button>
 
               <div className="flex items-center bg-[#3A3A3A] rounded-lg p-1">
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${
+                  className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium ${
                     viewMode === 'grid'
                       ? 'bg-[#FFC20E] text-[#231F20]'
                       : 'text-[#A5A8AB] hover:text-white'
                   }`}
                 >
-                  <Grid className="h-4 w-4" /> Grid View
+                  <Grid className="h-3 w-3 sm:h-4 sm:w-4" /> <span className="hidden sm:inline">Grid View</span>
                 </button>
                 <button
                   onClick={() => setViewMode('matrix')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium ${
+                  className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium ${
                     viewMode === 'matrix'
                       ? 'bg-[#FFC20E] text-[#231F20]'
                       : 'text-[#A5A8AB] hover:text-white'
                   }`}
                 >
-                  <TableIcon className="h-4 w-4" /> Matrix View
+                  <TableIcon className="h-3 w-3 sm:h-4 sm:w-4" /> <span className="hidden sm:inline">Matrix View</span>
                 </button>
               </div>
             </div>
           </div>
         </section>
 
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {/* Filters */}
           <div className="glass-card p-6 mb-6">
             <div className="flex items-center gap-2 mb-4">

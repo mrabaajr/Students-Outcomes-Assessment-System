@@ -90,13 +90,13 @@ const StudentOutcomes = () => {
       
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="bg-[#231F20] border-b border-[#A5A8AB]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <section className="bg-[#231F20] border-b border-[#A5A8AB] pt-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-10 sm:pb-14 lg:pb-16">
             <div className="inline-block px-3 py-1 bg-[#3A3A3A] rounded-full text-xs text-[#A5A8AB] mb-4">
               OUTCOMES MANAGEMENT
             </div>
 
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
               <span className="text-white">Student Outcomes</span>
               <br />
               <span className="text-[#FFC20E]">Configuration</span>
@@ -131,7 +131,7 @@ const StudentOutcomes = () => {
           </div>
         </section>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           <SOTabs
             outcomes={outcomes}
             selectedId={selectedId}

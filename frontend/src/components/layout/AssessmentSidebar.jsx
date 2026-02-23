@@ -10,8 +10,8 @@ import {
   ChevronRight,
   ClipboardList,
 } from "lucide-react";
-import { studentOutcomes } from "../../data/studentOutcomes";
-import { cn } from "../../lib/utils";
+import { studentOutcomes } from "@/data/studentOutcomes";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 
 const soIcons = [

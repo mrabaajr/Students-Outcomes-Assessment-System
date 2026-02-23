@@ -8,40 +8,58 @@ export function StatCard({
   variant = "default",
   className 
 }) {
+  const variantStyles = {
+    default: {
+      card: "stat-card",
+      title: "text-muted-foreground",
+      value: "text-foreground",
+      subtitle: "text-muted-foreground",
+      icon: "bg-primary/10 text-primary"
+    },
+    accent: {
+      card: "stat-card-accent",
+      title: "text-muted-foreground",
+      value: "text-foreground",
+      subtitle: "text-muted-foreground",
+      icon: "bg-primary/10 text-primary"
+    },
+    primary: {
+      card: "stat-card-primary",
+      title: "text-primary-foreground/80",
+      value: "text-primary-foreground",
+      subtitle: "text-primary-foreground/70",
+      icon: "bg-primary-foreground/10 text-primary-foreground"
+    }
+  };
+
+  const styles = variantStyles[variant];
+
   return (
     <div 
       className={cn(
-        "animate-slide-up rounded-xl p-6",
-        variant === "default" && "stat-card",
-        variant === "primary" && "stat-card-primary",
-        variant === "accent" && "stat-card-accent",
+        "rounded-xl p-6 transition-all",
+        styles.card,
         className
       )}
     >
       <div className="flex items-start justify-between">
         <div>
           <p className={cn(
-            "text-sm font-medium uppercase tracking-wide",
-            variant === "default" && "text-muted-foreground",
-            variant === "primary" && "text-primary-foreground/80",
-            variant === "accent" && "text-muted-foreground"
+            "text-xs font-semibold uppercase tracking-wider mb-2",
+            styles.title
           )}>
             {title}
           </p>
           <p className={cn(
-            "text-3xl font-bold mt-2 font-heading",
-            variant === "default" && "text-foreground",
-            variant === "primary" && "text-primary-foreground",
-            variant === "accent" && "text-foreground"
+            "text-3xl font-bold font-heading",
+            styles.value
           )}>
             {value}
           </p>
           {subtitle && (
             <p className={cn(
-              "text-sm mt-1",
-              variant === "default" && "text-muted-foreground",
-              variant === "primary" && "text-primary-foreground/70",
-              variant === "accent" && "text-muted-foreground"
+              "text-sm mt-1.5",
+              styles.subtitle
             )}>
               {subtitle}
             </p>
@@ -49,10 +67,8 @@ export function StatCard({
         </div>
         {Icon && (
           <div className={cn(
-            "w-12 h-12 rounded-xl flex items-center justify-center",
-            variant === "default" && "bg-primary/10 text-primary",
-            variant === "primary" && "bg-primary-foreground/10 text-primary-foreground",
-            variant === "accent" && "bg-primary/10 text-primary"
+            "w-12 h-12 rounded-lg flex items-center justify-center",
+            styles.icon
           )}>
             <Icon className="w-6 h-6" />
           </div>

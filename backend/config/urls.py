@@ -12,6 +12,7 @@ from assessments.views import LearningOutcomeViewSet, AssessmentViewSet, Assessm
 from so.views import StudentOutcomeViewSet, PerformanceIndicatorViewSet
 from courses.views import (CourseSOMappingViewSet,CurriculumViewSet,CourseViewSet,)
 from courses.views import AcademicYearViewSet
+from classess.views import (StudentViewSet,SectionViewSet,EnrollmentViewSet,)
 
 
 def root_view(request):
@@ -39,6 +40,10 @@ router.register(r'course-so-mappings', CourseSOMappingViewSet, basename='course-
 router.register(r'curricula', CurriculumViewSet, basename='curriculum')
 router.register(r'courses', CourseViewSet, basename='course')
 router.register(r'academic-years', AcademicYearViewSet, basename='academic-year')
+
+router.register(r'students', StudentViewSet, basename='student')
+router.register(r'sections', SectionViewSet, basename='section')
+router.register(r'enrollments', EnrollmentViewSet, basename='enrollment')
 
 
 urlpatterns = [
