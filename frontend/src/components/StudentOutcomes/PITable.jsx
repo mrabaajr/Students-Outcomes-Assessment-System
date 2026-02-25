@@ -9,11 +9,11 @@ export function PITable({ indicators, onAdd, onUpdate, onDelete }) {
 
   const handleEdit = (pi) => {
     setEditingId(pi.id);
-    setEditValue(pi.description);
+    setEditValue(pi.name);
   };
 
   const handleSave = (piId) => {
-    onUpdate(piId, editValue);
+    onUpdate(piId, { name: editValue });
     setEditingId(null);
     setEditValue('');
   };
@@ -45,7 +45,7 @@ export function PITable({ indicators, onAdd, onUpdate, onDelete }) {
               className="bg-white border border-gray-200 rounded-xl p-4 flex items-start gap-4 hover:shadow-md transition-shadow"
             >
               <div className="w-8 h-8 bg-black text-white rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
-                {pi.number}
+                {pi.id}
               </div>
               <div className="flex-1">
                 {editingId === pi.id ? (
@@ -60,7 +60,7 @@ export function PITable({ indicators, onAdd, onUpdate, onDelete }) {
                     }}
                   />
                 ) : (
-                  <p className="text-gray-900">{pi.description}</p>
+                  <p className="text-gray-900">{pi.name}</p>
                 )}
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">

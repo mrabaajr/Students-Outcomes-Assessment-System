@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Student, Section, Enrollment
+from .models import Student, Section, Enrollment, Faculty, FacultyCourseAssignment
 from users.models import User
 from courses.models import Course
 
@@ -10,6 +10,28 @@ class StudentSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class FacultyCourseAssignmentSerializer(serializers.ModelSerializer):
+    sections = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FacultyCourseAssignment
+        fields = ['id', 'course_code', 'course_name', 'sections']
+
+    def get_sections(self, obj):
+        return obj.get_sections_list()
+
+
+class ClassesFacultySerializer(serializers.ModelSerializer):
+    courses = FacultyCourseAssignmentSerializer(
+        source='course_assignments', many=True, read_only=True
+    )
+
+    class Meta:
+        model = Faculty
+        fields = ['id', 'name', 'department', 'email', 'courses']
+
+
+# Keep old FacultySerializer for SectionSerializer compatibility
 class FacultySerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -21,7 +43,9 @@ class SectionSerializer(serializers.ModelSerializer):
     faculty_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.filter(role='staff'),
         source='faculty',
-        write_only=True
+        write_only=True,
+        required=False,
+        allow_null=True,
     )
 
     course_name = serializers.CharField(source='course.name', read_only=True)
@@ -39,6 +63,7 @@ class SectionSerializer(serializers.ModelSerializer):
             'faculty',
             'faculty_id',
             'room',
+            'schedule',
             'schedule_days',
             'schedule_start',
             'schedule_end',

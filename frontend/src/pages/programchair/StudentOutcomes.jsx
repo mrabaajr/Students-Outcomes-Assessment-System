@@ -151,8 +151,8 @@ const StudentOutcomes = () => {
                 <PITable
                   indicators={selectedOutcome.performanceIndicators}
                   onAdd={() => addPerformanceIndicator(selectedOutcome.id)}
-                  onUpdate={(piId, description) =>
-                    updatePerformanceIndicator(selectedOutcome.id, piId, description)
+                  onUpdate={(piId, updates) =>
+                    updatePerformanceIndicator(selectedOutcome.id, piId, updates)
                   }
                   onDelete={(piId) => deletePerformanceIndicator(selectedOutcome.id, piId)}
                 />

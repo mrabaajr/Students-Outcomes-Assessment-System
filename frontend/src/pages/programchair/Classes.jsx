@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { BookOpen, Users, Plus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { BookOpen, Users, Plus, Settings, Loader2 } from "lucide-react";
+import axios from "axios";
 import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
 import SectionCard from "@/components/classes/SectionCard";
@@ -13,8 +14,34 @@ import { toast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("sections");
-  const [sectionsData, setSectionsData] = useState(initialSections);
-  const [facultyData, setFacultyData] = useState(initialFaculty);
+  const [sectionsData, setSectionsData] = useState([]);
+  const [facultyData, setFacultyData] = useState([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load data from backend on mount; fall back to mock data
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const response = await axios.get('/api/sections/load_all/');
+        const { sections, faculty } = response.data;
+        if (sections.length > 0) {
+          setSectionsData(sections);
+          setFacultyData(faculty);
+        } else {
+          setSectionsData(initialSections);
+          setFacultyData(initialFaculty);
+        }
+      } catch (error) {
+        console.error('Failed to load classes from backend:', error);
+        setSectionsData(initialSections);
+        setFacultyData(initialFaculty);
+      }
+      setIsLoading(false);
+    };
+    loadData();
+  }, []);
 
   // Section CRUD
   const [sectionDialog, setSectionDialog] = useState(false);
@@ -43,6 +70,7 @@ const Index = () => {
       toast({ title: "Section added successfully" });
     }
     setEditingSection(null);
+    setHasUnsavedChanges(true);
   };
 
   const handleDeleteSection = () => {
@@ -50,6 +78,7 @@ const Index = () => {
       setSectionsData(prev => prev.filter(s => s.id !== deleteSection));
       toast({ title: "Section deleted" });
       setDeleteSection(null);
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -78,6 +107,7 @@ const Index = () => {
     toast({ title: editingStudent ? "Student updated" : "Student added" });
     setEditingStudent(null);
     setStudentSectionId(null);
+    setHasUnsavedChanges(true);
   };
 
   const handleDeleteStudent = () => {
@@ -88,6 +118,7 @@ const Index = () => {
     }));
     toast({ title: "Student removed" });
     setDeleteStudent(null);
+    setHasUnsavedChanges(true);
   };
 
   // --- Faculty handlers ---
@@ -100,6 +131,7 @@ const Index = () => {
       toast({ title: "Faculty added" });
     }
     setEditingFaculty(null);
+    setHasUnsavedChanges(true);
   };
 
   const handleDeleteFaculty = () => {
@@ -107,8 +139,55 @@ const Index = () => {
       setFacultyData(prev => prev.filter(f => f.id !== deleteFacultyId));
       toast({ title: "Faculty deleted" });
       setDeleteFacultyId(null);
+      setHasUnsavedChanges(true);
     }
   };
+
+  // Save all changes to backend
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    try {
+      const response = await axios.post('/api/sections/bulk_save/', {
+        sections: sectionsData,
+        faculty: facultyData,
+      });
+      if (response.data.success) {
+        toast({ title: "Changes saved", description: "All changes have been saved to the database." });
+        setHasUnsavedChanges(false);
+        // Reload data from backend so IDs are synced with DB
+        try {
+          const reloadRes = await axios.get('/api/sections/load_all/');
+          const { sections, faculty } = reloadRes.data;
+          setSectionsData(sections.length > 0 ? sections : sectionsData);
+          setFacultyData(faculty.length > 0 ? faculty : facultyData);
+        } catch (e) {
+          console.error('Failed to reload after save:', e);
+        }
+      }
+    } catch (error) {
+      toast({
+        title: "Error saving changes",
+        description: error.response?.data?.detail || "Failed to save changes.",
+        variant: "destructive",
+      });
+    }
+    setIsSaving(false);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col min-h-screen bg-background">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-[#FFC20E]" />
+            <p className="text-[#6B6B6B]">Loading classes...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -143,6 +222,19 @@ const Index = () => {
               >
                 <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
                 ADD {activeTab === "sections" ? "SECTION" : "FACULTY"}
+              </button>
+
+              <button
+                onClick={handleSaveChanges}
+                disabled={!hasUnsavedChanges || isSaving}
+                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-transparent text-white rounded-lg text-sm sm:text-base font-medium hover:bg-[#3A3A3A] transition-colors border border-[#A5A8AB] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                ) : (
+                  <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
+                )}
+                {isSaving ? "SAVING..." : "SAVE CHANGES"}
               </button>
 
               <div className="flex items-center bg-[#3A3A3A] rounded-lg p-1">
@@ -190,17 +282,29 @@ const Index = () => {
                   </button>
                 </div>
               ) : (
-                sectionsData.map((section) => (
-                  <SectionCard
-                    key={section.id}
-                    section={section}
-                    onEdit={(s) => { setEditingSection(s); setSectionDialog(true); }}
-                    onDelete={(id) => setDeleteSection(id)}
-                    onAddStudent={handleAddStudent}
-                    onEditStudent={handleEditStudent}
-                    onDeleteStudent={(sectionId, studentId) => setDeleteStudent({ sectionId, studentId })}
-                  />
-                ))
+                sectionsData.map((section) => {
+                  // Derive faculty name from facultyData
+                  const assignedFaculty = facultyData.find(f =>
+                    f.courses.some(c =>
+                      c.code === section.courseCode && c.sections.includes(section.name)
+                    )
+                  );
+                  const sectionWithFaculty = {
+                    ...section,
+                    facultyName: assignedFaculty ? assignedFaculty.name : null,
+                  };
+                  return (
+                    <SectionCard
+                      key={section.id}
+                      section={sectionWithFaculty}
+                      onEdit={(s) => { setEditingSection(s); setSectionDialog(true); }}
+                      onDelete={(id) => setDeleteSection(id)}
+                      onAddStudent={handleAddStudent}
+                      onEditStudent={handleEditStudent}
+                      onDeleteStudent={(sectionId, studentId) => setDeleteStudent({ sectionId, studentId })}
+                    />
+                  );
+                })
               )}
             </div>
           )}
@@ -254,6 +358,7 @@ const Index = () => {
         onClose={() => { setFacultyDialog(false); setEditingFaculty(null); }}
         onSave={handleSaveFaculty}
         initialData={editingFaculty}
+        availableSections={sectionsData}
       />
       <DeleteConfirmDialog
         open={!!deleteSection}

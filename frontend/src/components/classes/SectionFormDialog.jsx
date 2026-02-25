@@ -3,13 +3,35 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import axios from "axios";
+
+const API_BASE_URL = "http://localhost:8000/api";
 
 const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
   const [name, setName] = useState("");
+  const [selectedCourseId, setSelectedCourseId] = useState("");
   const [courseCode, setCourseCode] = useState("");
   const [courseName, setCourseName] = useState("");
   const [schedule, setSchedule] = useState("");
   const [room, setRoom] = useState("");
+
+  // Backend courses list
+  const [backendCourses, setBackendCourses] = useState([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+
+  // Fetch courses from backend
+  useEffect(() => {
+    if (!open) return;
+    setLoadingCourses(true);
+    axios
+      .get(`${API_BASE_URL}/courses/`)
+      .then((res) => {
+        const data = Array.isArray(res.data) ? res.data : res.data.results || [];
+        setBackendCourses(data);
+      })
+      .catch((err) => console.error("Error fetching courses:", err))
+      .finally(() => setLoadingCourses(false));
+  }, [open]);
 
   useEffect(() => {
     if (initialData) {
@@ -18,10 +40,33 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
       setCourseName(initialData.courseName);
       setSchedule(initialData.schedule);
       setRoom(initialData.room);
+      // Try to match to a backend course
+      const match = backendCourses.find(
+        (c) => c.code === initialData.courseCode && c.name === initialData.courseName
+      );
+      setSelectedCourseId(match ? String(match.id) : "");
     } else {
-      setName(""); setCourseCode(""); setCourseName(""); setSchedule(""); setRoom("");
+      setName("");
+      setCourseCode("");
+      setCourseName("");
+      setSchedule("");
+      setRoom("");
+      setSelectedCourseId("");
     }
-  }, [initialData, open]);
+  }, [initialData, open, backendCourses]);
+
+  const handleCourseSelect = (e) => {
+    const id = e.target.value;
+    setSelectedCourseId(id);
+    const course = backendCourses.find((c) => String(c.id) === id);
+    if (course) {
+      setCourseCode(course.code);
+      setCourseName(course.name);
+    } else {
+      setCourseCode("");
+      setCourseName("");
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -40,16 +85,39 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
             <Label htmlFor="name">Section Name</Label>
             <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. BSIT 3-1" required />
           </div>
+
+          {/* Course selection from backend */}
+          <div className="space-y-2">
+            <Label htmlFor="courseSelect">Select Course</Label>
+            <select
+              id="courseSelect"
+              value={selectedCourseId}
+              onChange={handleCourseSelect}
+              required
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">
+                {loadingCourses ? "Loading courses..." : "-- Select a course --"}
+              </option>
+              {backendCourses.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.code} — {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="courseCode">Course Code</Label>
-              <Input id="courseCode" value={courseCode} onChange={e => setCourseCode(e.target.value)} placeholder="e.g. CS301" required />
+              <Label>Course Code</Label>
+              <Input value={courseCode} readOnly className="bg-muted" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="courseName">Course Name</Label>
-              <Input id="courseName" value={courseName} onChange={e => setCourseName(e.target.value)} placeholder="e.g. Data Structures" required />
+              <Label>Course Name</Label>
+              <Input value={courseName} readOnly className="bg-muted" />
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="schedule">Schedule</Label>

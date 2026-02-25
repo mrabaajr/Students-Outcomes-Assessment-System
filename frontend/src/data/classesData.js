@@ -120,7 +120,7 @@ export const faculty = [
   {
     id: "f1",
     name: "Dr. Roberto Fernandez",
-    department: "Computer Science",
+    department: "Computer Engineering",
     email: "rfernandez@tip.edu.ph",
     courses: [
       {
@@ -138,7 +138,7 @@ export const faculty = [
   {
     id: "f2",
     name: "Prof. Elena Morales",
-    department: "Information Technology",
+    department: "Computer Engineering",
     email: "emorales@tip.edu.ph",
     courses: [
       {
@@ -151,7 +151,7 @@ export const faculty = [
   {
     id: "f3",
     name: "Dr. Jose Ramirez",
-    department: "Computer Science",
+    department: "Computer Engineering",
     email: "jramirez@tip.edu.ph",
     courses: [
       {
@@ -169,7 +169,7 @@ export const faculty = [
   {
     id: "f4",
     name: "Asst. Prof. Patricia Santos",
-    department: "Information Technology",
+    department: "Computer Engineering",
     email: "psantos@tip.edu.ph",
     courses: [
       {

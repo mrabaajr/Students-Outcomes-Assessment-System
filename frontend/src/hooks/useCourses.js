@@ -182,12 +182,12 @@ export function useCourses() {
       );
 
       const updated = {
-        ...response.data.course,
-        academicYear: response.data.course.academicYear || response.data.course.academic_year,
-        studentCount: response.data.course.studentCount || response.data.course.student_count || 0,
-        enrolledStudents: response.data.course.studentCount || response.data.course.student_count || 0,
-        mappedSOs: response.data.course.mappedSOs || [],
-        performanceIndicators: response.data.course.performanceIndicators || [],
+        ...response.data.courseMapping,
+        academicYear: response.data.courseMapping.academicYear || response.data.courseMapping.academic_year,
+        studentCount: response.data.courseMapping.studentCount || response.data.courseMapping.student_count || 0,
+        enrolledStudents: response.data.courseMapping.studentCount || response.data.courseMapping.student_count || 0,
+        mappedSOs: response.data.courseMapping.mappedSOs || [],
+        performanceIndicators: response.data.courseMapping.performanceIndicators || [],
       };
 
       setCourses(prev => prev.map(c => c.id === courseId ? updated : c));
