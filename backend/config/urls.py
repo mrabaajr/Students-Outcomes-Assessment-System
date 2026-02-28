@@ -8,7 +8,6 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework.routers import DefaultRouter
 
 from users.views import UserViewSet
-from assessments.views import LearningOutcomeViewSet, AssessmentViewSet, AssessmentResultViewSet
 from so.views import StudentOutcomeViewSet, PerformanceIndicatorViewSet
 from courses.views import (CourseSOMappingViewSet,CurriculumViewSet,CourseViewSet,)
 from courses.views import AcademicYearViewSet
@@ -29,9 +28,6 @@ def root_view(request):
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
-router.register(r'assessments/outcomes', LearningOutcomeViewSet, basename='learning-outcome')
-router.register(r'assessments/assessments', AssessmentViewSet, basename='assessment')
-router.register(r'assessments/results', AssessmentResultViewSet, basename='assessment-result')
 router.register(r'student-outcomes', StudentOutcomeViewSet, basename='student-outcome')
 router.register(r'performance-indicators', PerformanceIndicatorViewSet, basename='performance-indicator')
 
