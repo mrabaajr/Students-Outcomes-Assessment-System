@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     
     'users',
     'assessments',
+    'assessment',
     'so',
     'courses',
     'classess',
