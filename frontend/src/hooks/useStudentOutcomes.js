@@ -17,12 +17,25 @@ const transformFromBackend = (backendSO) => ({
   title: backendSO.title,
   description: backendSO.description,
   performanceIndicators: (
-    backendSO.performanceIndicators || backendSO.performance_indicators || []
+    backendSO.performanceIndicators ||
+    backendSO.performance_indicators ||
+    []
   ).map((pi) => ({
     id: pi.id,
     number: pi.number,
     name: pi.description,
-    shortName: pi.description ? pi.description.substring(0, 30) : '',
+    shortName: pi.description
+      ? pi.description.substring(0, 30)
+      : '',
+    performanceCriteria: (
+      pi.performanceCriteria ||
+      pi.performance_criteria ||
+      []
+    ).map((pc) => ({
+      id: pc.id,
+      level: pc.level || '',
+      description: pc.description || '',
+    })),
   })),
 });
 
@@ -32,16 +45,24 @@ const transformToBackend = (frontendSO) => ({
   number:
     frontendSO.number ||
     parseInt(String(frontendSO.code).replace(/\D/g, '')) ||
-    frontendSO.id,
+    1,
   title: frontendSO.title,
   description: frontendSO.description,
-  performanceIndicators: frontendSO.performanceIndicators.map((pi, idx) => ({
-    id: typeof pi.id === 'number' ? pi.id : null,
-    number: pi.number || idx + 1,
-    description: pi.name || '',
-  })),
+  performanceIndicators: (frontendSO.performanceIndicators || []).map(
+    (pi, idx) => ({
+      id: typeof pi.id === 'number' ? pi.id : null,
+      number: pi.number || idx + 1,
+      description: pi.name || '',
+      performanceCriteria: (pi.performanceCriteria || []).map(
+        (pc, pcIdx) => ({
+          id: typeof pc.id === 'number' ? pc.id : null,
+          level: pc.level || '',
+          description: pc.description || '',
+        })
+      ),
+    })
+  ),
 });
-
 // Hardcoded fallback data (used only when backend is unavailable)
 export const studentOutcomes = [
   {
@@ -239,10 +260,15 @@ export const useStudentOutcomes = () => {
   }, []);
 
   const addPerformanceIndicator = useCallback((outcomeId) => {
-    setOutcomes(prev => prev.map(o => {
+  setOutcomes(prev =>
+    prev.map(o => {
       if (o.id === outcomeId) {
-        const maxNum = Math.max(...o.performanceIndicators.map(pi => pi.number || 0), 0);
+        const maxNum = Math.max(
+          ...o.performanceIndicators.map(pi => pi.number || 0),
+          0
+        );
         const newNumber = maxNum + 1;
+
         return {
           ...o,
           performanceIndicators: [
@@ -250,16 +276,75 @@ export const useStudentOutcomes = () => {
             {
               id: `new_${Date.now()}_${newNumber}`,
               number: newNumber,
-              name: "",
-              shortName: "",
-            }
-          ]
+              name: '',
+              shortName: '',
+              performanceCriteria: [],   // ✅ NEW
+            },
+          ],
         };
       }
       return o;
-    }));
+    })
+  );
+  setHasUnsavedChanges(true);
+}, []);
+  const addPerformanceCriterion = useCallback((outcomeId, piId) => {
+  setOutcomes(prev =>
+    prev.map(o => {
+      if (o.id === outcomeId) {
+        return {
+          ...o,
+          performanceIndicators: o.performanceIndicators.map(pi => {
+            if (pi.id === piId) {
+              return {
+                ...pi,
+                performanceCriteria: [
+                  ...(pi.performanceCriteria || []),
+                  {
+                    id: `new_pc_${Date.now()}`,
+                    level: '',
+                    description: '',
+                  },
+                ],
+              };
+            }
+            return pi;
+          }),
+        };
+      }
+      return o;
+    })
+  );
+  setHasUnsavedChanges(true);
+}, []);
+
+  const updatePerformanceCriterion = useCallback(
+  (outcomeId, piId, pcId, updates) => {
+    setOutcomes(prev =>
+      prev.map(o => {
+        if (o.id === outcomeId) {
+          return {
+            ...o,
+            performanceIndicators: o.performanceIndicators.map(pi => {
+              if (pi.id === piId) {
+                return {
+                  ...pi,
+                  performanceCriteria: pi.performanceCriteria.map(pc =>
+                    pc.id === pcId ? { ...pc, ...updates } : pc
+                  ),
+                };
+              }
+              return pi;
+            }),
+          };
+        }
+        return o;
+      })
+    );
     setHasUnsavedChanges(true);
-  }, []);
+  },
+  []
+);
 
   const updatePerformanceIndicator = useCallback((outcomeId, piId, updates) => {
     setOutcomes(prev => prev.map(o => {
@@ -289,6 +374,34 @@ export const useStudentOutcomes = () => {
     setHasUnsavedChanges(true);
   }, []);
 
+  const deletePerformanceCriterion = useCallback(
+  (outcomeId, piId, pcId) => {
+    setOutcomes(prev =>
+      prev.map(o => {
+        if (o.id === outcomeId) {
+          return {
+            ...o,
+            performanceIndicators: o.performanceIndicators.map(pi => {
+              if (pi.id === piId) {
+                return {
+                  ...pi,
+                  performanceCriteria: pi.performanceCriteria.filter(
+                    pc => pc.id !== pcId
+                  ),
+                };
+              }
+              return pi;
+            }),
+          };
+        }
+        return o;
+      })
+    );
+    setHasUnsavedChanges(true);
+  },
+  []
+);
+
   return {
     outcomes,
     hasUnsavedChanges,
@@ -302,5 +415,8 @@ export const useStudentOutcomes = () => {
     addPerformanceIndicator,
     updatePerformanceIndicator,
     deletePerformanceIndicator,
+    addPerformanceCriterion,
+    updatePerformanceCriterion,
+    deletePerformanceCriterion,
   };
 };

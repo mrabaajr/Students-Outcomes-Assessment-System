@@ -22,6 +22,12 @@ const StudentOutcomes = () => {
     addPerformanceIndicator,
     updatePerformanceIndicator,
     deletePerformanceIndicator,
+
+    // ✅ NEW CRITERION FUNCTIONS
+    addPerformanceCriterion,
+    updatePerformanceCriterion,
+    deletePerformanceCriterion,
+
   } = useStudentOutcomes();
 
   const [selectedId, setSelectedId] = useState(null);
@@ -29,7 +35,10 @@ const StudentOutcomes = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (outcomes.length > 0 && (!selectedId || !outcomes.find(o => o.id === selectedId))) {
+    if (
+      outcomes.length > 0 &&
+      (!selectedId || !outcomes.find(o => o.id === selectedId))
+    ) {
       setSelectedId(outcomes[0].id);
     }
   }, [outcomes, selectedId]);
@@ -53,7 +62,7 @@ const StudentOutcomes = () => {
     setIsSaving(true);
     const result = await saveToBackend();
     setIsSaving(false);
-    
+
     if (result.success) {
       toast({
         title: 'Changes saved',
@@ -68,7 +77,10 @@ const StudentOutcomes = () => {
     }
   };
 
-  // Show loading state
+  // ----------------------------
+  // LOADING STATE
+  // ----------------------------
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -87,9 +99,9 @@ const StudentOutcomes = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
-      
+
       <main className="flex-1">
-        {/* Hero Section */}
+        {/* HERO */}
         <section className="bg-[#231F20] border-b border-[#A5A8AB] pt-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-10 sm:pb-14 lg:pb-16">
             <div className="inline-block px-3 py-1 bg-[#3A3A3A] rounded-full text-xs text-[#A5A8AB] mb-4">
@@ -103,19 +115,20 @@ const StudentOutcomes = () => {
             </h1>
 
             <p className="text-[#A5A8AB] max-w-xl mb-8">
-              Define and manage student outcomes, performance indicators, and evaluation criteria
-              for your program assessment.
+              Define and manage student outcomes, performance indicators, and
+              evaluation criteria for your program assessment.
             </p>
 
             <div className="flex flex-wrap gap-4">
-              <button 
+              <button
                 onClick={handleAddOutcome}
                 className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-6 py-3 rounded-lg font-medium hover:bg-[#FFC20E]/90 transition-colors"
               >
                 <Plus size={18} />
                 <span>ADD NEW SO</span>
               </button>
-              <button 
+
+              <button
                 onClick={handleSave}
                 disabled={!hasUnsavedChanges || isSaving}
                 className="flex items-center gap-2 bg-transparent text-white px-6 py-3 rounded-lg font-medium hover:bg-[#3A3A3A] transition-colors border border-[#A5A8AB] disabled:opacity-50 disabled:cursor-not-allowed"
@@ -131,6 +144,7 @@ const StudentOutcomes = () => {
           </div>
         </section>
 
+        {/* CONTENT */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           <SOTabs
             outcomes={outcomes}
@@ -145,22 +159,60 @@ const StudentOutcomes = () => {
               <>
                 <SODetails
                   outcome={selectedOutcome}
-                  onUpdate={(updates) => updateOutcome(selectedOutcome.id, updates)}
+                  onUpdate={(updates) =>
+                    updateOutcome(selectedOutcome.id, updates)
+                  }
                 />
 
                 <PITable
                   indicators={selectedOutcome.performanceIndicators}
-                  onAdd={() => addPerformanceIndicator(selectedOutcome.id)}
-                  onUpdate={(piId, updates) =>
-                    updatePerformanceIndicator(selectedOutcome.id, piId, updates)
+                  onAdd={() =>
+                    addPerformanceIndicator(selectedOutcome.id)
                   }
-                  onDelete={(piId) => deletePerformanceIndicator(selectedOutcome.id, piId)}
+                  onUpdate={(piId, updates) =>
+                    updatePerformanceIndicator(
+                      selectedOutcome.id,
+                      piId,
+                      updates
+                    )
+                  }
+                  onDelete={(piId) =>
+                    deletePerformanceIndicator(
+                      selectedOutcome.id,
+                      piId
+                    )
+                  }
+
+                  // ✅ NEW CRITERION PROPS
+                  onAddCriterion={(piId) =>
+                    addPerformanceCriterion(
+                      selectedOutcome.id,
+                      piId
+                    )
+                  }
+                  onUpdateCriterion={(piId, criterionId, updates) =>
+                    updatePerformanceCriterion(
+                      selectedOutcome.id,
+                      piId,
+                      criterionId,
+                      updates
+                    )
+                  }
+                  onDeleteCriterion={(piId, criterionId) =>
+                    deletePerformanceCriterion(
+                      selectedOutcome.id,
+                      piId,
+                      criterionId
+                    )
+                  }
                 />
               </>
             ) : (
               <div className="glass-card p-12 text-center">
                 <Settings className="w-16 h-16 mx-auto mb-4 text-[#A5A8AB]" />
-                <h3 className="text-lg font-semibold text-[#231F20] mb-2">No Student Outcomes</h3>
+                <h3 className="text-lg font-semibold text-[#231F20] mb-2">
+                  No Student Outcomes
+                </h3>
                 <p className="text-[#6B6B6B] mb-6">
                   Get started by creating your first student outcome
                 </p>
@@ -176,7 +228,7 @@ const StudentOutcomes = () => {
           </div>
         </div>
       </main>
-      
+
       <Footer />
     </div>
   );
