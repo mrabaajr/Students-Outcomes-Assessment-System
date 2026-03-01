@@ -1,16 +1,25 @@
+import { useState } from "react";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
 import StatCards from "@/components/reports/StatCards.jsx";
 import SOPerformance from "@/components/reports/SOPerformance.jsx";
 import CourseSummary from "@/components/reports/CourseSummary.jsx";
 import AssessmentCompletion from "@/components/reports/AssessmentCompletion.jsx";
+import ReportsFilter from "@/components/reports/ReportsFilter.jsx";
 import { FileDown } from "lucide-react";
 
 export default function Reports() {
+  const [filters, setFilters] = useState({
+    schoolYear: "",
+    course: "",
+    section: "",
+    outcome: ""
+  });
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
-      
+
       <main className="flex-1">
         {/* Hero Section */}
         <section className="bg-[#231F20] border-b border-[#A5A8AB] pt-16">
@@ -35,15 +44,21 @@ export default function Reports() {
             </button>
           </div>
         </section>
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
-          <StatCards />
-          <SOPerformance />
-          <CourseSummary />
-          <AssessmentCompletion />
+
+        {/* Filters */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <ReportsFilter filters={filters} setFilters={setFilters} />
+        </div>
+
+        {/* Report Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 space-y-6 sm:space-y-8">
+          <StatCards filters={filters} />
+          <SOPerformance filters={filters} />
+          <CourseSummary filters={filters} />
+          <AssessmentCompletion filters={filters} />
         </div>
       </main>
-      
+
       <Footer />
     </div>
   );
