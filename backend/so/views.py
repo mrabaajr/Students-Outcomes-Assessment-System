@@ -88,8 +88,8 @@ class StudentOutcomeViewSet(viewsets.ModelViewSet):
                         pc_saved_ids = set()
                         for pc_idx, pc_data in enumerate(pi_data.get('performanceCriteria', [])):
                             pc_id = pc_data.get('id')
-                            pc_name = pc_data.get('description', pc_data.get('name', ''))
-                            pc_order = pc_idx + 1
+                            pc_name = pc_data.get('name', pc_data.get('description', ''))
+                            pc_order = pc_data.get('order', pc_idx + 1)
 
                             if pc_id and isinstance(pc_id, int):
                                 pc_obj, _ = PerformanceCriterion.objects.update_or_create(

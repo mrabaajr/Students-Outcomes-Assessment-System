@@ -44,12 +44,12 @@ export function PITable({
 
   const handleEditCriterion = (piId, criterion) => {
     setEditingCriterion({ piId, criterionId: criterion.id });
-    setEditCriterionValue(criterion.description);
+    setEditCriterionValue(criterion.name);
   };
 
   const handleSaveCriterion = (piId, criterionId) => {
     onUpdateCriterion(piId, criterionId, {
-      description: editCriterionValue,
+      name: editCriterionValue,
     });
     setEditingCriterion(null);
     setEditCriterionValue('');
@@ -204,7 +204,7 @@ export function PITable({
                     ) : (
                       <>
                         <div className="flex-1 text-sm text-gray-700">
-                          {criterion.description || (
+                          {criterion.name || (
                             <span className="italic text-gray-400">
                               Empty criterion
                             </span>

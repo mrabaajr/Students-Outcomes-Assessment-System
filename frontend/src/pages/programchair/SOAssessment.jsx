@@ -95,6 +95,11 @@ export default function SOAssessment() {
             number: pi.number,
             name: pi.description,
             shortName: pi.description ? pi.description.substring(0, 40) : '',
+            performanceCriteria: (pi.criteria || pi.performanceCriteria || pi.performance_criteria || []).map(pc => ({
+              id: pc.id,
+              name: pc.name || '',
+              order: pc.order ?? 0,
+            })),
           })),
         }));
         setStudentOutcomes(soData);
