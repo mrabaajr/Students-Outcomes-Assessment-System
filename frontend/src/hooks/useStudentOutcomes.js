@@ -30,6 +30,7 @@ const transformFromBackend = (backendSO) => ({
     performanceCriteria: (
       pi.performanceCriteria ||
       pi.performance_criteria ||
+      pi.criteria ||
       []
     ).map((pc) => ({
       id: pc.id,

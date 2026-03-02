@@ -108,11 +108,13 @@ class Section(models.Model):
     schedule_start = models.TimeField(blank=True, null=True)
     schedule_end = models.TimeField(blank=True, null=True)
 
+    school_year = models.CharField(max_length=20, blank=True, default='')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('name', 'course')
+        unique_together = ('name', 'course', 'school_year')
         ordering = ['course', 'name']
 
     def __str__(self):

@@ -14,6 +14,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
   const [courseName, setCourseName] = useState("");
   const [schedule, setSchedule] = useState("");
   const [room, setRoom] = useState("");
+  const [schoolYear, setSchoolYear] = useState("");
 
   // Backend courses list
   const [backendCourses, setBackendCourses] = useState([]);
@@ -40,6 +41,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
       setCourseName(initialData.courseName);
       setSchedule(initialData.schedule);
       setRoom(initialData.room);
+      setSchoolYear(initialData.schoolYear || "");
       // Try to match to a backend course
       const match = backendCourses.find(
         (c) => c.code === initialData.courseCode && c.name === initialData.courseName
@@ -51,6 +53,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
       setCourseName("");
       setSchedule("");
       setRoom("");
+      setSchoolYear("");
       setSelectedCourseId("");
     }
   }, [initialData, open, backendCourses]);
@@ -70,7 +73,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave({ name, courseCode, courseName, schedule, room });
+    onSave({ name, courseCode, courseName, schedule, room, schoolYear });
     onClose();
   };
 
@@ -127,6 +130,23 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
               <Label htmlFor="room">Room</Label>
               <Input id="room" value={room} onChange={e => setRoom(e.target.value)} placeholder="e.g. Room 401" required />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="schoolYear">School Year</Label>
+            <select
+              id="schoolYear"
+              value={schoolYear}
+              onChange={e => setSchoolYear(e.target.value)}
+              required
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">-- Select School Year --</option>
+              <option value="2023-2024">2023-2024</option>
+              <option value="2024-2025">2024-2025</option>
+              <option value="2025-2026">2025-2026</option>
+              <option value="2026-2027">2026-2027</option>
+            </select>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

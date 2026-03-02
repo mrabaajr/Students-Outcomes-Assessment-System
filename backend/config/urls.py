@@ -12,6 +12,7 @@ from so.views import StudentOutcomeViewSet, PerformanceIndicatorViewSet
 from courses.views import (CourseSOMappingViewSet,CurriculumViewSet,CourseViewSet,)
 from courses.views import AcademicYearViewSet
 from classess.views import (StudentViewSet,SectionViewSet,EnrollmentViewSet,)
+from assessment.views import AssessmentViewSet
 
 
 def root_view(request):
@@ -40,6 +41,7 @@ router.register(r'academic-years', AcademicYearViewSet, basename='academic-year'
 router.register(r'students', StudentViewSet, basename='student')
 router.register(r'sections', SectionViewSet, basename='section')
 router.register(r'enrollments', EnrollmentViewSet, basename='enrollment')
+router.register(r'assessments', AssessmentViewSet, basename='assessment')
 
 
 urlpatterns = [

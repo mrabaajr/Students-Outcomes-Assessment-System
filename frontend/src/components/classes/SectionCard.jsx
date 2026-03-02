@@ -64,6 +64,11 @@ const SectionCard = ({
               <MapPin className="w-3 h-3" />
               {section.room}
             </span>
+            {section.schoolYear && (
+              <span className="flex items-center gap-1 font-semibold text-[#231F20]">
+                SY {section.schoolYear}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

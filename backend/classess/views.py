@@ -175,6 +175,7 @@ class SectionViewSet(viewsets.ModelViewSet):
                 'courseName': sec.course.name,
                 'schedule': sec.schedule or '',
                 'room': sec.room or '',
+                'schoolYear': sec.school_year or '',
                 'students': students,
             })
 
@@ -291,9 +292,11 @@ class SectionViewSet(viewsets.ModelViewSet):
                         (sec['name'], course_code)
                     )
 
+                    school_year = sec.get('schoolYear', '')
                     section_obj, _ = Section.objects.update_or_create(
                         name=sec['name'],
                         course=course,
+                        school_year=school_year,
                         defaults={
                             'assigned_faculty': fac_obj,
                             'room': sec.get('room', ''),
