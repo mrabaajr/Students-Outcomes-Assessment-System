@@ -6,9 +6,12 @@ import Courses from './pages/programchair/Courses'
 import SOAssessment from './pages/programchair/SOAssessment'
 import Reports from './pages/programchair/Reports'
 import Classes from './pages/programchair/Classes'
-import StaffHome from './pages/staff/Home'
-import StaffLogin from './pages/staff/Login'
-import StaffDashboard from './pages/staff/Dashboard'
+import FacultyHome from './pages/faculty/Home'
+import FacultyLogin from './pages/faculty/Login'
+import FacultyDashboard from './pages/faculty/Dashboard'
+import FacultyClasses from './pages/faculty/Classess'
+import FacultyAssessments from './pages/faculty/Assessments'
+import FacultyReports from './pages/faculty/Reports'
 import ProtectedRoute from './components/ProtectedRoute'
 
 
@@ -79,21 +82,45 @@ export default function App() {
           } 
         />
         
-        {/* Staff Routes */}
+        {/* Faculty Routes */}
         <Route 
-          path="/staff" 
+          path="/faculty" 
           element={
             <ProtectedRoute>
-              <StaffHome />
+              <FacultyHome />
             </ProtectedRoute>
           } 
         />
-        <Route path="/staff/login" element={<StaffLogin />} />
+        <Route path="/faculty/login" element={<FacultyLogin />} />
         <Route 
-          path="/staff/dashboard" 
+          path="/faculty/dashboard" 
           element={
             <ProtectedRoute>
-              <StaffDashboard />
+              <FacultyDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/faculty/classes" 
+          element={
+            <ProtectedRoute>
+              <FacultyClasses />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/faculty/assessments" 
+          element={
+            <ProtectedRoute>
+              <FacultyAssessments />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/faculty/reports" 
+          element={
+            <ProtectedRoute>
+              <FacultyReports />
             </ProtectedRoute>
           } 
         />

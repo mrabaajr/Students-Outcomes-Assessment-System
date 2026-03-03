@@ -67,12 +67,14 @@ export default function SOAssessment() {
     const el = soSectionRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
-      ([entry]) => setIsNavigatorVisible(!entry.isIntersecting),
-      { threshold: 0 }
+      ([entry]) => {
+        setIsNavigatorVisible(!entry.isIntersecting);
+      },
+      { threshold: 0, rootMargin: '-80px 0px 0px 0px' }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [soSectionRef.current]);
 
   // ── Fetch SOs and sections from backend ──────────────
   useEffect(() => {
@@ -410,74 +412,76 @@ export default function SOAssessment() {
         </section>
 
         {/* Compact Floating SO Navigator */}
-        <div className={`fixed right-4 top-20 z-40 hidden lg:block transition-all duration-300 ${isNavigatorVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
-          <div className={`bg-[#231F20]/95 backdrop-blur-sm border border-[#FFC20E] rounded-lg shadow-xl overflow-hidden transition-all duration-300 ${isNavigatorCollapsed ? 'w-28' : 'w-52'}`}>
-            <button
-              onClick={() => setIsNavigatorCollapsed(!isNavigatorCollapsed)}
-              className="w-full flex items-center justify-between gap-1 px-2 py-1.5 hover:bg-[#2A2626] transition-colors"
-            >
-              <div className="flex items-center gap-1.5">
-                {(() => {
-                  const Icon = getSOIcon(studentOutcomes.findIndex(s => s.id === selectedSOId));
-                  return <Icon className="w-4 h-4 text-[#FFC20E] shrink-0" />;
-                })()}
-                <span className="text-xs font-bold text-white whitespace-nowrap">{so.code}</span>
-              </div>
-              {!isNavigatorCollapsed && (
-                <div className="flex items-center gap-1">
-                  <span className={`text-[9px] font-semibold px-1 py-0.5 rounded ${isSaved ? 'bg-green-600 text-white' : 'bg-[#FFC20E] text-[#231F20]'}`}>
-                    {isSaved ? 'SAVED' : 'EDITING'}
-                  </span>
-                  <ChevronRight className="w-3 h-3 text-[#FFC20E] rotate-90 shrink-0" />
+        {so && (
+          <div className={`fixed right-4 top-20 z-40 hidden lg:block transition-all duration-300 ${isNavigatorVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
+            <div className={`bg-[#231F20]/95 backdrop-blur-sm border border-[#FFC20E] rounded-lg shadow-xl overflow-hidden transition-all duration-300 ${isNavigatorCollapsed ? 'w-28' : 'w-52'}`}>
+              <button
+                onClick={() => setIsNavigatorCollapsed(!isNavigatorCollapsed)}
+                className="w-full flex items-center justify-between gap-1 px-2 py-1.5 hover:bg-[#2A2626] transition-colors"
+              >
+                <div className="flex items-center gap-1.5">
+                  {(() => {
+                    const Icon = getSOIcon(studentOutcomes.findIndex(s => s.id === selectedSOId));
+                    return <Icon className="w-4 h-4 text-[#FFC20E] shrink-0" />;
+                  })()}
+                  <span className="text-xs font-bold text-white whitespace-nowrap">{so.code}</span>
                 </div>
-              )}
-            </button>
-            
-            <div className={`transition-all duration-300 overflow-hidden ${isNavigatorCollapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'}`}>
-              <div className="px-2 pb-2">
-                <div className="pb-1.5 mb-1.5 border-b border-[#FFC20E]/30">
-                  <p className="text-xs font-semibold text-[#FFC20E] text-center leading-tight line-clamp-1">
-                    {so.title}
-                  </p>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-1">
-                  {studentOutcomes.map((outcome, idx) => {
-                    const Icon = getSOIcon(idx);
-                    const isActive = outcome.id === selectedSOId;
-                    return (
-                      <button
-                        key={outcome.id}
-                        onClick={() => setSelectedSOId(outcome.id)}
-                        className={`flex flex-col items-center justify-center py-1.5 rounded transition-all ${isActive ? 'bg-[#FFC20E] text-[#231F20]' : 'bg-[#3A3A3A] text-[#A5A8AB] hover:bg-[#4A4A4A] hover:text-white'}`}
-                        title={outcome.title}
-                      >
-                        <Icon className={`w-4 h-4 mb-1 ${isActive ? 'text-[#231F20]' : ''}`} />
-                        <span className="text-xs font-bold leading-none">{outcome.number}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                <div className="flex gap-1 mt-1.5 pt-1.5 border-t border-[#FFC20E]/30">
-                  <button
-                    onClick={handleSave}
-                    className="flex-1 flex items-center justify-center gap-1 bg-[#FFC20E] text-[#231F20] px-2 py-1 rounded text-[10px] font-bold hover:bg-[#FFC20E]/90 transition-colors"
-                  >
-                    <Save className="w-3 h-3" />
-                    <span>SAVE</span>
-                  </button>
-                  <button
-                    onClick={handleExport}
-                    className="flex items-center justify-center bg-[#3A3A3A] text-[#FFC20E] p-1 rounded hover:bg-[#4A4A4A] transition-colors"
-                  >
-                    <Download className="w-3 h-3" />
-                  </button>
+                {!isNavigatorCollapsed && (
+                  <div className="flex items-center gap-1">
+                    <span className={`text-[9px] font-semibold px-1 py-0.5 rounded ${isSaved ? 'bg-green-600 text-white' : 'bg-[#FFC20E] text-[#231F20]'}`}>
+                      {isSaved ? 'SAVED' : 'EDITING'}
+                    </span>
+                    <ChevronRight className="w-3 h-3 text-[#FFC20E] rotate-90 shrink-0" />
+                  </div>
+                )}
+              </button>
+              
+              <div className={`transition-all duration-300 overflow-hidden ${isNavigatorCollapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'}`}>
+                <div className="px-2 pb-2">
+                  <div className="pb-1.5 mb-1.5 border-b border-[#FFC20E]/30">
+                    <p className="text-xs font-semibold text-[#FFC20E] text-center leading-tight line-clamp-1">
+                      {so.title}
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-1">
+                    {studentOutcomes.map((outcome, idx) => {
+                      const Icon = getSOIcon(idx);
+                      const isActive = outcome.id === selectedSOId;
+                      return (
+                        <button
+                          key={outcome.id}
+                          onClick={() => setSelectedSOId(outcome.id)}
+                          className={`flex flex-col items-center justify-center py-1.5 rounded transition-all ${isActive ? 'bg-[#FFC20E] text-[#231F20]' : 'bg-[#3A3A3A] text-[#A5A8AB] hover:bg-[#4A4A4A] hover:text-white'}`}
+                          title={outcome.title}
+                        >
+                          <Icon className={`w-4 h-4 mb-1 ${isActive ? 'text-[#231F20]' : ''}`} />
+                          <span className="text-xs font-bold leading-none">{outcome.number}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <div className="flex gap-1 mt-1.5 pt-1.5 border-t border-[#FFC20E]/30">
+                    <button
+                      onClick={handleSave}
+                      className="flex-1 flex items-center justify-center gap-1 bg-[#FFC20E] text-[#231F20] px-2 py-1 rounded text-[10px] font-bold hover:bg-[#FFC20E]/90 transition-colors"
+                    >
+                      <Save className="w-3 h-3" />
+                      <span>SAVE</span>
+                    </button>
+                    <button
+                      onClick={handleExport}
+                      className="flex items-center justify-center bg-[#3A3A3A] text-[#FFC20E] p-1 rounded hover:bg-[#4A4A4A] transition-colors"
+                    >
+                      <Download className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Scrollable Content */}
         <div className="bg-[#F5F5F0]">

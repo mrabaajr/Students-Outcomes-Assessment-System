@@ -213,7 +213,7 @@ const App = () => {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="w-9 h-9 sm:w-10 sm:h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <action.icon className="w-4 h-4 sm:w-5 sm:h-5" color={action.color} />
+                      <action.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${action.color}`} />
                     </div>
                     <ArrowRight 
                       className="w-4 h-4 text-[#6B6B6B] group-hover:text-[#FFC20E] group-hover:translate-x-1 transition-all flex-shrink-0" 
