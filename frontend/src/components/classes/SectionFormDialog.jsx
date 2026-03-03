@@ -86,7 +86,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Section Name</Label>
-            <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. BSIT 3-1" required />
+            <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. CPE11S1" required />
           </div>
 
           {/* Course selection from backend */}
