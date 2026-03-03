@@ -4,7 +4,6 @@ import Footer from "../../components/dashboard/Footer";
 import StatCards from "@/components/reports/StatCards.jsx";
 import SOPerformance from "@/components/reports/SOPerformance.jsx";
 import CourseSummary from "@/components/reports/CourseSummary.jsx";
-import AssessmentCompletion from "@/components/reports/AssessmentCompletion.jsx";
 import ReportsFilter from "@/components/reports/ReportsFilter.jsx";
 import { FileDown } from "lucide-react";
 
@@ -35,7 +34,7 @@ export default function Reports() {
             </h1>
 
             <p className="text-sm sm:text-base text-[#A5A8AB] max-w-xl mb-6 sm:mb-8">
-              Overview of student outcomes, course performance, and assessment status across all programs and courses.
+              Overview of student outcomes and course performance across selected filters.
             </p>
 
             <button className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors">
@@ -55,7 +54,6 @@ export default function Reports() {
           <StatCards filters={filters} />
           <SOPerformance filters={filters} />
           <CourseSummary filters={filters} />
-          <AssessmentCompletion filters={filters} />
         </div>
       </main>
 
