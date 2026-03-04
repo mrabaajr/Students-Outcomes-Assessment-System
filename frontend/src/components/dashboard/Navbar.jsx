@@ -1,7 +1,7 @@
 import { GraduationCap, BookOpen, FileText, BarChart3, User, Users } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-const navItems = [
+const programChairNavItems = [
   { icon: GraduationCap, label: "Student Outcomes", link: "/programchair/student-outcomes" },
   { icon: BookOpen, label: "Courses", link: "/programchair/courses" },
   { icon: Users, label: "Classes", link: "/programchair/classes" },
@@ -9,9 +9,20 @@ const navItems = [
   { icon: BarChart3, label: "Reports", link: "/programchair/reports" },
 ];
 
+const facultyNavItems = [
+  { icon: Users, label: "Classes", link: "/faculty/classes" },
+  { icon: FileText, label: "Assessment", link: "/faculty/assessments" },
+  { icon: BarChart3, label: "Reports", link: "/faculty/reports" },
+];
+
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Determine if user is on faculty or program chair pages
+  const isFaculty = location.pathname.startsWith('/faculty');
+  const navItems = isFaculty ? facultyNavItems : programChairNavItems;
+  const dashboardLink = isFaculty ? '/faculty/dashboard' : '/programchair/dashboard';
 
   const isActive = (link) => {
     if (link === "#") return false;
@@ -33,7 +44,7 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-16 min-h-[4rem]">
           {/* Logo */}
           <button 
-            onClick={() => navigate("/programchair/dashboard")}
+            onClick={() => navigate(dashboardLink)}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0"
           >
             <div>

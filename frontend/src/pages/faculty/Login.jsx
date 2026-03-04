@@ -24,7 +24,7 @@ export default function Login() {
 
       localStorage.setItem('accessToken', response.data.access)
       localStorage.setItem('refreshToken', response.data.refresh)
-      navigate('/staff/dashboard')
+      navigate('/faculty/dashboard')
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed')
     } finally {

@@ -55,7 +55,7 @@ const Login = () => {
       if (userRole === "admin") {
         navigate("/programchair/dashboard");
       } else if (userRole === "staff") {
-        navigate("/staff/dashboard");
+        navigate("/faculty/dashboard");
       } else {
         setError("Unknown role. Please contact administrator.");
         navigate("/");
