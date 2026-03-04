@@ -92,6 +92,12 @@ class StudentViewSet(viewsets.ModelViewSet):
 class SectionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
+    def get_authenticators(self):
+        """Skip JWT authentication for public actions to avoid 401 on stale tokens."""
+        if getattr(self, 'action', None) in ('load_all', 'bulk_save'):
+            return []
+        return super().get_authenticators()
+
     def get_queryset(self):
         user = self.request.user
 

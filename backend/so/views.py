@@ -27,6 +27,7 @@ class StudentOutcomeViewSet(viewsets.ModelViewSet):
 
     serializer_class = StudentOutcomeSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     @action(detail=False, methods=['post'], url_path='bulk_save')
     def bulk_save(self, request):
@@ -148,6 +149,7 @@ class PerformanceIndicatorViewSet(viewsets.ModelViewSet):
     queryset = PerformanceIndicator.objects.prefetch_related("criteria").all()
     serializer_class = PerformanceIndicatorSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def get_queryset(self):
         queryset = super().get_queryset()

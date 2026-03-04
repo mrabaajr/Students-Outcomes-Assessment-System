@@ -14,6 +14,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
     queryset = Assessment.objects.prefetch_related('grades').all()
     serializer_class = AssessmentSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     @action(detail=False, methods=['get'], url_path='load_grades')
     def load_grades(self, request):

@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import axios from "axios";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
 import StatCards from "@/components/reports/StatCards.jsx";
 import SOPerformance from "@/components/reports/SOPerformance.jsx";
 import CourseSummary from "@/components/reports/CourseSummary.jsx";
 import ReportsFilter from "@/components/reports/ReportsFilter.jsx";
-import { FileDown } from "lucide-react";
+import { FileDown, Loader2 } from "lucide-react";
+
+const API_BASE_URL = "http://localhost:8000/api";
 
 export default function Reports() {
   const [filters, setFilters] = useState({
@@ -14,6 +17,30 @@ export default function Reports() {
     section: "",
     outcome: ""
   });
+
+  const [data, setData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchReport = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const params = {};
+      if (filters.schoolYear) params.school_year = filters.schoolYear;
+      if (filters.course) params.course = filters.course;
+      if (filters.section) params.section = filters.section;
+      if (filters.outcome) params.so = filters.outcome;
+
+      const res = await axios.get(`${API_BASE_URL}/reports/dashboard/`, { params });
+      setData(res.data);
+    } catch (err) {
+      console.error("Error loading report data:", err);
+    }
+    setIsLoading(false);
+  }, [filters]);
+
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -46,14 +73,31 @@ export default function Reports() {
 
         {/* Filters */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <ReportsFilter filters={filters} setFilters={setFilters} />
+          <ReportsFilter
+            filters={filters}
+            setFilters={setFilters}
+            filterOptions={data?.filter_options}
+          />
         </div>
 
         {/* Report Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 space-y-6 sm:space-y-8">
-          <StatCards filters={filters} />
-          <SOPerformance filters={filters} />
-          <CourseSummary filters={filters} />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-10 h-10 animate-spin text-[#FFC20E]" />
+              <span className="ml-3 text-[#6B6B6B]">Loading report data...</span>
+            </div>
+          ) : data ? (
+            <>
+              <StatCards metrics={data.metrics} />
+              <SOPerformance soData={data.so_performance || []} />
+              <CourseSummary courses={data.course_summary || []} />
+            </>
+          ) : (
+            <div className="text-center py-16 text-[#A5A8AB]">
+              <p className="text-lg">No report data available.</p>
+            </div>
+          )}
         </div>
       </main>
 

@@ -77,14 +77,25 @@ export const useStudentOutcomes = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`${API_BASE_URL}/student-outcomes/`, {
-        headers: getAuthHeader(),
-      });
+      const response = await axios.get(`${API_BASE_URL}/student-outcomes/`);
       const data = Array.isArray(response.data) ? response.data : response.data.results || [];
       const transformed = data.map(transformFromBackend);
       setOutcomes(transformed);
     } catch (err) {
       console.error('Error fetching student outcomes:', err);
+      // If 401 due to stale token, retry without auth header
+      if (err.response?.status === 401) {
+        try {
+          const retry = await axios.get(`${API_BASE_URL}/student-outcomes/`, {
+            headers: {},
+          });
+          const data = Array.isArray(retry.data) ? retry.data : retry.data.results || [];
+          setOutcomes(data.map(transformFromBackend));
+          return;
+        } catch (retryErr) {
+          console.error('Retry also failed:', retryErr);
+        }
+      }
       setError(err.response?.data?.detail || err.message);
       setOutcomes([]);
     } finally {

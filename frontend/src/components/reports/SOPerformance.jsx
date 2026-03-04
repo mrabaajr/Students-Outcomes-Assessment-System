@@ -8,36 +8,37 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  ReferenceLine,
 } from "recharts";
 
-const soData = [
-  { id: 1, name: "Apply knowledge of math, science & engineering", avg: 82, passRate: 88, met: true },
-  { id: 2, name: "Design and conduct experiments", avg: 74, passRate: 76, met: true },
-  { id: 3, name: "Design a system, component, or process", avg: 69, passRate: 62, met: false },
-  { id: 4, name: "Function on multidisciplinary teams", avg: 85, passRate: 91, met: true },
-  { id: 5, name: "Identify & solve engineering problems", avg: 71, passRate: 68, met: false },
-  { id: 6, name: "Professional and ethical responsibility", avg: 89, passRate: 94, met: true },
-];
+export default function SOPerformance({ soData = [] }) {
+  const chartData = soData.map((d) => ({
+    name: `SO ${d.number}`,
+    score: d.avg,
+    met: d.met,
+  }));
 
-const chartData = soData.map((d) => ({
-  name: `SO ${d.id}`,
-  score: d.avg,
-  met: d.met,
-}));
+  if (soData.length === 0) {
+    return (
+      <div className="glass-card p-6 text-center text-[#6B6B6B] py-12">
+        <p className="text-sm">No SO performance data available. Save assessments first.</p>
+      </div>
+    );
+  }
 
-export default function SOPerformance() {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {/* Chart */}
       <div className="glass-card p-6">
         <h2 className="text-lg font-semibold text-[#231F20] mb-4">SO Average Performance</h2>
         <div>
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={280}>
             <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
               <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#6B6B6B" }} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: "#6B6B6B" }} />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: "#6B6B6B" }} unit="%" />
               <Tooltip
+                formatter={(value) => [`${value}%`, "Avg Score"]}
                 contentStyle={{
                   backgroundColor: "#FFFFFF",
                   border: "1px solid #E5E7EB",
@@ -45,12 +46,10 @@ export default function SOPerformance() {
                   fontSize: 12,
                 }}
               />
+              <ReferenceLine y={80} stroke="#FFC20E" strokeDasharray="5 5" label={{ value: "Target 80%", position: "right", fontSize: 10, fill: "#6B6B6B" }} />
               <Bar dataKey="score" radius={[4, 4, 0, 0]}>
                 {chartData.map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={entry.met ? "#16A34A" : "#DC2626"}
-                  />
+                  <Cell key={i} fill={entry.met ? "#16A34A" : "#DC2626"} />
                 ))}
               </Bar>
             </BarChart>
@@ -75,10 +74,10 @@ export default function SOPerformance() {
             <tbody>
               {soData.map((so) => (
                 <tr key={so.id} className="border-b border-[#E5E7EB] last:border-0">
-                  <td className="py-3 font-medium text-sm text-[#231F20]">SO {so.id}</td>
+                  <td className="py-3 font-medium text-sm text-[#231F20]">SO {so.number}</td>
                   <td className="py-3 text-sm text-[#231F20] max-w-[200px] truncate">{so.name}</td>
                   <td className="py-3 text-center text-sm text-[#231F20]">{so.avg}%</td>
-                  <td className="py-3 text-center text-sm text-[#231F20]">{so.passRate}%</td>
+                  <td className="py-3 text-center text-sm text-[#231F20]">{so.pass_rate}%</td>
                   <td className="py-3 text-center">
                     {so.met ? (
                       <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-medium">

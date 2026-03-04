@@ -24,6 +24,7 @@ class CourseSOMappingViewSet(viewsets.ModelViewSet):
     """
     queryset = CourseSOMapping.objects.prefetch_related('mapped_sos').all()
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -95,6 +96,7 @@ class CurriculumViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Curriculum.objects.all()
     serializer_class = CurriculumSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []
 
 
 class CourseViewSet(viewsets.ReadOnlyModelViewSet):
@@ -104,6 +106,7 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Course.objects.select_related('curriculum').all()
     serializer_class = CourseSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -123,5 +126,6 @@ ACADEMIC_YEARS = [
 
 class AcademicYearViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
+    authentication_classes = []
     def list(self, request):
         return Response(ACADEMIC_YEARS)
