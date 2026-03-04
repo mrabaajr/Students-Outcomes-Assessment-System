@@ -263,12 +263,16 @@ export default function SOAssessment() {
     let unsatisfactoryCount = 0;
     let satisfactoryPctSum = 0;
     let unsatisfactoryAvgSum = 0;
+    let totalPctSum = 0;
+    let gradedStudentCount = 0;
 
     students.forEach(student => {
       const values = Object.values(student.grades).filter(g => g !== null && g !== undefined);
       if (values.length === 0) return;
       const avg = values.reduce((a, b) => a + b, 0) / values.length;
       const pct = (avg / 6) * 100;
+      totalPctSum += pct;
+      gradedStudentCount++;
       if (avg >= satisfactoryThreshold) {
         satisfactoryCount++;
         satisfactoryPctSum += pct;
@@ -281,6 +285,7 @@ export default function SOAssessment() {
     const attainmentRate = totalStudents > 0 ? (satisfactoryCount / totalStudents) * 100 : 0;
     const avgSatisfactoryPct = satisfactoryCount > 0 ? (satisfactoryPctSum / satisfactoryCount) : 0;
     const avgUnsatisfactoryRating = unsatisfactoryCount > 0 ? (unsatisfactoryAvgSum / unsatisfactoryCount) : 0;
+    const totalAveragePercent = gradedStudentCount > 0 ? (totalPctSum / gradedStudentCount) : 0;
 
     return {
       totalStudents,
@@ -289,6 +294,7 @@ export default function SOAssessment() {
       avgSatisfactoryPct: avgSatisfactoryPct.toFixed(1),
       avgUnsatisfactoryRating: avgUnsatisfactoryRating.toFixed(2),
       attainmentRate: attainmentRate.toFixed(1),
+      totalAveragePercent: totalAveragePercent.toFixed(1),
     };
   }, [students]);
 
@@ -643,10 +649,14 @@ export default function SOAssessment() {
                   </div>
                 </div>
                 <p className="text-sm text-[#6B6B6B] mb-1">Attainment Rate</p>
-                <p className="text-3xl font-bold text-[#231F20]">{stats.attainmentRate}%</p>
-                <p className="text-xs text-[#6B6B6B] mt-1">
-                  {parseFloat(stats.attainmentRate) >= 80 ? "Target Met" : "Below Target"}
-                </p>
+                <p className="text-3xl font-bold text-[#231F20]">{stats.totalAveragePercent}%</p>
+                <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold tracking-wider ${
+                  parseFloat(stats.totalAveragePercent) >= 80
+                    ? 'bg-green-100 text-green-700 border border-green-300'
+                    : 'bg-red-100 text-red-600 border border-red-300'
+                }`}>
+                  {parseFloat(stats.totalAveragePercent) >= 80 ? "Target Attained" : "Below Target"}
+                </span>
               </div>
             </div>
 
@@ -704,15 +714,19 @@ export default function SOAssessment() {
               <div>
                 <h3 className="font-semibold text-[#231F20] text-base mb-1">Assessment Summary</h3>
                 <p className="text-sm text-[#6B6B6B]">
-                  {stats.attainmentRate}% of the class got satisfactory rating. Thus, the level of attainment is{" "}
-                  {parseFloat(stats.attainmentRate) >= 80
+                  The class has an overall average of <span className="font-semibold text-[#231F20]">{stats.totalAveragePercent}%</span> with{" "}
+                  <span className="font-semibold text-[#231F20]">{stats.satisfactoryCount}</span> satisfactory and{" "}
+                  <span className="font-semibold text-[#231F20]">{stats.unsatisfactoryCount}</span> needing improvement out of{" "}
+                  <span className="font-semibold text-[#231F20]">{stats.totalStudents}</span> students.
+                  Thus, the level of attainment is{" "}
+                  {parseFloat(stats.totalAveragePercent) >= 80
                     ? "at or above"
                     : "lower than"}{" "}
                   the target level of 80%.
                 </p>
               </div>
-              <span className={`shrink-0 px-4 py-2 rounded-lg text-xs font-bold tracking-wider ${parseFloat(stats.attainmentRate) >= 80 ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-600 border border-red-300'}`}>
-                {parseFloat(stats.attainmentRate) >= 80 ? "TARGET MET" : "BELOW TARGET"}
+              <span className={`shrink-0 px-4 py-2 rounded-lg text-xs font-bold tracking-wider ${parseFloat(stats.totalAveragePercent) >= 80 ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-600 border border-red-300'}`}>
+                {parseFloat(stats.totalAveragePercent) >= 80 ? "TARGET ATTAINED" : "BELOW TARGET"}
               </span>
             </div>
           </div>
