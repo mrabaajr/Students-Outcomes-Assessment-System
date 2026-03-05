@@ -24,7 +24,7 @@ def send_account_creation_email(user, temporary_password):
     if user.role == 'admin':
         dashboard_url = 'http://localhost:5173/programchair/dashboard'
     else:
-        dashboard_url = 'http://localhost:5173/staff/dashboard'
+        dashboard_url = 'http://localhost:5173/faculty/dashboard'
     
     message = f"""
 Hello {user.first_name} {user.last_name},

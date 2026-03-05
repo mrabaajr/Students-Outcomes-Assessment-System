@@ -143,44 +143,44 @@ const App = () => {
       
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="bg-[#231F20] border-b border-[#A5A8AB]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <section className="bg-[#231F20] border-b border-[#A5A8AB] pt-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-10 sm:pb-14 lg:pb-16">
             <div className="inline-block px-3 py-1 bg-[#3A3A3A] rounded-full text-xs text-[#A5A8AB] mb-4">
               ASSESSMENT SYSTEM
             </div>
 
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
               <span className="text-white">Student Outcomes</span>
               <br />
               <span className="text-[#FFC20E]">Assessment Portal</span>
             </h1>
 
-            <p className="text-[#A5A8AB] max-w-xl mb-8">
+            <p className="text-sm sm:text-base text-[#A5A8AB] max-w-xl mb-6 sm:mb-8">
               Streamline your program assessment workflow. Define student outcomes, map
               courses, collect evaluations, and generate comprehensive reports.
             </p>
 
-            <div className="flex flex-wrap gap-4">
-              <button className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-6 py-3 rounded-lg font-medium hover:bg-[#FFC20E]/90 transition-colors">
-                <Plus size={18} />
+            <div className="flex flex-wrap gap-3 sm:gap-4">
+              <button className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors">
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span>NEW ASSESSMENT</span>
               </button>
-              <button className="flex items-center gap-2 bg-transparent text-white px-6 py-3 rounded-lg font-medium hover:bg-[#3A3A3A] transition-colors border border-[#A5A8AB]">
-                <FileText size={18} />
+              <button className="flex items-center gap-2 bg-transparent text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#3A3A3A] transition-colors border border-[#A5A8AB]">
+                <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span>View Reports</span>
               </button>
             </div>
           </div>
         </section>
         
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((stat, index) => (
-              <div key={index} className="glass-card p-5 hover-lift">
+              <div key={index} className="glass-card p-4 sm:p-5 hover-lift">
                 <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                    <stat.icon size={20} className="text-primary" />
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <stat.icon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                   </div>
                   {stat.change && (
                     <span className={`text-xs font-medium px-2 py-1 rounded ${
@@ -194,7 +194,7 @@ const App = () => {
                 </div>
                 
                 <p className="text-xs text-[#6B6B6B] font-medium mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold text-[#231F20] mb-1">{stat.value}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-[#231F20] mb-1">{stat.value}</p>
                 <p className="text-xs text-[#6B6B6B]">{stat.sublabel}</p>
               </div>
             ))}
@@ -202,26 +202,25 @@ const App = () => {
 
           {/* Quick Actions */}
           <div>
-            <h2 className="text-lg font-semibold text-[#231F20] mb-4">Quick Actions</h2>
+            <h2 className="text-base sm:text-lg font-semibold text-[#231F20] mb-4">Quick Actions</h2>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {actions.map((action, index) => (
                 <div 
                   key={index} 
                   onClick={() => navigate(action.link)}
-                  className="glass-card p-5 hover-lift group cursor-pointer"
+                  className="glass-card p-4 sm:p-5 hover-lift group cursor-pointer"
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                      <action.icon size={20} className={action.color} />
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <action.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${action.color}`} />
                     </div>
                     <ArrowRight 
-                      size={16} 
-                      className="text-[#6B6B6B] group-hover:text-[#FFC20E] group-hover:translate-x-1 transition-all" 
+                      className="w-4 h-4 text-[#6B6B6B] group-hover:text-[#FFC20E] group-hover:translate-x-1 transition-all flex-shrink-0" 
                     />
                   </div>
                   
-                  <h3 className="font-semibold text-[#231F20] mb-1 group-hover:text-[#FFC20E] transition-colors">
+                  <h3 className="text-sm sm:text-base font-semibold text-[#231F20] mb-1 group-hover:text-[#FFC20E] transition-colors">
                     {action.title}
                   </h3>
                   <p className="text-xs text-[#6B6B6B]">{action.description}</p>

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { Eye, EyeOff, Mail, Lock, ArrowRight, User, Users } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 
@@ -55,7 +55,7 @@ const Login = () => {
       if (userRole === "admin") {
         navigate("/programchair/dashboard");
       } else if (userRole === "staff") {
-        navigate("/staff/dashboard");
+        navigate("/faculty/dashboard");
       } else {
         setError("Unknown role. Please contact administrator.");
         navigate("/");
@@ -91,32 +91,32 @@ const Login = () => {
         </div>
 
         {/* Content */}
-        <div className="relative z-10 flex flex-col justify-center px-16 xl:px-24">
+        <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 2xl:px-24">
           <div className="animate-slide-right">
-            <h1 className="font-display text-7xl xl:text-8xl text-white tracking-wide leading-none mb-6">
+            <h1 className="font-display text-5xl md:text-6xl xl:text-7xl 2xl:text-8xl text-white tracking-wide leading-none mb-4 sm:mb-6">
               WELCOME<br />
               <span className="text-yellow-400">BACK</span>
             </h1>
-            <p className="text-white/70 text-lg max-w-md leading-relaxed">
+            <p className="text-white/70 text-base lg:text-lg max-w-md leading-relaxed">
               Sign in to access your account and continue your journey with us.
             </p>
           </div>
 
           {/* Decorative dots */}
-          <div className="absolute bottom-16 left-16 flex gap-2">
-            <div className="w-3 h-3 rounded-full bg-yellow-400 animate-pulse" />
-            <div className="w-3 h-3 rounded-full bg-yellow-400/50" />
-            <div className="w-3 h-3 rounded-full bg-yellow-400/25" />
+          <div className="absolute bottom-12 sm:bottom-16 left-12 xl:left-16 flex gap-2">
+            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-yellow-400 animate-pulse" />
+            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-yellow-400/50" />
+            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-yellow-400/25" />
           </div>
         </div>
       </div>
 
       {/* Right side - Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-16 bg-white">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-8 lg:p-12 xl:p-16 bg-white">
         <div className="w-full max-w-md animate-slide-up">
           {/* Mobile branding */}
-          <div className="lg:hidden text-center mb-10">
-            <h1 className="font-display text-5xl tracking-wide text-dark-gray">
+          <div className="lg:hidden text-center mb-8 sm:mb-10">
+            <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-dark-gray">
               WELCOME <span className="text-yellow-400">BACK</span>
             </h1>
           </div>
@@ -129,34 +129,34 @@ const Login = () => {
           )}
 
           {/* Role Selection */}
-          <div className="mb-8">
-            <p className="text-sm font-medium mb-4 text-dark-gray">Select your role to continue</p>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="mb-6 sm:mb-8">
+            <p className="text-xs sm:text-sm font-medium mb-3 sm:mb-4 text-dark-gray">Select your role to continue</p>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <button
                 type="button"
                 onClick={() => setSelectedRole("admin")}
-                className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 transition-all duration-300 ${
+                className={`flex flex-col items-center justify-center p-4 sm:p-6 rounded-xl border-2 transition-all duration-300 ${
                   selectedRole === "admin"
                     ? "border-yellow-400 bg-yellow-400/10 shadow-lg"
                     : "border-gray-200 hover:border-yellow-400/50 hover:bg-gray-50"
                 }`}
               >
-                <User className={`w-8 h-8 mb-3 ${selectedRole === "admin" ? "text-yellow-400" : "text-gray"}`} />
-                <span className={`font-semibold ${selectedRole === "admin" ? "text-dark-gray" : "text-gray"}`}>
+                <User className={`w-6 h-6 sm:w-8 sm:h-8 mb-2 sm:mb-3 ${selectedRole === "admin" ? "text-yellow-400" : "text-gray"}`} />
+                <span className={`text-xs sm:text-sm font-semibold ${selectedRole === "admin" ? "text-dark-gray" : "text-gray"}`}>
                   Program Chair
                 </span>
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedRole("staff")}
-                className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 transition-all duration-300 ${
+                className={`flex flex-col items-center justify-center p-4 sm:p-6 rounded-xl border-2 transition-all duration-300 ${
                   selectedRole === "staff"
                     ? "border-yellow-400 bg-yellow-400/10 shadow-lg"
                     : "border-gray-200 hover:border-yellow-400/50 hover:bg-gray-50"
                 }`}
               >
-                <Users className={`w-8 h-8 mb-3 ${selectedRole === "staff" ? "text-yellow-400" : "text-gray"}`} />
-                <span className={`font-semibold ${selectedRole === "staff" ? "text-dark-gray" : "text-gray"}`}>
+                <Users className={`w-6 h-6 sm:w-8 sm:h-8 mb-2 sm:mb-3 ${selectedRole === "staff" ? "text-yellow-400" : "text-gray"}`} />
+                <span className={`text-xs sm:text-sm font-semibold ${selectedRole === "staff" ? "text-dark-gray" : "text-gray"}`}>
                   Staff
                 </span>
               </button>
@@ -164,13 +164,13 @@ const Login = () => {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-dark-gray">
+              <label htmlFor="email" className="text-xs sm:text-sm font-medium text-dark-gray">
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 icon-gray" />
+                <Mail className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 icon-gray" />
                 <Input
                   id="email"
                   type="email"

@@ -23,7 +23,7 @@ export function SODetails({ outcome, onUpdate }) {
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-3">
             <span className="px-3 py-1 bg-black text-white text-sm font-semibold rounded-full">
-              SO {outcome.number}
+              {outcome.code}
             </span>
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">{outcome.title}</h2>

@@ -2,9 +2,16 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './pages/Login'
 import ProgramChairDashboard from './pages/programchair/Dashboard'
 import StudentOutcomes from './pages/programchair/StudentOutcomes'
-import StaffHome from './pages/staff/Home'
-import StaffLogin from './pages/staff/Login'
-import StaffDashboard from './pages/staff/Dashboard'
+import Courses from './pages/programchair/Courses'
+import SOAssessment from './pages/programchair/SOAssessment'
+import Reports from './pages/programchair/Reports'
+import Classes from './pages/programchair/Classes'
+import FacultyHome from './pages/faculty/Home'
+import FacultyLogin from './pages/faculty/Login'
+import FacultyDashboard from './pages/faculty/Dashboard'
+import FacultyClasses from './pages/faculty/Classess'
+import FacultyAssessments from './pages/faculty/Assessments'
+import FacultyReports from './pages/faculty/Reports'
 import ProtectedRoute from './components/ProtectedRoute'
 
 
@@ -31,25 +38,89 @@ export default function App() {
           } 
         />
         <Route 
-          path="/programchair" 
-          element={<Navigate to="/programchair/dashboard" />} 
-        />
-        
-        {/* Staff Routes */}
-        <Route 
-          path="/staff" 
+          path="/programchair/courses" 
           element={
             <ProtectedRoute>
-              <StaffHome />
+              <Courses />
             </ProtectedRoute>
           } 
         />
-        <Route path="/staff/login" element={<StaffLogin />} />
         <Route 
-          path="/staff/dashboard" 
+          path="/programchair/assessment" 
           element={
             <ProtectedRoute>
-              <StaffDashboard />
+              <SOAssessment />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/assessment/:id" 
+          element={
+            <ProtectedRoute>
+              <SOAssessment />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/programchair" 
+          element={<Navigate to="/programchair/dashboard" />} 
+        />
+        <Route 
+          path="/programchair/reports" 
+          element={
+            <ProtectedRoute>
+              <Reports />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/programchair/classes" 
+          element={
+            <ProtectedRoute>
+              <Classes />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Faculty Routes */}
+        <Route 
+          path="/faculty" 
+          element={
+            <ProtectedRoute>
+              <FacultyHome />
+            </ProtectedRoute>
+          } 
+        />
+        <Route path="/faculty/login" element={<FacultyLogin />} />
+        <Route 
+          path="/faculty/dashboard" 
+          element={
+            <ProtectedRoute>
+              <FacultyDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/faculty/classes" 
+          element={
+            <ProtectedRoute>
+              <FacultyClasses />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/faculty/assessments" 
+          element={
+            <ProtectedRoute>
+              <FacultyAssessments />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/faculty/reports" 
+          element={
+            <ProtectedRoute>
+              <FacultyReports />
             </ProtectedRoute>
           } 
         />

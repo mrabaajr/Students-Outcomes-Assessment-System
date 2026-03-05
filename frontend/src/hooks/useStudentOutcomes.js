@@ -1,132 +1,323 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 
-const STORAGE_KEY = 'student-outcomes';
+const API_BASE_URL = 'http://localhost:8000/api';
 
-const initialData = [
-  {
-    id: '1',
-    number: 1,
-    title: 'T.I.P. SO 1',
-    description: 'Identify, formulate, and solve complex engineering problems by applying principles of engineering, science, and mathematics.',
-    performanceIndicators: [
-      { id: '1-1', number: 1, description: 'Identify and describe complex engineering problems.' },
-      { id: '1-2', number: 2, description: 'Formulate mathematical models for engineering problems.' },
-      { id: '1-3', number: 3, description: 'Apply scientific principles to analyze and solve problems.' },
-    ],
-  },
-  {
-    id: '2',
-    number: 2,
-    title: 'T.I.P. SO 2',
-    description: 'Apply engineering design to produce solutions that meet specified needs with consideration of public health, safety, and welfare.',
-    performanceIndicators: [
-      { id: '2-1', number: 1, description: 'Design solutions meeting specified engineering requirements.' },
-      { id: '2-2', number: 2, description: 'Consider public health and safety in design decisions.' },
-    ],
-  },
-];
+// Helper: Get auth header
+const getAuthHeader = () => {
+  const token = localStorage.getItem('accessToken');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
-export function useStudentOutcomes() {
-  const [outcomes, setOutcomes] = useState(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : initialData;
-  });
+// Transform backend SO → frontend format
+const transformFromBackend = (backendSO) => ({
+  id: backendSO.id,
+  number: backendSO.number,
+  code: `SO ${backendSO.number}`,
+  title: backendSO.title,
+  description: backendSO.description,
+  performanceIndicators: (
+    backendSO.performanceIndicators ||
+    backendSO.performance_indicators ||
+    []
+  ).map((pi) => ({
+    id: pi.id,
+    number: pi.number,
+    name: pi.description,
+    shortName: pi.description
+      ? pi.description.substring(0, 30)
+      : '',
+    performanceCriteria: (
+      pi.performanceCriteria ||
+      pi.performance_criteria ||
+      pi.criteria ||
+      []
+    ).map((pc) => ({
+      id: pc.id,
+      name: pc.name || pc.description || '',
+      order: pc.order ?? 0,
+    })),
+  })),
+});
 
+// Transform frontend SO → backend format for bulk save
+const transformToBackend = (frontendSO) => ({
+  id: typeof frontendSO.id === 'number' ? frontendSO.id : null,
+  number:
+    frontendSO.number ||
+    parseInt(String(frontendSO.code).replace(/\D/g, '')) ||
+    1,
+  title: frontendSO.title,
+  description: frontendSO.description,
+  performanceIndicators: (frontendSO.performanceIndicators || []).map(
+    (pi, idx) => ({
+      id: typeof pi.id === 'number' ? pi.id : null,
+      number: pi.number || idx + 1,
+      description: pi.name || '',
+      performanceCriteria: (pi.performanceCriteria || []).map(
+        (pc, pcIdx) => ({
+          id: typeof pc.id === 'number' ? pc.id : null,
+          name: pc.name || '',
+          order: pc.order ?? pcIdx + 1,
+        })
+      ),
+    })
+  ),
+});
+
+// Hook for managing student outcomes — connected to backend
+export const useStudentOutcomes = () => {
+  const [outcomes, setOutcomes] = useState([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const saveToStorage = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(outcomes));
-    setHasUnsavedChanges(false);
-  };
+  // Fetch student outcomes from backend on mount
+  const fetchOutcomes = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/student-outcomes/`);
+      const data = Array.isArray(response.data) ? response.data : response.data.results || [];
+      const transformed = data.map(transformFromBackend);
+      setOutcomes(transformed);
+    } catch (err) {
+      console.error('Error fetching student outcomes:', err);
+      // If 401 due to stale token, retry without auth header
+      if (err.response?.status === 401) {
+        try {
+          const retry = await axios.get(`${API_BASE_URL}/student-outcomes/`, {
+            headers: {},
+          });
+          const data = Array.isArray(retry.data) ? retry.data : retry.data.results || [];
+          setOutcomes(data.map(transformFromBackend));
+          return;
+        } catch (retryErr) {
+          console.error('Retry also failed:', retryErr);
+        }
+      }
+      setError(err.response?.data?.detail || err.message);
+      setOutcomes([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  const updateOutcome = (id, updates) => {
-    setOutcomes(prev =>
-      prev.map(so => (so.id === id ? { ...so, ...updates } : so))
-    );
+  useEffect(() => {
+    fetchOutcomes();
+  }, [fetchOutcomes]);
+
+  // Save all outcomes to backend via bulk_save endpoint
+  const saveToBackend = useCallback(async () => {
+    setError(null);
+    try {
+      const payload = {
+        outcomes: outcomes.map(transformToBackend),
+      };
+      const response = await axios.post(
+        `${API_BASE_URL}/student-outcomes/bulk_save/`,
+        payload,
+        { headers: getAuthHeader() }
+      );
+      // Update local state with saved data (now has proper backend IDs)
+      const savedOutcomes = (response.data.outcomes || []).map(transformFromBackend);
+      if (savedOutcomes.length > 0) {
+        setOutcomes(savedOutcomes);
+      }
+      setHasUnsavedChanges(false);
+      return { success: true };
+    } catch (err) {
+      console.error('Error saving student outcomes:', err);
+      const message = err.response?.data?.detail || err.message;
+      setError(message);
+      return { success: false, message };
+    }
+  }, [outcomes]);
+
+  const updateOutcome = useCallback((id, updates) => {
+    setOutcomes(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
     setHasUnsavedChanges(true);
-  };
+  }, []);
 
-  const addOutcome = () => {
-    const newNumber = outcomes.length > 0 ? Math.max(...outcomes.map(o => o.number)) + 1 : 1;
+  const addOutcome = useCallback(() => {
+    const maxNumber = Math.max(...outcomes.map(o => o.number || 0), 0);
+    const newNumber = maxNumber + 1;
     const newOutcome = {
-      id: Date.now().toString(),
+      id: `new_${Date.now()}`,
       number: newNumber,
-      title: `T.I.P. SO ${newNumber}`,
-      description: 'New student outcome description.',
+      code: `SO ${newNumber}`,
+      title: `New Student Outcome ${newNumber}`,
+      description: "",
       performanceIndicators: [],
     };
     setOutcomes(prev => [...prev, newOutcome]);
     setHasUnsavedChanges(true);
     return newOutcome;
-  };
+  }, [outcomes]);
 
-  const deleteOutcome = (id) => {
-    setOutcomes(prev => prev.filter(so => so.id !== id));
+  const deleteOutcome = useCallback((id) => {
+    setOutcomes(prev => prev.filter(o => o.id !== id));
     setHasUnsavedChanges(true);
-  };
+  }, []);
 
-  const addPerformanceIndicator = (outcomeId) => {
+  const addPerformanceIndicator = useCallback((outcomeId) => {
+  setOutcomes(prev =>
+    prev.map(o => {
+      if (o.id === outcomeId) {
+        const maxNum = Math.max(
+          ...o.performanceIndicators.map(pi => pi.number || 0),
+          0
+        );
+        const newNumber = maxNum + 1;
+
+        return {
+          ...o,
+          performanceIndicators: [
+            ...o.performanceIndicators,
+            {
+              id: `new_${Date.now()}_${newNumber}`,
+              number: newNumber,
+              name: '',
+              shortName: '',
+              performanceCriteria: [],   // ✅ NEW
+            },
+          ],
+        };
+      }
+      return o;
+    })
+  );
+  setHasUnsavedChanges(true);
+}, []);
+  const addPerformanceCriterion = useCallback((outcomeId, piId) => {
+  setOutcomes(prev =>
+    prev.map(o => {
+      if (o.id === outcomeId) {
+        return {
+          ...o,
+          performanceIndicators: o.performanceIndicators.map(pi => {
+            if (pi.id === piId) {
+              return {
+                ...pi,
+                performanceCriteria: [
+                  ...(pi.performanceCriteria || []),
+                  {
+                    id: `new_pc_${Date.now()}`,
+                    name: '',
+                    order: (pi.performanceCriteria || []).length + 1,
+                  },
+                ],
+              };
+            }
+            return pi;
+          }),
+        };
+      }
+      return o;
+    })
+  );
+  setHasUnsavedChanges(true);
+}, []);
+
+  const updatePerformanceCriterion = useCallback(
+  (outcomeId, piId, pcId, updates) => {
     setOutcomes(prev =>
-      prev.map(so => {
-        if (so.id === outcomeId) {
-          const newNumber = so.performanceIndicators.length > 0
-            ? Math.max(...so.performanceIndicators.map(pi => pi.number)) + 1
-            : 1;
+      prev.map(o => {
+        if (o.id === outcomeId) {
           return {
-            ...so,
-            performanceIndicators: [
-              ...so.performanceIndicators,
-              { id: `${outcomeId}-${Date.now()}`, number: newNumber, description: 'New performance indicator.' },
-            ],
+            ...o,
+            performanceIndicators: o.performanceIndicators.map(pi => {
+              if (pi.id === piId) {
+                return {
+                  ...pi,
+                  performanceCriteria: pi.performanceCriteria.map(pc =>
+                    pc.id === pcId ? { ...pc, ...updates } : pc
+                  ),
+                };
+              }
+              return pi;
+            }),
           };
         }
-        return so;
+        return o;
       })
     );
     setHasUnsavedChanges(true);
-  };
+  },
+  []
+);
 
-  const updatePerformanceIndicator = (outcomeId, piId, description) => {
+  const updatePerformanceIndicator = useCallback((outcomeId, piId, updates) => {
+    setOutcomes(prev => prev.map(o => {
+      if (o.id === outcomeId) {
+        return {
+          ...o,
+          performanceIndicators: o.performanceIndicators.map(pi =>
+            pi.id === piId ? { ...pi, ...updates } : pi
+          )
+        };
+      }
+      return o;
+    }));
+    setHasUnsavedChanges(true);
+  }, []);
+
+  const deletePerformanceIndicator = useCallback((outcomeId, piId) => {
+    setOutcomes(prev => prev.map(o => {
+      if (o.id === outcomeId) {
+        return {
+          ...o,
+          performanceIndicators: o.performanceIndicators.filter(pi => pi.id !== piId)
+        };
+      }
+      return o;
+    }));
+    setHasUnsavedChanges(true);
+  }, []);
+
+  const deletePerformanceCriterion = useCallback(
+  (outcomeId, piId, pcId) => {
     setOutcomes(prev =>
-      prev.map(so => {
-        if (so.id === outcomeId) {
+      prev.map(o => {
+        if (o.id === outcomeId) {
           return {
-            ...so,
-            performanceIndicators: so.performanceIndicators.map(pi =>
-              pi.id === piId ? { ...pi, description } : pi
-            ),
+            ...o,
+            performanceIndicators: o.performanceIndicators.map(pi => {
+              if (pi.id === piId) {
+                return {
+                  ...pi,
+                  performanceCriteria: pi.performanceCriteria.filter(
+                    pc => pc.id !== pcId
+                  ),
+                };
+              }
+              return pi;
+            }),
           };
         }
-        return so;
+        return o;
       })
     );
     setHasUnsavedChanges(true);
-  };
-
-  const deletePerformanceIndicator = (outcomeId, piId) => {
-    setOutcomes(prev =>
-      prev.map(so => {
-        if (so.id === outcomeId) {
-          return {
-            ...so,
-            performanceIndicators: so.performanceIndicators.filter(pi => pi.id !== piId),
-          };
-        }
-        return so;
-      })
-    );
-    setHasUnsavedChanges(true);
-  };
+  },
+  []
+);
 
   return {
     outcomes,
     hasUnsavedChanges,
-    saveToStorage,
+    isLoading,
+    error,
+    fetchOutcomes,
+    saveToBackend,
     updateOutcome,
     addOutcome,
     deleteOutcome,
     addPerformanceIndicator,
     updatePerformanceIndicator,
     deletePerformanceIndicator,
+    addPerformanceCriterion,
+    updatePerformanceCriterion,
+    deletePerformanceCriterion,
   };
-}
+};
