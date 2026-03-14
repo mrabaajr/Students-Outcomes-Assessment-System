@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
+import { semesters } from '../../data/mockCoursesData';
 
 const AddCourseModal = ({
   isOpen,
@@ -218,15 +219,24 @@ const AddCourseModal = ({
               <Input
                 value={formData.academic_year}
                 onChange={(e) => setFormData(prev => ({ ...prev, academic_year: e.target.value }))}
+                placeholder="YYYY-YYYY"
               />
             </div>
 
             <div className="space-y-2">
               <Label>Semester</Label>
-              <Input
+              <select
                 value={formData.semester}
                 onChange={(e) => setFormData(prev => ({ ...prev, semester: e.target.value }))}
-              />
+                className="w-full p-2 bg-background border border-border rounded-md"
+              >
+                <option value="">Select Semester</option>
+                {semesters.map((semester) => (
+                  <option key={semester} value={semester}>
+                    {semester}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -237,6 +247,7 @@ const AddCourseModal = ({
               <Input
                 value={formData.code}
                 onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
+                placeholder="CPE-101"
                 required
               />
             </div>
@@ -246,6 +257,7 @@ const AddCourseModal = ({
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Simple Course Name"
                 required
               />
             </div>
