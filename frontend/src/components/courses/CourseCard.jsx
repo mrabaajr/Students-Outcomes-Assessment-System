@@ -7,16 +7,7 @@ const CourseCard = ({ course, onView, onEdit, onDelete }) => {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-bold text-[#231F20] text-lg">{course.code}</h3>
-            <span className={`text-xs px-2 py-0.5 rounded ${
-              course.status === 'active' 
-                ? 'bg-success/10 text-success font-medium' 
-                : 'bg-[#A5A8AB]/20 text-[#6B6B6B] font-medium'
-            }`}>
-              {course.status || 'active'}
-            </span>
-          </div>
+          <h3 className="font-bold text-[#231F20] text-lg mb-1">{course.code}</h3>
           <p className="text-sm text-[#6B6B6B]">{course.name}</p>
         </div>
       </div>
