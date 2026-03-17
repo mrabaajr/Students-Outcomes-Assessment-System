@@ -50,21 +50,21 @@ const actions = [
     title: "Course Mapping",
     description: "Map courses to student outcomes for assessment",
     color: "text-primary",
-    link: "#",
+    link: "/programchair/courses",
   },
   {
     icon: ClipboardList,
     title: "Input Scores",
     description: "Enter student assessment scores and evaluations",
     color: "text-primary",
-    link: "#",
+    link: "/programchair/assessment",
   },
   {
     icon: BarChart3,
     title: "View Reports",
     description: "Generate summaries and analytics reports",
     color: "text-primary",
-    link: "#",
+    link: "/programchair/reports",
   },
 ];
 
@@ -161,11 +161,17 @@ const App = () => {
             </p>
 
             <div className="flex flex-wrap gap-3 sm:gap-4">
-              <button className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors">
+              <button 
+                onClick={() => navigate("/programchair/assessment")}
+                className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors"
+              >
                 <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span>NEW ASSESSMENT</span>
               </button>
-              <button className="flex items-center gap-2 bg-transparent text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#3A3A3A] transition-colors border border-[#A5A8AB]">
+              <button 
+                onClick={() => navigate("/programchair/reports")}
+                className="flex items-center gap-2 bg-transparent text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#3A3A3A] transition-colors border border-[#A5A8AB]"
+              >
                 <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span>View Reports</span>
               </button>
