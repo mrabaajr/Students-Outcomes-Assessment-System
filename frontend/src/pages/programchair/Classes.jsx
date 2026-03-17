@@ -24,7 +24,7 @@ const Index = () => {
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("All School Years");
   const [selectedFaculty, setSelectedFaculty] = useState("All Faculty");
   const [facultySearch, setFacultySearch] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState("All Departments");
+  const [selectedHandledCourse, setSelectedHandledCourse] = useState("All Courses");
 
   // Load data from backend on mount; fall back to mock data
   useEffect(() => {
@@ -71,8 +71,13 @@ const Index = () => {
     return { courses, schoolYears, facultyNames };
   }, [sectionsData, facultyData]);
 
-  const departmentOptions = useMemo(() => {
-    return ["All Departments", ...new Set(facultyData.map((faculty) => faculty.department).filter(Boolean))];
+  const facultyCourseOptions = useMemo(() => {
+    return [
+      "All Courses",
+      ...new Set(
+        facultyData.flatMap((faculty) => faculty.courses.map((course) => course.code)).filter(Boolean)
+      ),
+    ];
   }, [facultyData]);
 
   const filteredSections = useMemo(() => {
@@ -120,12 +125,13 @@ const Index = () => {
             course.sections.some((section) => section.toLowerCase().includes(normalizedSearch))
         );
 
-      const matchesDepartment =
-        selectedDepartment === "All Departments" || faculty.department === selectedDepartment;
+      const matchesHandledCourse =
+        selectedHandledCourse === "All Courses" ||
+        faculty.courses.some((course) => course.code === selectedHandledCourse);
 
-      return matchesSearch && matchesDepartment;
+      return matchesSearch && matchesHandledCourse;
     });
-  }, [facultyData, facultySearch, selectedDepartment]);
+  }, [facultyData, facultySearch, selectedHandledCourse]);
 
   const resetSectionFilters = () => {
     setSectionSearch("");
@@ -136,7 +142,7 @@ const Index = () => {
 
   const resetFacultyFilters = () => {
     setFacultySearch("");
-    setSelectedDepartment("All Departments");
+    setSelectedHandledCourse("All Courses");
   };
 
   // Section CRUD
@@ -529,16 +535,16 @@ const Index = () => {
 
                   <div className="w-full lg:w-72">
                     <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                      Department
+                      Handled Course
                     </label>
                     <select
-                      value={selectedDepartment}
-                      onChange={(event) => setSelectedDepartment(event.target.value)}
+                      value={selectedHandledCourse}
+                      onChange={(event) => setSelectedHandledCourse(event.target.value)}
                       className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
                     >
-                      {departmentOptions.map((department) => (
-                        <option key={department} value={department}>
-                          {department}
+                      {facultyCourseOptions.map((courseCode) => (
+                        <option key={courseCode} value={courseCode}>
+                          {courseCode}
                         </option>
                       ))}
                     </select>
