@@ -12,8 +12,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [courseCode, setCourseCode] = useState("");
   const [courseName, setCourseName] = useState("");
-  const [schedule, setSchedule] = useState("");
-  const [room, setRoom] = useState("");
+  const [semester, setSemester] = useState("");
   const [schoolYear, setSchoolYear] = useState("");
 
   // Backend courses list
@@ -39,8 +38,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
       setName(initialData.name);
       setCourseCode(initialData.courseCode);
       setCourseName(initialData.courseName);
-      setSchedule(initialData.schedule);
-      setRoom(initialData.room);
+      setSemester(initialData.semester || "");
       setSchoolYear(initialData.schoolYear || "");
       // Try to match to a backend course
       const match = backendCourses.find(
@@ -51,8 +49,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
       setName("");
       setCourseCode("");
       setCourseName("");
-      setSchedule("");
-      setRoom("");
+      setSemester("");
       setSchoolYear("");
       setSelectedCourseId("");
     }
@@ -65,15 +62,17 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
     if (course) {
       setCourseCode(course.code);
       setCourseName(course.name);
+      setSemester(course.semester || "");
     } else {
       setCourseCode("");
       setCourseName("");
+      setSemester("");
     }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave({ name, courseCode, courseName, schedule, room, schoolYear });
+    onSave({ name, courseCode, courseName, semester, schoolYear });
     onClose();
   };
 
@@ -121,15 +120,20 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="schedule">Schedule</Label>
-              <Input id="schedule" value={schedule} onChange={e => setSchedule(e.target.value)} placeholder="e.g. MWF 8:00-9:30" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="room">Room</Label>
-              <Input id="room" value={room} onChange={e => setRoom(e.target.value)} placeholder="e.g. Room 401" required />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="semester">Semester</Label>
+            <select
+              id="semester"
+              value={semester}
+              onChange={e => setSemester(e.target.value)}
+              required
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">-- Select Semester --</option>
+              <option value="1st Semester">1st Semester</option>
+              <option value="2nd Semester">2nd Semester</option>
+              <option value="Summer">Summer</option>
+            </select>
           </div>
 
           <div className="space-y-2">

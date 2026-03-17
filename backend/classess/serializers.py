@@ -62,11 +62,8 @@ class SectionSerializer(serializers.ModelSerializer):
             'course_name',
             'faculty',
             'faculty_id',
-            'room',
-            'schedule',
-            'schedule_days',
-            'schedule_start',
-            'schedule_end',
+            'semester',
+            'academic_year',
             'student_count',
         ]
 

@@ -316,8 +316,8 @@ class ReportViewSet(ViewSet):
 
         # ── FILTER OPTIONS ──
         all_school_years = sorted(
-            Section.objects.exclude(school_year="")
-            .values_list("school_year", flat=True)
+            Section.objects.exclude(academic_year="")
+            .values_list("academic_year", flat=True)
             .distinct()
         )
 
@@ -325,12 +325,15 @@ class ReportViewSet(ViewSet):
             Course.objects.values("id", "code", "name").order_by("code")
         )
 
-        all_sections = list(
-            Section.objects
-            .select_related("course")
-            .values("id", "name", "course__code", "school_year")
-            .order_by("name")
-        )
+        all_sections = [
+            {
+                "id": section.id,
+                "name": section.name,
+                "course__code": section.course.code,
+                "school_year": section.academic_year,
+            }
+            for section in Section.objects.select_related("course").order_by("name")
+        ]
 
         all_sos = list(
             StudentOutcome.objects.values("id", "number", "title").order_by("number")

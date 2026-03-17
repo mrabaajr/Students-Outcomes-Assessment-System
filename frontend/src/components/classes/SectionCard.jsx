@@ -1,8 +1,6 @@
 import { useState } from "react";
 import {
   Users,
-  Clock,
-  MapPin,
   BookOpen,
   ChevronDown,
   ChevronUp,
@@ -10,7 +8,8 @@ import {
   Trash2,
   Plus,
   Upload,
-  User
+  User,
+  CalendarRange
 } from "lucide-react";
 
 const SectionCard = ({
@@ -56,14 +55,12 @@ const SectionCard = ({
 
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex flex-col items-end text-xs text-[#6B6B6B] gap-0.5">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {section.schedule}
-            </span>
-            <span className="flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              {section.room}
-            </span>
+            {section.semester && (
+              <span className="flex items-center gap-1">
+                <CalendarRange className="w-3 h-3" />
+                {section.semester}
+              </span>
+            )}
             {section.schoolYear && (
               <span className="flex items-center gap-1 font-semibold text-[#231F20]">
                 SY {section.schoolYear}

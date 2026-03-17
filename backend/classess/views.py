@@ -179,9 +179,9 @@ class SectionViewSet(viewsets.ModelViewSet):
                 'name': sec.name,
                 'courseCode': sec.course.code,
                 'courseName': sec.course.name,
-                'schedule': sec.schedule or '',
-                'room': sec.room or '',
-                'schoolYear': sec.school_year or '',
+                'semester': sec.semester or sec.course.semester or '',
+                'schoolYear': sec.academic_year or '',
+                'academicYear': sec.academic_year or '',
                 'students': students,
             })
 
@@ -290,23 +290,24 @@ class SectionViewSet(viewsets.ModelViewSet):
                             'name': sec.get('courseName', course_code),
                             'curriculum': default_curriculum,
                             'year_level': '1st Year',
-                            'semester': '1st Semester',
+                            'semester': sec.get('semester', '1st Semester') or '1st Semester',
                         },
                     )
+
+                    semester = sec.get('semester')
+                    academic_year = sec.get('academicYear', sec.get('schoolYear', ''))
 
                     fac_obj = section_faculty.get(
                         (sec['name'], course_code)
                     )
 
-                    school_year = sec.get('schoolYear', '')
                     section_obj, _ = Section.objects.update_or_create(
                         name=sec['name'],
                         course=course,
-                        school_year=school_year,
+                        academic_year=academic_year,
+                        semester=semester or '1st Semester',
                         defaults={
                             'assigned_faculty': fac_obj,
-                            'room': sec.get('room', ''),
-                            'schedule': sec.get('schedule', ''),
                         },
                     )
                     saved_section_ids.add(section_obj.id)
