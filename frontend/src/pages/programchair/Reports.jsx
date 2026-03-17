@@ -5,6 +5,7 @@ import Footer from "../../components/dashboard/Footer";
 import StatCards from "@/components/reports/StatCards.jsx";
 import SOPerformance from "@/components/reports/SOPerformance.jsx";
 import CourseSummary from "@/components/reports/CourseSummary.jsx";
+import SOSummaryTables from "@/components/reports/SOSummaryTables.jsx";
 import ReportsFilter from "@/components/reports/ReportsFilter.jsx";
 import { FileDown, Loader2 } from "lucide-react";
 
@@ -90,6 +91,7 @@ export default function Reports() {
           ) : data ? (
             <>
               <StatCards metrics={data.metrics} />
+              <SOSummaryTables tables={data.so_summary_tables || []} />
               <SOPerformance soData={data.so_performance || []} />
               <CourseSummary courses={data.course_summary || []} />
             </>
