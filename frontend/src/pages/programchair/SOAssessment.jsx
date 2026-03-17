@@ -58,7 +58,7 @@ export default function SOAssessment() {
   const [isSaved, setIsSaved] = useState(false);
 
   // ── Navigator state ──────────────────────────────────
-  const [isNavigatorCollapsed, setIsNavigatorCollapsed] = useState(false);
+  const [isNavigatorCollapsed, setIsNavigatorCollapsed] = useState(true);
   const [isNavigatorVisible, setIsNavigatorVisible] = useState(false);
   const soSectionRef = useRef(null);
 
