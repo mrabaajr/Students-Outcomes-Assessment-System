@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { BookOpen, Users, Plus, Settings, Loader2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { BookOpen, Users, Plus, Settings, Loader2, Search, Filter, RotateCcw } from "lucide-react";
 import axios from "axios";
 import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
@@ -19,6 +19,12 @@ const Index = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [sectionSearch, setSectionSearch] = useState("");
+  const [selectedCourse, setSelectedCourse] = useState("All Courses");
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState("All School Years");
+  const [selectedFaculty, setSelectedFaculty] = useState("All Faculty");
+  const [facultySearch, setFacultySearch] = useState("");
+  const [selectedHandledCourse, setSelectedHandledCourse] = useState("All Courses");
 
   // Load data from backend on mount; fall back to mock data
   useEffect(() => {
@@ -42,6 +48,102 @@ const Index = () => {
     };
     loadData();
   }, []);
+
+  const sectionFilterOptions = useMemo(() => {
+    const courses = ["All Courses", ...new Set(sectionsData.map((section) => section.courseCode).filter(Boolean))];
+    const schoolYears = ["All School Years", ...new Set(sectionsData.map((section) => section.schoolYear).filter(Boolean))];
+    const facultyNames = [
+      "All Faculty",
+      ...new Set(
+        sectionsData
+          .map((section) => {
+            const assignedFaculty = facultyData.find((faculty) =>
+              faculty.courses.some(
+                (course) => course.code === section.courseCode && course.sections.includes(section.name)
+              )
+            );
+            return assignedFaculty?.name;
+          })
+          .filter(Boolean)
+      ),
+    ];
+
+    return { courses, schoolYears, facultyNames };
+  }, [sectionsData, facultyData]);
+
+  const facultyCourseOptions = useMemo(() => {
+    return [
+      "All Courses",
+      ...new Set(
+        facultyData.flatMap((faculty) => faculty.courses.map((course) => course.code)).filter(Boolean)
+      ),
+    ];
+  }, [facultyData]);
+
+  const filteredSections = useMemo(() => {
+    return sectionsData.filter((section) => {
+      const assignedFaculty = facultyData.find((faculty) =>
+        faculty.courses.some(
+          (course) => course.code === section.courseCode && course.sections.includes(section.name)
+        )
+      );
+      const facultyName = assignedFaculty?.name || "";
+      const normalizedSearch = sectionSearch.trim().toLowerCase();
+      const hasStudentMatch = section.students.some((student) =>
+        student.name.toLowerCase().includes(normalizedSearch) ||
+        student.studentId.toLowerCase().includes(normalizedSearch)
+      );
+
+      const matchesSearch =
+        normalizedSearch === "" ||
+        section.name.toLowerCase().includes(normalizedSearch) ||
+        section.courseCode.toLowerCase().includes(normalizedSearch) ||
+        section.courseName.toLowerCase().includes(normalizedSearch) ||
+        facultyName.toLowerCase().includes(normalizedSearch) ||
+        hasStudentMatch;
+
+      const matchesCourse = selectedCourse === "All Courses" || section.courseCode === selectedCourse;
+      const matchesSchoolYear =
+        selectedSchoolYear === "All School Years" || section.schoolYear === selectedSchoolYear;
+      const matchesFaculty = selectedFaculty === "All Faculty" || facultyName === selectedFaculty;
+
+      return matchesSearch && matchesCourse && matchesSchoolYear && matchesFaculty;
+    });
+  }, [sectionsData, facultyData, sectionSearch, selectedCourse, selectedSchoolYear, selectedFaculty]);
+
+  const filteredFaculty = useMemo(() => {
+    return facultyData.filter((faculty) => {
+      const normalizedSearch = facultySearch.trim().toLowerCase();
+      const matchesSearch =
+        normalizedSearch === "" ||
+        faculty.name.toLowerCase().includes(normalizedSearch) ||
+        faculty.email.toLowerCase().includes(normalizedSearch) ||
+        faculty.courses.some(
+          (course) =>
+            course.code.toLowerCase().includes(normalizedSearch) ||
+            course.name.toLowerCase().includes(normalizedSearch) ||
+            course.sections.some((section) => section.toLowerCase().includes(normalizedSearch))
+        );
+
+      const matchesHandledCourse =
+        selectedHandledCourse === "All Courses" ||
+        faculty.courses.some((course) => course.code === selectedHandledCourse);
+
+      return matchesSearch && matchesHandledCourse;
+    });
+  }, [facultyData, facultySearch, selectedHandledCourse]);
+
+  const resetSectionFilters = () => {
+    setSectionSearch("");
+    setSelectedCourse("All Courses");
+    setSelectedSchoolYear("All School Years");
+    setSelectedFaculty("All Faculty");
+  };
+
+  const resetFacultyFilters = () => {
+    setFacultySearch("");
+    setSelectedHandledCourse("All Courses");
+  };
 
   // Section CRUD
   const [sectionDialog, setSectionDialog] = useState(false);
@@ -269,20 +371,122 @@ const Index = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {activeTab === "sections" && (
             <div className="space-y-4">
-              {sectionsData.length === 0 ? (
-                <div className="text-center py-12 bg-white rounded-lg border border-[#E5E7EB]">
-                  <Users className="w-12 h-12 text-[#A5A8AB] mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-[#231F20] mb-2">No Sections Yet</h3>
-                  <p className="text-sm text-[#6B6B6B] mb-4">Get started by adding your first section.</p>
+              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 sm:p-5 shadow-sm">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+                  <div className="flex-1">
+                    <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                      <Search className="h-3.5 w-3.5" />
+                      Search
+                    </label>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A5A8AB]" />
+                      <input
+                        value={sectionSearch}
+                        onChange={(event) => setSectionSearch(event.target.value)}
+                        placeholder="Section, course, faculty, or student"
+                        className="w-full rounded-lg border border-[#D1D5DB] bg-white py-2.5 pl-10 pr-3 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid flex-1 gap-4 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                        <Filter className="h-3.5 w-3.5" />
+                        Course
+                      </label>
+                      <select
+                        value={selectedCourse}
+                        onChange={(event) => setSelectedCourse(event.target.value)}
+                        className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                      >
+                        {sectionFilterOptions.courses.map((course) => (
+                          <option key={course} value={course}>
+                            {course}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                        School Year
+                      </label>
+                      <select
+                        value={selectedSchoolYear}
+                        onChange={(event) => setSelectedSchoolYear(event.target.value)}
+                        className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                      >
+                        {sectionFilterOptions.schoolYears.map((schoolYear) => (
+                          <option key={schoolYear} value={schoolYear}>
+                            {schoolYear}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                        Faculty
+                      </label>
+                      <select
+                        value={selectedFaculty}
+                        onChange={(event) => setSelectedFaculty(event.target.value)}
+                        className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                      >
+                        {sectionFilterOptions.facultyNames.map((facultyName) => (
+                          <option key={facultyName} value={facultyName}>
+                            {facultyName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   <button
-                    onClick={() => { setEditingSection(null); setSectionDialog(true); }}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#FFC20E] text-[#231F20] rounded-lg text-sm font-medium hover:bg-[#FFC20E]/90"
+                    onClick={resetSectionFilters}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB]"
                   >
-                    <Plus className="w-4 h-4" /> Add Section
+                    <RotateCcw className="h-4 w-4" />
+                    Reset
                   </button>
                 </div>
+
+                <div className="mt-4 text-sm text-[#6B6B6B]">
+                  Showing <span className="font-semibold text-[#231F20]">{filteredSections.length}</span> of{" "}
+                  <span className="font-semibold text-[#231F20]">{sectionsData.length}</span> sections
+                </div>
+              </div>
+
+              {filteredSections.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-lg border border-[#E5E7EB]">
+                  <Users className="w-12 h-12 text-[#A5A8AB] mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-[#231F20] mb-2">
+                    {sectionsData.length === 0 ? "No Sections Yet" : "No Matching Sections"}
+                  </h3>
+                  <p className="text-sm text-[#6B6B6B] mb-4">
+                    {sectionsData.length === 0
+                      ? "Get started by adding your first section."
+                      : "Try adjusting or clearing your filters to see more results."}
+                  </p>
+                  {sectionsData.length === 0 ? (
+                    <button
+                      onClick={() => { setEditingSection(null); setSectionDialog(true); }}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-[#FFC20E] text-[#231F20] rounded-lg text-sm font-medium hover:bg-[#FFC20E]/90"
+                    >
+                      <Plus className="w-4 h-4" /> Add Section
+                    </button>
+                  ) : (
+                    <button
+                      onClick={resetSectionFilters}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-[#231F20] text-white rounded-lg text-sm font-medium hover:bg-[#3A3A3A]"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Reset Filters
+                    </button>
+                  )}
+                </div>
               ) : (
-                sectionsData.map((section) => {
+                filteredSections.map((section) => {
                   // Derive faculty name from facultyData
                   const assignedFaculty = facultyData.find(f =>
                     f.courses.some(c =>
@@ -310,29 +514,96 @@ const Index = () => {
           )}
 
           {activeTab === "faculty" && (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-              {facultyData.length === 0 ? (
-                <div className="col-span-2 text-center py-12 bg-white rounded-lg border border-[#E5E7EB]">
-                  <BookOpen className="w-12 h-12 text-[#A5A8AB] mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-[#231F20] mb-2">No Faculty Members Yet</h3>
-                  <p className="text-sm text-[#6B6B6B] mb-4">Get started by adding your first faculty member.</p>
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 sm:p-5 shadow-sm">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+                  <div className="flex-1">
+                    <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                      <Search className="h-3.5 w-3.5" />
+                      Search Faculty
+                    </label>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A5A8AB]" />
+                      <input
+                        value={facultySearch}
+                        onChange={(event) => setFacultySearch(event.target.value)}
+                        placeholder="Name, email, course, or section"
+                        className="w-full rounded-lg border border-[#D1D5DB] bg-white py-2.5 pl-10 pr-3 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="w-full lg:w-72">
+                    <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                      Handled Course
+                    </label>
+                    <select
+                      value={selectedHandledCourse}
+                      onChange={(event) => setSelectedHandledCourse(event.target.value)}
+                      className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                    >
+                      {facultyCourseOptions.map((courseCode) => (
+                        <option key={courseCode} value={courseCode}>
+                          {courseCode}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <button
-                    onClick={() => { setEditingFaculty(null); setFacultyDialog(true); }}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#FFC20E] text-[#231F20] rounded-lg text-sm font-medium hover:bg-[#FFC20E]/90"
+                    onClick={resetFacultyFilters}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB]"
                   >
-                    <Plus className="w-4 h-4" /> Add Faculty
+                    <RotateCcw className="h-4 w-4" />
+                    Reset
                   </button>
                 </div>
-              ) : (
-                facultyData.map((f) => (
-                  <FacultyCard
-                    key={f.id}
-                    faculty={f}
-                    onEdit={(fac) => { setEditingFaculty(fac); setFacultyDialog(true); }}
-                    onDelete={(id) => setDeleteFacultyId(id)}
-                  />
-                ))
-              )}
+
+                <div className="mt-4 text-sm text-[#6B6B6B]">
+                  Showing <span className="font-semibold text-[#231F20]">{filteredFaculty.length}</span> of{" "}
+                  <span className="font-semibold text-[#231F20]">{facultyData.length}</span> faculty members
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+                {filteredFaculty.length === 0 ? (
+                  <div className="col-span-2 text-center py-12 bg-white rounded-lg border border-[#E5E7EB]">
+                    <BookOpen className="w-12 h-12 text-[#A5A8AB] mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-[#231F20] mb-2">
+                      {facultyData.length === 0 ? "No Faculty Members Yet" : "No Matching Faculty"}
+                    </h3>
+                    <p className="text-sm text-[#6B6B6B] mb-4">
+                      {facultyData.length === 0
+                        ? "Get started by adding your first faculty member."
+                        : "Try adjusting or clearing your filters to see more results."}
+                    </p>
+                    {facultyData.length === 0 ? (
+                      <button
+                        onClick={() => { setEditingFaculty(null); setFacultyDialog(true); }}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#FFC20E] text-[#231F20] rounded-lg text-sm font-medium hover:bg-[#FFC20E]/90"
+                      >
+                        <Plus className="w-4 h-4" /> Add Faculty
+                      </button>
+                    ) : (
+                      <button
+                        onClick={resetFacultyFilters}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#231F20] text-white rounded-lg text-sm font-medium hover:bg-[#3A3A3A]"
+                      >
+                        <RotateCcw className="w-4 h-4" /> Reset Filters
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  filteredFaculty.map((f) => (
+                    <FacultyCard
+                      key={f.id}
+                      faculty={f}
+                      onEdit={(fac) => { setEditingFaculty(fac); setFacultyDialog(true); }}
+                      onDelete={(id) => setDeleteFacultyId(id)}
+                    />
+                  ))
+                )}
+              </div>
             </div>
           )}
         </div>
