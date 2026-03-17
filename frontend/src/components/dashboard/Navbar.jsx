@@ -1,4 +1,4 @@
-import { GraduationCap, BookOpen, FileText, BarChart3, User, Users } from "lucide-react";
+import { GraduationCap, BookOpen, FileText, BarChart3, User, Users, Settings, LogOut } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 const programChairNavItems = [
@@ -71,14 +71,27 @@ const Navbar = () => {
             ))}
           </div>
 
-          {/* Logout Button */}
-          <button 
-            onClick={handleLogout}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-3 lg:px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors flex-shrink-0 whitespace-nowrap"
-          >
-            <User className="w-4 h-4" />
-            <span className="hidden sm:inline">Log out</span>
-          </button>
+          {/* Right Section: Settings & Logout */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Settings Button */}
+            <button 
+              onClick={() => navigate(isFaculty ? '/faculty/settings' : '/programchair/settings')}
+              className="flex items-center justify-center p-2 rounded-lg transition-colors text-[#FFC20E] hover:bg-[#FFC20E]/20"
+              title="Account Settings"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+
+            {/* Logout Button */}
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-2 bg-primary text-primary-foreground px-3 lg:px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Log out</span>
+            </button>
+          </div>
         </div>
       </div>
     </nav>

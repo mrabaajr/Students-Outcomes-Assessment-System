@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
+import Settings from './pages/account_settings'
 import ProgramChairDashboard from './pages/programchair/Dashboard'
 import StudentOutcomes from './pages/programchair/StudentOutcomes'
 import Courses from './pages/programchair/Courses'
@@ -124,7 +125,37 @@ export default function App() {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/faculty/settings" 
+          element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/programchair/settings" 
+          element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/account_settings" 
+          element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+          } 
+        />
         
+        {/* Redirect old account settings path */}
+        <Route 
+          path="/pages/account_settings" 
+          element={<Navigate to="/account_settings" replace />} 
+        />
+
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

@@ -2,109 +2,228 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User } from "lucide-react";
+import { Lock, CheckCircle } from "lucide-react";
+import Navbar from "../components/dashboard/Navbar";
+import Footer from "../components/dashboard/Footer";
 
 const Index = () => {
+  const [email, setEmail] = useState("");
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      alert("Passwords do not match");
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setErrorMessage("All fields are required");
       return;
     }
-    alert("Password updated successfully!");
+
+    if (newPassword !== confirmPassword) {
+      setErrorMessage("New passwords do not match");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setErrorMessage("Password must be at least 8 characters");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setSuccessMessage("Password updated successfully!");
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      
+      setTimeout(() => setSuccessMessage(""), 5000);
+    } catch (error) {
+      setErrorMessage("Failed to update password. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Top bar */}
-      <div className="flex items-center justify-end gap-2 bg-gray-700 px-6 py-3 text-white">
-        <User className="h-8 w-8 rounded-full bg-gray-400 p-1.5 text-white" />
-        <span className="text-sm font-medium">
-          Hi, 
-        </span>
-      </div>
+    <div className="min-h-screen bg-background flex flex-col">
+      <Navbar />
 
-      {/* Yellow accent bar */}
-      <div className="h-8 bg-yellow-500" />
-
-      {/* Content */}
-      <div className="mx-auto max-w-2xl px-6 py-16">
-        <h1 className="mb-12 text-3xl font-semibold text-gray-700">
-          Change Password
-        </h1>
-
-        <form onSubmit={handleSubmit} className="space-y-6 max-w-xl">
-          {/* Email (read-only) */}
-          <div>
-            <Label className="text-sm font-normal text-gray-600">Email</Label>
-            <Input
-              type="email"
-              value=" Enter your email here"
-              className="mt-2 bg-white border-gray-200"
-              disabled
-            />
+      <main className="flex-1">
+        {/* Hero Section */}
+        <section className="bg-[#231F20] border-b border-[#A5A8AB] pt-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-10 sm:pb-14 lg:pb-16">
+            <div className="inline-block px-3 py-1 bg-[#3A3A3A] rounded-full text-xs text-[#A5A8AB] mb-4">
+              ACCOUNT SETTINGS
+            </div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-[#FFC20E]/10 rounded-lg">
+                <Lock className="w-6 h-6 text-[#FFC20E]" />
+              </div>
+              <div>
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold">
+                  <span className="text-white">Account</span>
+                  <br />
+                  <span className="text-[#FFC20E]">Settings</span>
+                </h1>
+              </div>
+            </div>
+            <p className="text-sm sm:text-base text-[#A5A8AB] max-w-xl">
+              Manage your password and account security settings.
+            </p>
           </div>
+        </section>
 
-          {/* Old Password */}
-          <div>
-            <Label className="text-sm font-normal text-gray-600">
-              <span className="text-red-500">*</span> Old Password
-            </Label>
-            <Input
-              type="password"
-              placeholder="Enter Old Password"
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-              className="mt-2 bg-white border-gray-200"
-              required
-            />
-          </div>
+        {/* Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Form Section */}
+            <div className="lg:col-span-2">
+              <div className="glass-card p-6 sm:p-8">
+                <h2 className="text-2xl font-bold text-[#231F20] mb-2">Change Password</h2>
+                <p className="text-sm text-[#6B6B6B] mb-8">
+                  Update your password to keep your account secure. Use a strong password with at least 8 characters.
+                </p>
 
-          {/* New Password */}
-          <div>
-            <Label className="text-sm font-normal text-gray-600">
-              <span className="text-red-500">*</span> New Password
-            </Label>
-            <Input
-              type="password"
-              placeholder="Enter New Password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="mt-2 bg-white border-gray-200"
-              required
-            />
-          </div>
+                {successMessage && (
+                  <div className="mb-6 p-4 bg-success/10 border border-success rounded-lg flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-success">{successMessage}</p>
+                    </div>
+                  </div>
+                )}
 
-          {/* Confirm Password */}
-          <div>
-            <Label className="text-sm font-normal text-gray-600">
-              <span className="text-red-500">*</span> Confirm Password
-            </Label>
-            <Input
-              type="password"
-              placeholder="Confirm New Password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="mt-2 bg-white border-gray-200"
-              required
-            />
-          </div>
+                {errorMessage && (
+                  <div className="mb-6 p-4 bg-destructive/10 border border-destructive rounded-lg">
+                    <p className="text-sm font-medium text-destructive">{errorMessage}</p>
+                  </div>
+                )}
 
-          {/* Submit */}
-          <div className="flex justify-center pt-4">
-            <Button 
-              type="submit" 
-              className="px-8 py-2 bg-yellow-500 hover:bg-yellow-600 text-gray-800 font-semibold tracking-wide"
-            >
-              UPDATE PASSWORD
-            </Button>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Email */}
+                  <div>
+                    <Label className="text-sm font-semibold text-[#231F20]">Email</Label>
+                    <Input
+                      type="email"
+                      placeholder="Enter your email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="off"
+                      className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
+                    />
+                  </div>
+
+                  {/* Current Password */}
+                  <div>
+                    <Label className="text-sm font-semibold text-[#231F20]">
+                      <span className="text-destructive">*</span> Current Password
+                    </Label>
+                    <Input
+                      type="password"
+                      placeholder="Enter your current password"
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      autoComplete="off"
+                      className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
+                      required
+                      disabled={isSubmitting}
+                    />
+                  </div>
+
+                  {/* New Password */}
+                  <div>
+                    <Label className="text-sm font-semibold text-[#231F20]">
+                      <span className="text-destructive">*</span> New Password
+                    </Label>
+                    <Input
+                      type="password"
+                      placeholder="Enter a new password (min. 8 characters)"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
+                      required
+                      disabled={isSubmitting}
+                    />
+                    <p className="text-xs text-[#6B6B6B] mt-1.5">
+                      Use a mix of uppercase, lowercase, numbers, and symbols for stronger security.
+                    </p>
+                  </div>
+
+                  {/* Confirm New Password */}
+                  <div>
+                    <Label className="text-sm font-semibold text-[#231F20]">
+                      <span className="text-destructive">*</span> Confirm New Password
+                    </Label>
+                    <Input
+                      type="password"
+                      placeholder="Re-enter your new password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
+                      required
+                      disabled={isSubmitting}
+                    />
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="pt-4 flex gap-3">
+                    <Button 
+                      type="submit" 
+                      disabled={isSubmitting}
+                      className="px-6 py-2.5 bg-[#FFC20E] text-[#231F20] font-semibold hover:bg-[#FFC20E]/90 transition-colors"
+                    >
+                      {isSubmitting ? "Updating..." : "Update Password"}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            {/* Info Section */}
+            <div>
+              <div className="glass-card p-6 bg-[#FFF8DB] border border-[#FFC20E]/30">
+                <h3 className="font-semibold text-[#231F20] mb-4 flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-[#FFC20E]" />
+                  Security Tips
+                </h3>
+                <ul className="space-y-3 text-sm text-[#6B6B6B]">
+                  <li className="flex gap-2">
+                    <span className="text-[#FFC20E] font-bold">✓</span>
+                    <span>Use a unique password not used on other accounts</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-[#FFC20E] font-bold">✓</span>
+                    <span>Include uppercase, lowercase, numbers, and symbols</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-[#FFC20E] font-bold">✓</span>
+                    <span>Avoid using personal information</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-[#FFC20E] font-bold">✓</span>
+                    <span>Never share your password with anyone</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-[#FFC20E] font-bold">✓</span>
+                    <span>Update it regularly for better security</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
-        </form>
-      </div>
+        </div>
+      </main>
+
+      <Footer />
     </div>
   );
 };
