@@ -298,6 +298,28 @@ export default function SOAssessment() {
     };
   }, [students]);
 
+  const indicatorSummary = useMemo(() => {
+    const indicators = so?.performanceIndicators || [];
+    const answeredCounts = indicators.map((pi) =>
+      students.filter((student) => {
+        const score = student.grades?.[pi.id];
+        return score !== null && score !== undefined;
+      }).length
+    );
+
+    const actualStudentCount = students.length;
+    const averageAnswered =
+      answeredCounts.length > 0
+        ? (answeredCounts.reduce((sum, count) => sum + count, 0) / answeredCounts.length).toFixed(0)
+        : "0";
+
+    return {
+      answeredCounts,
+      actualStudentCount,
+      averageAnswered,
+    };
+  }, [so, students]);
+
   // ── Save handler ─────────────────────────────────────
   const handleSave = async () => {
     if (!activeSection || !so) return;
@@ -710,24 +732,62 @@ export default function SOAssessment() {
             </div>
 
             {/* Assessment Summary */}
-            <div className="glass-card p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-semibold text-[#231F20] text-base mb-1">Assessment Summary</h3>
-                <p className="text-sm text-[#6B6B6B]">
-                  The class has an overall average of <span className="font-semibold text-[#231F20]">{stats.totalAveragePercent}%</span> with{" "}
-                  <span className="font-semibold text-[#231F20]">{stats.satisfactoryCount}</span> satisfactory and{" "}
-                  <span className="font-semibold text-[#231F20]">{stats.unsatisfactoryCount}</span> needing improvement out of{" "}
-                  <span className="font-semibold text-[#231F20]">{stats.totalStudents}</span> students.
-                  Thus, the level of attainment is{" "}
-                  {parseFloat(stats.totalAveragePercent) >= 80
-                    ? "at or above"
-                    : "lower than"}{" "}
-                  the target level of 80%.
-                </p>
+            <div className="glass-card p-4 sm:p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-[#8A817C] bg-white px-5 py-4">
+                <div>
+                  <h3 className="font-semibold text-[#231F20] text-base mb-1">Assessment Summary</h3>
+                  <p className="text-sm text-[#6B6B6B]">
+                    The class has an overall average of <span className="font-semibold text-[#231F20]">{stats.totalAveragePercent}%</span> with{" "}
+                    <span className="font-semibold text-[#231F20]">{stats.satisfactoryCount}</span> satisfactory and{" "}
+                    <span className="font-semibold text-[#231F20]">{stats.unsatisfactoryCount}</span> needing improvement out of{" "}
+                    <span className="font-semibold text-[#231F20]">{stats.totalStudents}</span> students. Thus, the level of attainment is{" "}
+                    {parseFloat(stats.totalAveragePercent) >= 80 ? "at or above" : "lower than"} the target level of 80%.
+                  </p>
+                </div>
+                <span className={`shrink-0 px-5 py-2 rounded-lg text-xs font-bold tracking-wider ${parseFloat(stats.totalAveragePercent) >= 80 ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-50 text-red-600 border border-red-300'}`}>
+                  {parseFloat(stats.totalAveragePercent) >= 80 ? "TARGET ATTAINED" : "BELOW TARGET"}
+                </span>
               </div>
-              <span className={`shrink-0 px-4 py-2 rounded-lg text-xs font-bold tracking-wider ${parseFloat(stats.totalAveragePercent) >= 80 ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-600 border border-red-300'}`}>
-                {parseFloat(stats.totalAveragePercent) >= 80 ? "TARGET ATTAINED" : "BELOW TARGET"}
-              </span>
+
+              {so?.performanceIndicators?.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-max border-collapse bg-white text-sm text-[#231F20]">
+                    <tbody>
+                      <tr>
+                        <td className="border border-[#231F20] px-4 py-2 font-semibold">
+                          No. of Students Answered per indicator
+                        </td>
+                        {indicatorSummary.answeredCounts.map((count, index) => (
+                          <td key={`answered-${so.performanceIndicators[index].id}`} className="border border-[#231F20] px-4 py-2 text-center">
+                            {count}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="border border-[#231F20] px-4 py-2 font-semibold">
+                          Actual no. of students who answered
+                        </td>
+                        {so.performanceIndicators.map((pi) => (
+                          <td key={`actual-${pi.id}`} className="border border-[#231F20] px-4 py-2 text-center">
+                            {indicatorSummary.actualStudentCount}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="border border-[#231F20] px-4 py-2 font-semibold">
+                          Average no. of students who got scores
+                        </td>
+                        <td
+                          colSpan={so.performanceIndicators.length}
+                          className="border border-[#231F20] px-4 py-2 text-center"
+                        >
+                          {indicatorSummary.averageAnswered}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </div>
