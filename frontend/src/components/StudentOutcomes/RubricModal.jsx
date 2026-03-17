@@ -8,6 +8,33 @@ import {
 } from "@/components/ui/dialog";
 import { generateId } from "@/data/studentOutcomes";
 
+const scrollbarStyle = `
+  .rubric-table-container {
+    position: relative;
+    overflow-x: scroll !important;
+    overflow-y: hidden !important;
+  }
+  .rubric-table-container::-webkit-scrollbar {
+    height: 10px !important;
+  }
+  .rubric-table-container::-webkit-scrollbar-track {
+    background: #e5e5e5;
+    border-radius: 4px;
+  }
+  .rubric-table-container::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+    min-width: 40px;
+  }
+  .rubric-table-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+  .rubric-table-container {
+    scrollbar-width: auto;
+    scrollbar-color: #888 #e5e5e5;
+  }
+`;
+
 export function RubricModal({ open, onOpenChange, studentOutcome, onSave }) {
   const [indicators, setIndicators] = useState(studentOutcome.indicators);
   const [editingPIId, setEditingPIId] = useState(null);
@@ -61,6 +88,7 @@ export function RubricModal({ open, onOpenChange, studentOutcome, onSave }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      <style>{scrollbarStyle}</style>
       <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border border-[#D1D5DB] bg-white">
         <DialogHeader>
           <DialogTitle className="text-xl text-[#231F20]">
@@ -78,8 +106,8 @@ export function RubricModal({ open, onOpenChange, studentOutcome, onSave }) {
               <Button onClick={() => setAddingPI(true)} size="sm" className="bg-[#FFC20E] text-[#231F20] hover:bg-[#FFC20E]/90"><Plus className="mr-1 h-4 w-4" /> Add First Indicator</Button>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-[#D1D5DB] bg-white scrollbar-visible">
-              <table className="w-full border-collapse text-sm">
+            <div className="rubric-table-container rounded-lg border border-[#D1D5DB] bg-white" style={{ minHeight: '300px', display: 'block', overflow: 'auto' }}>
+              <table className="border-collapse text-sm" style={{ width: `${(indicators.length * 220) + 140}px`, minWidth: `calc(100% + 20px)` }}>
                 <thead>
                   <tr className="bg-[#231F20]">
                     <th className="w-[120px] border-b border-r border-[#D1D5DB] px-3 py-2.5 text-left text-xs font-bold text-white">Criteria</th>
