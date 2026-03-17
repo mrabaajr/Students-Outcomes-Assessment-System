@@ -32,8 +32,7 @@ export const sections = [
     name: "BSIT 3-1",
     courseCode: "IT301",
     courseName: "Data Structures and Algorithms",
-    schedule: "MWF 8:00-9:30 AM",
-    room: "Room 401",
+    semester: "1st Semester",
     students: [
       {
         id: "s1",
@@ -63,8 +62,7 @@ export const sections = [
     name: "BSCS 2-1",
     courseCode: "CS201",
     courseName: "Object-Oriented Programming",
-    schedule: "TTh 10:00-11:30 AM",
-    room: "Room 305",
+    semester: "2nd Semester",
     students: [
       {
         id: "s3",
@@ -87,8 +85,7 @@ export const sections = [
     name: "BSIT 4-1",
     courseCode: "IT401",
     courseName: "Capstone Project",
-    schedule: "MWF 1:00-4:00 PM",
-    room: "Lab 201",
+    semester: "1st Semester",
     students: [
       {
         id: "s6",

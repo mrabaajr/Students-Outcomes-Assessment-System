@@ -100,21 +100,14 @@ class Section(models.Model):
         null=True,
     )
 
-    room = models.CharField(max_length=100, blank=True, default='')
-
-    schedule = models.CharField(max_length=100, blank=True, default='')
-
-    schedule_days = models.CharField(max_length=50, blank=True, default='')
-    schedule_start = models.TimeField(blank=True, null=True)
-    schedule_end = models.TimeField(blank=True, null=True)
-
-    school_year = models.CharField(max_length=20, blank=True, default='')
+    semester = models.CharField(max_length=20, blank=True, default='')
+    academic_year = models.CharField(max_length=20, blank=True, default='')
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('name', 'course', 'school_year')
+        unique_together = ('name', 'course', 'academic_year', 'semester')
         ordering = ['course', 'name']
 
     def __str__(self):
