@@ -47,11 +47,13 @@ class SectionAdmin(admin.ModelAdmin):
         'name',
         'course',
         'faculty',
-        'semester',
-        'academic_year',
+        'room',
+        'schedule_days',
+        'schedule_start',
+        'schedule_end',
     )
     search_fields = ('name', 'course__code')
-    list_filter = ('course', 'faculty', 'semester', 'academic_year')
+    list_filter = ('course', 'faculty')
 
 
 # -----------------------
