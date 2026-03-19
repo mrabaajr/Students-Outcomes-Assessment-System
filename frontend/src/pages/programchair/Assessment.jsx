@@ -1,9 +1,16 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
-import { StudentGradingTable } from "@/components/grading/StudentGradingTable";
+import { SectionsGrid } from "@/components/assessment/SectionsGrid";
 import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -28,6 +35,9 @@ import {
   PenTool,
   Loader2,
   Calendar,
+  Grid3x3,
+  List,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -38,6 +48,16 @@ const API_BASE_URL = "http://localhost:8000/api";
 const soIconList = [Lightbulb, PenTool, MessageSquare, Scale, UsersRound, FlaskConical];
 const getSOIcon = (index) => soIconList[(index >= 0 ? index : 0) % soIconList.length];
 
+// Helper function to find faculty for a section
+const getFacultyForSection = (section, facultyData) => {
+  const match = facultyData.find(faculty =>
+    faculty.courses.some(course =>
+      course.code === section.courseCode && course.sections.includes(section.name)
+    )
+  );
+  return match?.name || "No faculty assigned";
+};
+
 export default function SOAssessment() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -45,6 +65,8 @@ export default function SOAssessment() {
   // ── API data ─────────────────────────────────────────
   const [studentOutcomes, setStudentOutcomes] = useState([]);
   const [sectionsData, setSectionsData] = useState([]);
+  const [facultyData, setFacultyData] = useState([]);
+  const [courseMappings, setCourseMappings] = useState({}); // courseId -> [soIds]
   const [isLoading, setIsLoading] = useState(true);
 
   // ── Selection state ──────────────────────────────────
@@ -57,33 +79,26 @@ export default function SOAssessment() {
   const [students, setStudents] = useState([]);
   const [isSaved, setIsSaved] = useState(false);
 
+  // ── View state ───────────────────────────────────────
+  const [sectionsViewMode, setSectionsViewMode] = useState("grid"); // "grid" or "list"
+
+  // ── Modal state ───────────────────────────────────────
+  const [selectedCourseForModal, setSelectedCourseForModal] = useState(null); // Course to show sections modal
+
   // ── Navigator state ──────────────────────────────────
   const [isNavigatorCollapsed, setIsNavigatorCollapsed] = useState(true);
   const [isNavigatorVisible, setIsNavigatorVisible] = useState(false);
-  const soSectionRef = useRef(null);
 
-  // Show navigator only when SO selection section is out of view
-  useEffect(() => {
-    const el = soSectionRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsNavigatorVisible(!entry.isIntersecting);
-      },
-      { threshold: 0, rootMargin: '-80px 0px 0px 0px' }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [soSectionRef.current]);
 
-  // ── Fetch SOs and sections from backend ──────────────
+  // ── Fetch SOs, sections, and course-SO mappings ──────
   useEffect(() => {
     const load = async () => {
       setIsLoading(true);
       try {
-        const [soRes, secRes] = await Promise.all([
+        const [soRes, secRes, mappingRes] = await Promise.all([
           axios.get(`${API_BASE_URL}/student-outcomes/`),
           axios.get(`${API_BASE_URL}/sections/load_all/`),
+          axios.get(`${API_BASE_URL}/course-so-mappings/`).catch(() => ({ data: [] })), // Fallback if endpoint not available
         ]);
 
         const soData = (Array.isArray(soRes.data) ? soRes.data : soRes.data.results || []).map(so => ({
@@ -110,7 +125,31 @@ export default function SOAssessment() {
         }
 
         const sections = secRes.data.sections || [];
+        const faculty = secRes.data.faculty || [];
         setSectionsData(sections);
+        setFacultyData(faculty);
+
+        // Build course-SO mappings: courseCode -> [soIds]
+        const mappings = {};
+        const courses = Array.isArray(mappingRes.data) ? mappingRes.data : mappingRes.data.results || [];
+        courses.forEach(course => {
+          // Handle different field name variations from backend
+          const soList = 
+            (course.mappedSOs) ||     // camelCase
+            (course.mapped_sos) ||    // snake_case 
+            (course.mapped_sos_details?.map(s => s.id)) || // Details objects
+            [];
+          
+          // Convert to IDs (handle both objects and primitives)
+          const soIds = (Array.isArray(soList) ? soList : []).map(so => 
+            typeof so === 'object' ? so.id : parseInt(so)
+          );
+          
+          if (course.code && soIds.length > 0) {
+            mappings[course.code] = soIds;
+          }
+        });
+        setCourseMappings(mappings);
       } catch (err) {
         console.error("Error loading data:", err);
         toast({ title: "Error", description: "Failed to load data from backend.", variant: "destructive" });
@@ -133,47 +172,50 @@ export default function SOAssessment() {
 
   // Auto-select first course when options change
   useEffect(() => {
-    if (courseOptions.length > 0 && !courseOptions.find(c => c.code === selectedCourseCode)) {
-      setSelectedCourseCode(courseOptions[0].code);
-    }
+    // Only auto-select if we've explicitly chosen to filter by course
+    // Leave empty to show all sections initially
   }, [courseOptions]);
 
-  // Sections filtered by selected course
+  // Sections filtered by selected course (or all if no course selected)
   const sectionOptions = useMemo(() => {
-    return [...new Set(
-      sectionsData
-        .filter(sec => sec.courseCode === selectedCourseCode)
-        .map(sec => sec.name)
-    )];
+    const filtered = selectedCourseCode
+      ? sectionsData.filter(sec => sec.courseCode === selectedCourseCode)
+      : sectionsData;
+    return [...new Set(filtered.map(sec => sec.name))];
   }, [sectionsData, selectedCourseCode]);
 
   // Auto-select first section when options change
   useEffect(() => {
-    if (sectionOptions.length > 0 && !sectionOptions.includes(selectedSectionName)) {
+    // Only auto-select if a course has been explicitly chosen
+    if (selectedCourseCode && sectionOptions.length > 0 && !sectionOptions.includes(selectedSectionName)) {
       setSelectedSectionName(sectionOptions[0]);
     }
-  }, [sectionOptions]);
+  }, [sectionOptions, selectedCourseCode]);
 
-  // School years for selected course + section
+  // School years for selected course + section (or all if not selected)
   const schoolYearOptions = useMemo(() => {
-    return [...new Set(
-      sectionsData
-        .filter(sec => sec.courseCode === selectedCourseCode && sec.name === selectedSectionName)
-        .map(sec => sec.schoolYear)
-        .filter(Boolean)
-    )];
+    let filtered = sectionsData;
+    if (selectedCourseCode) {
+      filtered = filtered.filter(sec => sec.courseCode === selectedCourseCode);
+    }
+    if (selectedSectionName) {
+      filtered = filtered.filter(sec => sec.name === selectedSectionName);
+    }
+    return [...new Set(filtered.map(sec => sec.schoolYear).filter(Boolean))];
   }, [sectionsData, selectedCourseCode, selectedSectionName]);
 
-  // Auto-select school year
+  // Auto-select school year (only if section is selected)
   useEffect(() => {
-    if (schoolYearOptions.length === 1) {
-      setSelectedSchoolYear(schoolYearOptions[0]);
-    } else if (schoolYearOptions.length > 0 && !schoolYearOptions.includes(selectedSchoolYear)) {
-      setSelectedSchoolYear(schoolYearOptions[0]);
-    } else if (schoolYearOptions.length === 0) {
-      setSelectedSchoolYear("");
+    if (selectedSectionName) {
+      if (schoolYearOptions.length === 1) {
+        setSelectedSchoolYear(schoolYearOptions[0]);
+      } else if (schoolYearOptions.length > 0 && !schoolYearOptions.includes(selectedSchoolYear)) {
+        setSelectedSchoolYear(schoolYearOptions[0]);
+      } else if (schoolYearOptions.length === 0) {
+        setSelectedSchoolYear("");
+      }
     }
-  }, [schoolYearOptions]);
+  }, [schoolYearOptions, selectedSectionName]);
 
   // The actual section object  
   const activeSection = useMemo(() => {
@@ -254,6 +296,76 @@ export default function SOAssessment() {
       return student;
     }));
   };
+
+  // ── Derive courses from sections data ──────────────────
+  // Group sections by course code to create a courses list
+  const coursesData = useMemo(() => {
+    const courseMap = new Map();
+    
+    sectionsData.forEach(section => {
+      const key = section.courseCode;
+      if (!courseMap.has(key)) {
+        // Create course object from first section with this course code
+        courseMap.set(key, {
+          id: `${section.courseCode}-${Date.now()}`, // Unique ID for each course
+          courseCode: section.courseCode,
+          courseName: section.courseName,
+          name: section.courseName, // For compatibility
+          faculty: [],
+          sections: [],
+          studentCount: 0,
+          courses: section.courses,
+        });
+      }
+      
+      const course = courseMap.get(key);
+      // Aggregate faculty
+      if (section.faculty) {
+        const sectionFaculty = Array.isArray(section.faculty) ? section.faculty : [section.faculty];
+        sectionFaculty.forEach(f => {
+          if (!course.faculty.find(fac => fac.id === f.id)) {
+            course.faculty.push(f);
+          }
+        });
+      }
+      // Aggregate sections and student count
+      course.sections.push(section);
+      course.studentCount += (section.students?.length || 0);
+    });
+    
+    return Array.from(courseMap.values());
+  }, [sectionsData]);
+
+  // ── Course selection handler from grid ──────────────────
+  const handleSelectSectionFromGrid = (course) => {
+    // When a course is selected, open the modal to show sections
+    setSelectedCourseForModal(course);
+  };
+
+  // ── Filtered courses for grid (by SO and school year) ──
+  // Filters by selected SO and school year
+  const coursesForGrid = useMemo(() => {
+    let filtered = coursesData;
+    
+    // Filter by selected SO
+    if (selectedSOId) {
+      filtered = filtered.filter(course => {
+        const mappedSOs = courseMappings[course.courseCode] || [];
+        // Handle type comparison (string vs number)
+        return mappedSOs.some(soId => 
+          parseInt(soId) === parseInt(selectedSOId)
+        );
+      });
+    }
+    
+    // Filter by school year
+    if (selectedSchoolYear) {
+      filtered = filtered.filter(course => 
+        course.sections.some(sec => sec.schoolYear === selectedSchoolYear)
+      );
+    }
+    return filtered;
+  }, [coursesData, selectedSOId, selectedSchoolYear, courseMappings]);
 
   // ── Stats computation ────────────────────────────────
   const stats = useMemo(() => {
@@ -411,13 +523,13 @@ export default function SOAssessment() {
             </div>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-              <span className="text-white">{so.code}</span>
+              <span className="text-white">Evaluate & Assess</span>
               <br />
-              <span className="text-[#FFC20E]">{so.title}</span>
+              <span className="text-[#FFC20E]">Student Outcomes</span>
             </h1>
 
             <p className="text-sm sm:text-base text-[#A5A8AB] max-w-xl mb-6 sm:mb-8">
-              {so.description}
+              Measure the performance of student learning outcomes across courses and sections. Select an outcome to view its details and assessment data.
             </p>
 
             <div className="flex flex-wrap gap-3 sm:gap-4">
@@ -516,7 +628,7 @@ export default function SOAssessment() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
             
             {/* Student Outcome Selection */}
-            <div ref={soSectionRef} className="glass-card p-4 sm:p-6">
+            <div className="glass-card p-4 sm:p-6">
               <h3 className="text-xs sm:text-sm font-medium text-[#6B6B6B] mb-4 uppercase tracking-wider">Select Student Outcome</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
                 {studentOutcomes.map((outcome, idx) => {
@@ -553,70 +665,205 @@ export default function SOAssessment() {
               </div>
             </div>
 
+            {/* Student Outcomes Details */}
+            <div className="glass-card p-6">
+              <h3 className="font-semibold text-[#231F20] mb-4 text-lg">Student Outcome Details</h3>
+              {!so ? (
+                <p className="text-sm text-[#6B6B6B]">
+                  Select a Student Outcome above to view its details.
+                </p>
+              ) : (
+                <div className="space-y-6">
+                  {/* SO Header */}
+                  <div className="border-l-4 border-[#FFC20E] pl-4">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="px-3 py-1 bg-[#FFC20E] text-[#231F20] rounded-full text-xs font-bold">
+                        {so.code}
+                      </div>
+                    </div>
+                    <h4 className="text-xl font-bold text-[#231F20] mb-2">{so.title}</h4>
+                    <p className="text-sm text-[#6B6B6B] leading-relaxed">{so.description}</p>
+                  </div>
+
+                  {/* Performance Indicators */}
+                  {so.performanceIndicators && so.performanceIndicators.length > 0 && (
+                    <div>
+                      <h4 className="text-base font-semibold text-[#231F20] mb-3">Performance Indicators</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {so.performanceIndicators.map((pi, index) => (
+                          <div key={pi.id} className="p-4 rounded-lg bg-[#FFC20E]/5 border border-[#FFC20E]/20">
+                            <div className="flex items-start gap-3">
+                              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#FFC20E] text-[#231F20] text-xs font-bold flex items-center justify-center mt-0.5">
+                                {index + 1}
+                              </span>
+                              <div>
+                                <p className="font-semibold text-sm text-[#231F20] mb-1">{pi.shortName}</p>
+                                <p className="text-xs text-[#6B6B6B]">{pi.name}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Filters */}
             <div className="glass-card p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-[#231F20] mb-4">Filters</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base sm:text-lg font-semibold text-[#231F20]">Filters</h3>
+                {selectedSchoolYear && (
+                  <button
+                    onClick={() => {
+                      setSelectedSchoolYear("");
+                    }}
+                    className="text-xs font-semibold text-[#FFC20E] hover:text-[#FFC20E]/80 transition-colors flex items-center gap-1"
+                  >
+                    <X className="w-4 h-4" />
+                    Clear All
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-6">
                 {/* Course filter */}
                 <div className="flex items-center gap-3">
                   <FileSpreadsheet className="w-5 h-5 text-[#6B6B6B]" />
                   <span className="text-sm font-medium text-[#6B6B6B]">Course:</span>
-                  <Select value={selectedCourseCode} onValueChange={setSelectedCourseCode}>
-                    <SelectTrigger className="w-[240px] border-[#A5A8AB]">
-                      <SelectValue placeholder="Select course" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {courseOptions.map(c => (
-                        <SelectItem key={c.code} value={c.code}>
-                          {c.code} — {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedCourseCode} onValueChange={setSelectedCourseCode}>
+                      <SelectTrigger className="w-[240px] border-[#A5A8AB]">
+                        <SelectValue placeholder="Select course" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {courseOptions.map(c => (
+                          <SelectItem key={c.code} value={c.code}>
+                            {c.code} — {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedCourseCode && (
+                      <button
+                        onClick={() => setSelectedCourseCode("")}
+                        className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                        title="Clear course filter"
+                      >
+                        <X className="w-4 h-4 text-red-600" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Section filter */}
                 <div className="flex items-center gap-3">
                   <Users className="w-5 h-5 text-[#6B6B6B]" />
                   <span className="text-sm font-medium text-[#6B6B6B]">Section:</span>
-                  <Select value={selectedSectionName} onValueChange={setSelectedSectionName}>
-                    <SelectTrigger className="w-[160px] border-[#A5A8AB]">
-                      <SelectValue placeholder="Select section" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sectionOptions.map(sec => (
-                        <SelectItem key={sec} value={sec}>
-                          {sec}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedSectionName} onValueChange={setSelectedSectionName}>
+                      <SelectTrigger className="w-[160px] border-[#A5A8AB]">
+                        <SelectValue placeholder="Select section" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sectionOptions.map(sec => (
+                          <SelectItem key={sec} value={sec}>
+                            {sec}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedSectionName && (
+                      <button
+                        onClick={() => setSelectedSectionName("")}
+                        className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                        title="Clear section filter"
+                      >
+                        <X className="w-4 h-4 text-red-600" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* School Year filter */}
                 <div className="flex items-center gap-3">
                   <Calendar className="w-5 h-5 text-[#6B6B6B]" />
                   <span className="text-sm font-medium text-[#6B6B6B]">School Year:</span>
-                  {schoolYearOptions.length > 1 ? (
-                    <Select value={selectedSchoolYear} onValueChange={setSelectedSchoolYear}>
-                      <SelectTrigger className="w-[160px] border-[#A5A8AB]">
-                        <SelectValue placeholder="Select year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {schoolYearOptions.map(sy => (
-                          <SelectItem key={sy} value={sy}>
-                            {sy}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <span className="font-semibold text-[#231F20] text-sm">
-                      {selectedSchoolYear || "N/A"}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {schoolYearOptions.length > 1 ? (
+                      <Select value={selectedSchoolYear} onValueChange={setSelectedSchoolYear}>
+                        <SelectTrigger className="w-[160px] border-[#A5A8AB]">
+                          <SelectValue placeholder="Select year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {schoolYearOptions.map(sy => (
+                            <SelectItem key={sy} value={sy}>
+                              {sy}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="font-semibold text-[#231F20] text-sm">
+                        {selectedSchoolYear || "N/A"}
+                      </span>
+                    )}
+                    {selectedSchoolYear && schoolYearOptions.length > 1 && (
+                      <button
+                        onClick={() => setSelectedSchoolYear("")}
+                        className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                        title="Clear school year filter"
+                      >
+                        <X className="w-4 h-4 text-red-600" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {/* Courses Grid */}
+            <div className="glass-card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-[#231F20] text-lg flex items-center gap-3">
+                  <span>Courses</span>
+                  <span className="text-sm font-normal text-[#6B6B6B]\">({coursesForGrid.length} total)</span>
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSectionsViewMode("grid")}
+                    className={cn(
+                      "p-2 rounded-lg transition-all",
+                      sectionsViewMode === "grid"
+                        ? "bg-[#FFC20E] text-[#231F20]"
+                        : "bg-[#8A817C]/10 text-[#231F20] hover:bg-[#8A817C]/20"
+                    )}
+                    title="Grid view"
+                  >
+                    <Grid3x3 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => setSectionsViewMode("list")}
+                    className={cn(
+                      "p-2 rounded-lg transition-all",
+                      sectionsViewMode === "list"
+                        ? "bg-[#FFC20E] text-[#231F20]"
+                        : "bg-[#8A817C]/10 text-[#231F20] hover:bg-[#8A817C]/20"
+                    )}
+                    title="List view"
+                  >
+                    <List className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <SectionsGrid
+                sections={coursesForGrid}
+                selectedSectionId={activeSection?.courseCode}
+                studentOutcomes={studentOutcomes}
+                selectedSOId={selectedSOId}
+                onSelectSection={handleSelectSectionFromGrid}
+                viewMode={sectionsViewMode}
+              />
             </div>
 
             {/* Stats */}
@@ -682,55 +929,6 @@ export default function SOAssessment() {
               </div>
             </div>
 
-            {/* Performance Indicators */}
-            <div className="glass-card p-6">
-              <h3 className="font-semibold text-[#231F20] mb-4 text-lg">Performance Indicators</h3>
-              {so.performanceIndicators.length === 0 ? (
-                <p className="text-sm text-[#6B6B6B]">
-                  No performance indicators configured for this SO. Please add them in the Student Outcomes page.
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {so.performanceIndicators.map((pi, index) => (
-                    <div key={pi.id} className="flex items-start gap-3 p-4 rounded-lg bg-[#FFC20E]/5 border border-[#FFC20E]/20 hover-lift">
-                      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#FFC20E] text-[#231F20] text-sm font-bold flex items-center justify-center">
-                        {index + 1}
-                      </span>
-                      <div>
-                        <p className="font-semibold text-sm text-[#231F20] mb-1">{pi.shortName}</p>
-                        <p className="text-xs text-[#6B6B6B]">{pi.name}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Grading Table */}
-            <div className="glass-card p-6">
-              <h3 className="font-semibold text-[#231F20] mb-4 text-lg flex items-center justify-between">
-                <span>Student Grades</span>
-                <span className="text-sm font-normal text-[#6B6B6B]">(Scale: 1-6, Pass ≥ 5 avg)</span>
-              </h3>
-              {students.length === 0 ? (
-                <p className="text-sm text-[#6B6B6B] text-center py-8">
-                  {!activeSection 
-                    ? "No section found for the selected filters. Please check your Classes page."
-                    : "No students enrolled in this section. Please add students in the Classes page."}
-                </p>
-              ) : so.performanceIndicators.length === 0 ? (
-                <p className="text-sm text-[#6B6B6B] text-center py-8">
-                  No performance indicators configured. Please add them in the Student Outcomes page.
-                </p>
-              ) : (
-                <StudentGradingTable
-                  students={students}
-                  performanceIndicators={so.performanceIndicators}
-                  onGradeChange={handleGradeChange}
-                />
-              )}
-            </div>
-
             {/* Assessment Summary */}
             <div className="glass-card p-4 sm:p-6 space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-[#8A817C] bg-white px-5 py-4">
@@ -791,6 +989,115 @@ export default function SOAssessment() {
             </div>
           </div>
         </div>
+
+        {/* Course Sections Modal */}
+        <Dialog open={!!selectedCourseForModal} onOpenChange={(open) => {
+          if (!open) setSelectedCourseForModal(null);
+        }}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl">
+                {selectedCourseForModal?.courseName} ({selectedCourseForModal?.courseCode})
+              </DialogTitle>
+              <DialogDescription>
+                View all sections, faculty, and student enrollment details
+              </DialogDescription>
+            </DialogHeader>
+            
+            {selectedCourseForModal && (
+              <div className="space-y-4">
+                {selectedCourseForModal.sections && selectedCourseForModal.sections.length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedCourseForModal.sections.map((section) => {
+                      const facultyName = getFacultyForSection(section, facultyData);
+                      
+                      return (
+                        <div
+                          key={section.id}
+                          className="bg-white rounded-lg border border-[#E5E7EB] overflow-hidden transition-all hover:shadow-md"
+                        >
+                          {/* Section Header */}
+                          <div className="px-5 py-4 border-b border-[#E5E7EB] bg-white">
+                            <div className="flex items-start gap-4">
+                              <div className="w-12 h-12 rounded-lg bg-[#FFC20E] flex items-center justify-center flex-shrink-0">
+                                <Users className="w-6 h-6 text-[#231F20]" />
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="font-bold text-base text-[#231F20] mb-1">
+                                  {section.name}
+                                </h4>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-[#6B6B6B]">
+                                  <div>
+                                    <span className="font-semibold text-[#231F20]">Faculty:</span> {facultyName}
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold text-[#231F20]">Students:</span> {section.students?.length || 0}
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold text-[#231F20]">Year:</span> {section.schoolYear}
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold text-[#231F20]">Schedule:</span> {section.schedule || "—"}
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setSelectedSectionName(section.name);
+                                  setSelectedSchoolYear(section.schoolYear);
+                                  setSelectedCourseForModal(null);
+                                }}
+                                className="px-3 py-1.5 bg-[#FFC20E] text-[#231F20] rounded text-xs font-medium hover:bg-[#FFC20E]/90 transition-colors whitespace-nowrap"
+                              >
+                                View Grades
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Students Table */}
+                          {section.students && section.students.length > 0 && (
+                            <div className="divide-y divide-[#E5E7EB]">
+                              <div className="px-5 py-3 bg-[#F9FAFB]">
+                                <div className="grid grid-cols-12 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider gap-2">
+                                  <span className="col-span-1">#</span>
+                                  <span className="col-span-4">Name</span>
+                                  <span className="col-span-3">Student ID</span>
+                                  <span className="col-span-2">Year Level</span>
+                                  <span className="col-span-2 text-right">Contact</span>
+                                </div>
+                              </div>
+                              {section.students.map((student, idx) => (
+                                <div
+                                  key={student.id}
+                                  className="px-5 py-3 grid grid-cols-12 text-sm items-center hover:bg-[#FFC20E]/5 transition-colors gap-2"
+                                >
+                                  <span className="col-span-1 text-[#6B6B6B] font-medium">{idx + 1}</span>
+                                  <span className="col-span-4 font-medium text-[#231F20]">{student.name}</span>
+                                  <span className="col-span-3 text-[#6B6B6B] font-mono text-xs">{student.studentId}</span>
+                                  <span className="col-span-2 text-[#6B6B6B] text-xs">{student.yearLevel || "—"}</span>
+                                  <span className="col-span-2 text-right text-[#6B6B6B] text-xs truncate">{student.email || "—"}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* No students message */}
+                          {!section.students || section.students.length === 0 && (
+                            <div className="px-5 py-6 text-center text-sm text-[#6B6B6B]">
+                              No students enrolled in this section yet.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-[#6B6B6B] text-center py-8">No sections found for this course.</p>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
 
       <Footer />

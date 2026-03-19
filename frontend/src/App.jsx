@@ -4,7 +4,7 @@ import Settings from './pages/account_settings'
 import ProgramChairDashboard from './pages/programchair/Dashboard'
 import StudentOutcomes from './pages/programchair/StudentOutcomes'
 import Courses from './pages/programchair/Courses'
-import SOAssessment from './pages/programchair/SOAssessment'
+import Assessment from './pages/programchair/Assessment'
 import Reports from './pages/programchair/Reports'
 import Classes from './pages/programchair/Classes'
 import FacultyHome from './pages/faculty/Home'
@@ -50,7 +50,7 @@ export default function App() {
           path="/programchair/assessment" 
           element={
             <ProtectedRoute>
-              <SOAssessment />
+              <Assessment />
             </ProtectedRoute>
           } 
         />
@@ -58,7 +58,7 @@ export default function App() {
           path="/assessment/:id" 
           element={
             <ProtectedRoute>
-              <SOAssessment />
+              <Assessment />
             </ProtectedRoute>
           } 
         />
