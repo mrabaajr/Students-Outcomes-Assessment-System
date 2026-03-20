@@ -99,14 +99,14 @@ export function AssessStudentsModal({
     }
   };
 
-  const handleGradeChange = (studentId, indicatorId, value) => {
+  const handleGradeChange = (studentId, criterionKey, value) => {
     setStudents(students.map(student =>
       student.id === studentId
         ? {
             ...student,
             grades: {
               ...student.grades,
-              [indicatorId]: value,
+              [criterionKey]: value,
             },
           }
         : student
@@ -410,9 +410,9 @@ export function AssessStudentsModal({
                                       >
                                         <select
                                           id={`grade-${student.id}-${pi.id}-${pc.id}`}
-                                          name={`grade-${student.id}-${pi.id}`}
-                                          value={students.find(s => s.id === student.id)?.grades?.[pi.id] ?? ""}
-                                          onChange={(e) => handleGradeChange(student.id, pi.id, e.target.value ? parseInt(e.target.value) : null)}
+                                          name={`grade-${student.id}-${pi.id}-${pc.id}`}
+                                          value={students.find(s => s.id === student.id)?.grades?.[`${pi.id}-${pc.id}`] ?? ""}
+                                          onChange={(e) => handleGradeChange(student.id, `${pi.id}-${pc.id}`, e.target.value ? parseInt(e.target.value) : null)}
                                           className="w-full px-2 py-1.5 rounded border border-[#D1D5DB] text-sm font-semibold text-[#231F20] focus:border-[#FFC20E] focus:ring-2 focus:ring-[#FFC20E]/30 bg-white cursor-pointer transition-all hover:border-[#FFC20E]"
                                         >
                                           <option value="">—</option>
@@ -433,8 +433,8 @@ export function AssessStudentsModal({
                                       <select
                                         id={`grade-${student.id}-${pi.id}-empty`}
                                         name={`grade-${student.id}-${pi.id}`}
-                                        value={students.find(s => s.id === student.id)?.grades?.[pi.id] ?? ""}
-                                        onChange={(e) => handleGradeChange(student.id, pi.id, e.target.value ? parseInt(e.target.value) : null)}
+                                        value={students.find(s => s.id === student.id)?.grades?.[`${pi.id}-empty`] ?? ""}
+                                        onChange={(e) => handleGradeChange(student.id, `${pi.id}-empty`, e.target.value ? parseInt(e.target.value) : null)}
                                         className="w-full px-2 py-1.5 rounded border border-[#D1D5DB] text-sm font-semibold text-[#231F20] focus:border-[#FFC20E] focus:ring-2 focus:ring-[#FFC20E]/30 bg-white cursor-pointer transition-all hover:border-[#FFC20E]"
                                       >
                                         <option value="">—</option>
