@@ -385,7 +385,6 @@ const Courses = () => {
                     onView={handleViewCourse}
                     onEdit={handleEditCourse}
                     onDelete={handleDeleteClick}
-                    studentOutcomes={studentOutcomes}
                   />
 
                 ))}

@@ -1,4 +1,4 @@
-import { Users, BookOpen, ChevronRight, Layers } from "lucide-react";
+import { Users, BookOpen, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,10 +11,8 @@ export function SectionsGrid({
   selectedSectionId = null,
   studentOutcomes = [],
   onSelectSection = () => {},
-  selectedSOIds = [],
+  selectedSOId = null,
   viewMode = "grid", // "grid" or "list"
-  courseMappings = {},
-  getSOIcon = () => null,
 }) {
   if (sections.length === 0) {
     return (
@@ -66,49 +64,12 @@ export function SectionsGrid({
                 )}
               </div>
 
-              {/* Students and Sections */}
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-3.5 h-3.5 text-[#6B6B6B]" />
-                    <span className="text-xs text-[#6B6B6B]">
-                      {course.studentCount || 0} students
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-3.5 h-3.5 text-[#6B6B6B]" />
-                    <span className="text-xs text-[#6B6B6B]">
-                      {course.sections?.length || 0} sections
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Mapped SOs */}
-                {(() => {
-                  const mappedSOIds = courseMappings[course.courseCode] || [];
-                  const mappedSOs = studentOutcomes.filter(so => 
-                    mappedSOIds.some(soId => parseInt(soId) === so.id)
-                  );
-                  if (mappedSOs.length > 0) {
-                    return (
-                      <div className="pt-2 border-t border-[#E5E7EB]">
-                        <p className="text-xs font-semibold text-[#6B6B6B] mb-1.5">Mapped SOs:</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {mappedSOs.map((so) => {
-                            const Icon = getSOIcon(studentOutcomes.findIndex(s => s.id === so.id));
-                            return (
-                              <div key={so.id} className="flex items-center gap-1 px-2 py-1 bg-[#FFC20E]/10 rounded text-xs font-semibold text-[#231F20]">
-                                {Icon && <Icon className="w-3 h-3" />}
-                                {so.code}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
+              {/* Students Section */}
+              <div className="flex items-center gap-2">
+                <Users className="w-3.5 h-3.5 text-[#6B6B6B]" />
+                <span className="text-xs text-[#6B6B6B]">
+                  {course.studentCount || 0} students
+                </span>
               </div>
             </div>
           );
@@ -129,56 +90,27 @@ export function SectionsGrid({
             onClick={() => onSelectSection(course)}
             className={cn(
               "p-4 rounded-lg border-2 transition-all cursor-pointer",
-              "bg-white hover:bg-[#FFC20E]/5",
+              "bg-white hover:bg-[#FFC20E]/5 flex items-center justify-between",
               isSelected
                 ? "border-[#FFC20E] shadow-md"
                 : "border-[#8A817C]/20 hover:border-[#FFC20E]/50"
             )}
           >
-            <div className="flex items-start justify-between gap-4 mb-3">
-              <div className="flex-1">
-                <h4 className="font-semibold text-[#231F20] text-sm">
-                  {course.courseCode} — {course.courseName}
-                </h4>
-              </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-[#231F20] text-sm">
+                {course.courseCode} — {course.courseName}
+              </h4>
+            </div>
+            <div className="flex items-center gap-4 ml-4">
+              <span className="text-xs text-[#6B6B6B] whitespace-nowrap">
+                {course.studentCount || 0} students
+              </span>
               {isSelected && (
                 <div className="w-5 h-5 rounded-full bg-[#FFC20E] flex items-center justify-center flex-shrink-0">
                   <ChevronRight className="w-3 h-3 text-[#231F20]" />
                 </div>
               )}
             </div>
-            
-            <div className="flex items-center gap-4 text-xs text-[#6B6B6B]">
-              <span className="whitespace-nowrap">{course.studentCount || 0} students</span>
-              <span className="whitespace-nowrap">{course.sections?.length || 0} sections</span>
-            </div>
-            
-            {/* Mapped SOs */}
-            {(() => {
-              const mappedSOIds = courseMappings[course.courseCode] || [];
-              const mappedSOs = studentOutcomes.filter(so => 
-                mappedSOIds.some(soId => parseInt(soId) === so.id)
-              );
-              if (mappedSOs.length > 0) {
-                return (
-                  <div className="mt-3 pt-3 border-t border-[#E5E7EB]">
-                    <p className="text-xs font-semibold text-[#6B6B6B] mb-2">Mapped SOs:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {mappedSOs.map((so) => {
-                        const Icon = getSOIcon(studentOutcomes.findIndex(s => s.id === so.id));
-                        return (
-                          <div key={so.id} className="flex items-center gap-1 px-2 py-1 bg-[#FFC20E]/10 rounded text-xs font-semibold text-[#231F20]">
-                            {Icon && <Icon className="w-3 h-3" />}
-                            {so.code}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              }
-              return null;
-            })()}
           </div>
         );
       })}

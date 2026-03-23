@@ -1,15 +1,7 @@
 import { Eye, Pencil, Trash2, BookMarked } from 'lucide-react';
 import { Button } from '../ui/button';
 
-const CourseCard = ({ course, onView, onEdit, onDelete, studentOutcomes = [] }) => {
-  // Filter mapped SOs - handle both string/number IDs or full objects
-  const mappedSODetails = studentOutcomes.filter(so => 
-    course.mappedSOs?.some(mapped => {
-      if (typeof mapped === 'object') return mapped.id === so.id;
-      return String(mapped) === String(so.id);
-    })
-  );
-
+const CourseCard = ({ course, onView, onEdit, onDelete }) => {
   return (
     <div className="glass-card p-5 hover-lift">
       {/* Header */}
@@ -32,10 +24,10 @@ const CourseCard = ({ course, onView, onEdit, onDelete, studentOutcomes = [] }) 
       <div className="mb-4 pb-4 border-b border-[#E5E7EB]">
         <p className="text-xs text-[#6B6B6B] mb-2">Mapped SOs:</p>
         <div className="flex flex-wrap gap-1">
-          {mappedSODetails.length > 0 ? (
-            mappedSODetails.map((so) => (
-              <span key={so.id} className="bg-[#FFC20E]/20 text-[#231F20] border border-[#FFC20E]/30 text-xs px-2 py-1 rounded font-medium">
-                SO {so.number}
+          {course.mappedSOs && course.mappedSOs.length > 0 ? (
+            course.mappedSOs.map((soId) => (
+              <span key={soId} className="bg-[#FFC20E]/20 text-[#231F20] border border-[#FFC20E]/30 text-xs px-2 py-1 rounded font-medium">
+                SO {soId}
               </span>
             ))
           ) : (
