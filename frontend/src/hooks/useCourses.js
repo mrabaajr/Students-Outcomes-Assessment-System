@@ -114,11 +114,12 @@ export function useCourses() {
     setError(null);
     try {
       // Map frontend field names to backend expected fields
+      // IMPORTANT: PUT requests require ALL fields including course and curriculum
       const payload = {
-        course: courseData.selectedCourseId || courseData.course,
+        course: courseData.course || courseData.selectedCourseId, // Required ForeignKey
+        curriculum: courseData.curriculum, // Required ForeignKey
         code: courseData.code,
         name: courseData.name,
-        curriculum: courseData.curriculum,
         semester: courseData.semester,
         academic_year: courseData.academic_year,
         year_level: courseData.year_level || '',
@@ -126,6 +127,9 @@ export function useCourses() {
         description: courseData.description || '',
         mappedSOs: courseData.mappedSOs || [],
       };
+      
+      console.log('Updating course:', courseId, 'Payload:', payload);
+      
       const response = await axios.put(
         `${API_BASE_URL}/course-so-mappings/${courseId}/`,
         payload,
@@ -145,6 +149,7 @@ export function useCourses() {
       return { success: true, course: updated };
     } catch (err) {
       console.error('Error updating course:', err);
+      console.error('Error response data:', err.response?.data);
       return {
         success: false,
         message: err.response?.data?.detail || 'Failed to update course',

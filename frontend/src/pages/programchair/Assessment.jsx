@@ -2,15 +2,10 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { SectionsGrid } from "@/components/assessment/SectionsGrid";
+import { CourseSectionsModal } from "@/components/assessment/CourseSectionsModal";
+import { AssessStudentsModal } from "@/components/assessment/AssessStudentsModal";
 import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -38,6 +33,7 @@ import {
   Grid3x3,
   List,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -70,7 +66,7 @@ export default function SOAssessment() {
   const [isLoading, setIsLoading] = useState(true);
 
   // ── Selection state ──────────────────────────────────
-  const [selectedSOId, setSelectedSOId] = useState(null);
+  const [selectedSOIds, setSelectedSOIds] = useState([]);
   const [selectedCourseCode, setSelectedCourseCode] = useState("");
   const [selectedSectionName, setSelectedSectionName] = useState("");
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("");
@@ -84,6 +80,7 @@ export default function SOAssessment() {
 
   // ── Modal state ───────────────────────────────────────
   const [selectedCourseForModal, setSelectedCourseForModal] = useState(null); // Course to show sections modal
+  const [selectedSectionForAssessment, setSelectedSectionForAssessment] = useState(null); // Section for student assessment modal
 
   // ── Navigator state ──────────────────────────────────
   const [isNavigatorCollapsed, setIsNavigatorCollapsed] = useState(true);
@@ -91,73 +88,74 @@ export default function SOAssessment() {
 
 
   // ── Fetch SOs, sections, and course-SO mappings ──────
-  useEffect(() => {
-    const load = async () => {
-      setIsLoading(true);
-      try {
-        const [soRes, secRes, mappingRes] = await Promise.all([
-          axios.get(`${API_BASE_URL}/student-outcomes/`),
-          axios.get(`${API_BASE_URL}/sections/load_all/`),
-          axios.get(`${API_BASE_URL}/course-so-mappings/`).catch(() => ({ data: [] })), // Fallback if endpoint not available
-        ]);
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [soRes, secRes, mappingRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/student-outcomes/`),
+        axios.get(`${API_BASE_URL}/sections/load_all/`),
+        axios.get(`${API_BASE_URL}/course-so-mappings/`).catch(() => ({ data: [] })), // Fallback if endpoint not available
+      ]);
 
-        const soData = (Array.isArray(soRes.data) ? soRes.data : soRes.data.results || []).map(so => ({
-          id: so.id,
-          number: so.number,
-          code: `SO ${so.number}`,
-          title: so.title,
-          description: so.description,
-          performanceIndicators: (so.performance_indicators || so.performanceIndicators || []).map(pi => ({
-            id: pi.id,
-            number: pi.number,
-            name: pi.description,
-            shortName: pi.description ? pi.description.substring(0, 40) : '',
-            performanceCriteria: (pi.criteria || pi.performanceCriteria || pi.performance_criteria || []).map(pc => ({
-              id: pc.id,
-              name: pc.name || '',
-              order: pc.order ?? 0,
-            })),
+      const soData = (Array.isArray(soRes.data) ? soRes.data : soRes.data.results || []).map(so => ({
+        id: so.id,
+        number: so.number,
+        code: `SO ${so.number}`,
+        title: so.title,
+        description: so.description,
+        performanceIndicators: (so.performance_indicators || so.performanceIndicators || []).map(pi => ({
+          id: pi.id,
+          number: pi.number,
+          name: pi.description,
+          shortName: pi.description ? pi.description.substring(0, 40) : '',
+          performanceCriteria: (pi.criteria || pi.performanceCriteria || pi.performance_criteria || []).map(pc => ({
+            id: pc.id,
+            name: pc.name || '',
+            order: pc.order ?? 0,
           })),
-        }));
-        setStudentOutcomes(soData);
-        if (soData.length > 0) {
-          setSelectedSOId(soData[0].id);
+        })),
+      }));
+      setStudentOutcomes(soData);
+      // Don't auto-select first SO - let user choose from filters
+
+      const sections = secRes.data.sections || [];
+      const faculty = secRes.data.faculty || [];
+      setSectionsData(sections);
+      setFacultyData(faculty);
+
+      // Build course-SO mappings: courseCode -> [soIds]
+      const mappings = {};
+      const courses = Array.isArray(mappingRes.data) ? mappingRes.data : mappingRes.data.results || [];
+      courses.forEach(course => {
+        // Handle different field name variations from backend
+        const soList = 
+          (course.mappedSOs) ||     // camelCase
+          (course.mapped_sos) ||    // snake_case 
+          (course.mapped_sos_details?.map(s => s.id)) || // Details objects
+          [];
+        
+        // Convert to IDs (handle both objects and primitives)
+        const soIds = (Array.isArray(soList) ? soList : []).map(so => 
+          typeof so === 'object' ? so.id : parseInt(so)
+        );
+        
+        if (course.code && soIds.length > 0) {
+          mappings[course.code] = soIds;
         }
+      });
+      setCourseMappings(mappings);
+      toast({ title: "Data Refreshed", description: "Course and mapping data has been reloaded.", variant: "default" });
+    } catch (err) {
+      console.error("Error loading data:", err);
+      toast({ title: "Error", description: "Failed to load data from backend.", variant: "destructive" });
+    }
+    setIsLoading(false);
+  }, [toast]);
 
-        const sections = secRes.data.sections || [];
-        const faculty = secRes.data.faculty || [];
-        setSectionsData(sections);
-        setFacultyData(faculty);
-
-        // Build course-SO mappings: courseCode -> [soIds]
-        const mappings = {};
-        const courses = Array.isArray(mappingRes.data) ? mappingRes.data : mappingRes.data.results || [];
-        courses.forEach(course => {
-          // Handle different field name variations from backend
-          const soList = 
-            (course.mappedSOs) ||     // camelCase
-            (course.mapped_sos) ||    // snake_case 
-            (course.mapped_sos_details?.map(s => s.id)) || // Details objects
-            [];
-          
-          // Convert to IDs (handle both objects and primitives)
-          const soIds = (Array.isArray(soList) ? soList : []).map(so => 
-            typeof so === 'object' ? so.id : parseInt(so)
-          );
-          
-          if (course.code && soIds.length > 0) {
-            mappings[course.code] = soIds;
-          }
-        });
-        setCourseMappings(mappings);
-      } catch (err) {
-        console.error("Error loading data:", err);
-        toast({ title: "Error", description: "Failed to load data from backend.", variant: "destructive" });
-      }
-      setIsLoading(false);
-    };
-    load();
-  }, []);
+  // Load data on component mount
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // ── Derived data from sections ───────────────────────
   const courseOptions = useMemo(() => {
@@ -176,13 +174,27 @@ export default function SOAssessment() {
     // Leave empty to show all sections initially
   }, [courseOptions]);
 
-  // Sections filtered by selected course (or all if no course selected)
+  // Sections filtered by selected course and SO (or all if no course/SO selected)
   const sectionOptions = useMemo(() => {
-    const filtered = selectedCourseCode
-      ? sectionsData.filter(sec => sec.courseCode === selectedCourseCode)
-      : sectionsData;
+    let filtered = sectionsData;
+    
+    // Filter by SO if selected
+    if (selectedSOIds.length > 0) {
+      filtered = filtered.filter(sec => {
+        const mappedSOs = courseMappings[sec.courseCode] || [];
+        return selectedSOIds.some(selectedId =>
+          mappedSOs.some(soId => parseInt(soId) === parseInt(selectedId))
+        );
+      });
+    }
+    
+    // Filter by course code if selected
+    if (selectedCourseCode) {
+      filtered = filtered.filter(sec => sec.courseCode === selectedCourseCode);
+    }
+    
     return [...new Set(filtered.map(sec => sec.name))];
-  }, [sectionsData, selectedCourseCode]);
+  }, [sectionsData, selectedCourseCode, selectedSOIds, courseMappings]);
 
   // Auto-select first section when options change
   useEffect(() => {
@@ -192,17 +204,32 @@ export default function SOAssessment() {
     }
   }, [sectionOptions, selectedCourseCode]);
 
-  // School years for selected course + section (or all if not selected)
+  // School years for selected course + section + SO (or all if not selected)
   const schoolYearOptions = useMemo(() => {
     let filtered = sectionsData;
+    
+    // Filter by SO if selected
+    if (selectedSOIds.length > 0) {
+      filtered = filtered.filter(sec => {
+        const mappedSOs = courseMappings[sec.courseCode] || [];
+        return selectedSOIds.some(selectedId =>
+          mappedSOs.some(soId => parseInt(soId) === parseInt(selectedId))
+        );
+      });
+    }
+    
+    // Filter by course if selected
     if (selectedCourseCode) {
       filtered = filtered.filter(sec => sec.courseCode === selectedCourseCode);
     }
+    
+    // Filter by section if selected
     if (selectedSectionName) {
       filtered = filtered.filter(sec => sec.name === selectedSectionName);
     }
+    
     return [...new Set(filtered.map(sec => sec.schoolYear).filter(Boolean))];
-  }, [sectionsData, selectedCourseCode, selectedSectionName]);
+  }, [sectionsData, selectedCourseCode, selectedSectionName, selectedSOIds, courseMappings]);
 
   // Auto-select school year (only if section is selected)
   useEffect(() => {
@@ -226,18 +253,20 @@ export default function SOAssessment() {
     );
   }, [sectionsData, selectedCourseCode, selectedSectionName, selectedSchoolYear]);
 
-  // Current SO
+  // Current SO (primary is first selected)
   const so = useMemo(() => {
-    return studentOutcomes.find(s => s.id === selectedSOId) || null;
-  }, [studentOutcomes, selectedSOId]);
+    if (selectedSOIds.length === 0) return null;
+    return studentOutcomes.find(s => s.id === selectedSOIds[0]) || null;
+  }, [studentOutcomes, selectedSOIds]);
 
-  // ── Initialize students from section when filters change ──
+  // ── Initialize students from section ──
   useEffect(() => {
-    if (!activeSection) {
+    const section = selectedSectionForAssessment || activeSection;
+    if (!section) {
       setStudents([]);
       return;
     }
-    const sectionStudents = (activeSection.students || []).map(s => {
+    const sectionStudents = (section.students || []).map(s => {
       const grades = {};
       if (so) {
         so.performanceIndicators.forEach(pi => {
@@ -255,10 +284,12 @@ export default function SOAssessment() {
     setIsSaved(false);
 
     // Try to load saved grades from backend
-    if (so && activeSection) {
-      loadGrades(activeSection.id, so.id, selectedSchoolYear);
+    const sectionId = section?.id;
+    const schoolYear = selectedSectionForAssessment?.schoolYear || selectedSchoolYear;
+    if (so && sectionId) {
+      loadGrades(sectionId, so.id, schoolYear);
     }
-  }, [activeSection?.id, so?.id, selectedSchoolYear]);
+  }, [selectedSectionForAssessment?.id ?? activeSection?.id, so?.id, selectedSchoolYear]);
 
   const loadGrades = async (sectionId, soId, schoolYear) => {
     try {
@@ -342,20 +373,110 @@ export default function SOAssessment() {
     setSelectedCourseForModal(course);
   };
 
-  // ── Filtered courses for grid (by SO and school year) ──
-  // Filters by selected SO and school year
+  // ── State for course assessment status ──
+  const [courseAssessmentStatus, setCourseAssessmentStatus] = useState({}); // courseCode-soId -> status
+
+  // ── Helper function to get assessment status for a course ──
+  const getAssessmentStatus = useCallback((course) => {
+    if (!so) return "not-yet"; // If no SO selected, return not-yet
+    
+    const statusKey = `${course.courseCode}-${so.id}`;
+    return courseAssessmentStatus[statusKey] || "not-yet";
+  }, [so, courseAssessmentStatus]);
+
+  // ── Fetch assessment status for courses ──
+  useEffect(() => {
+    if (!so || coursesData.length === 0) {
+      setCourseAssessmentStatus({});
+      return;
+    }
+
+    const fetchAssessmentStatus = async () => {
+      try {
+        const statuses = {};
+        
+        // For each unique course, check assessment status for the selected SO
+        const uniqueCourses = [...new Set(coursesData.map(c => c.courseCode))];
+        
+        for (const courseCode of uniqueCourses) {
+          const course = coursesData.find(c => c.courseCode === courseCode);
+          if (!course) continue;
+
+          // Check each section of the course
+          let totalGraded = 0;
+          let totalStudents = 0;
+
+          for (const section of course.sections) {
+            try {
+              const res = await axios.get(`${API_BASE_URL}/assessments/load_grades/`, {
+                params: { 
+                  section_id: section.id, 
+                  so_id: so.id, 
+                  school_year: section.schoolYear 
+                },
+              });
+              
+              const savedGrades = res.data.grades || {};
+              const studentsWithGrades = Object.keys(savedGrades).filter(studentId => {
+                const grades = savedGrades[studentId];
+                return Object.values(grades).some(g => g !== null && g !== undefined);
+              });
+
+              totalGraded += studentsWithGrades.length;
+              totalStudents += (section.students?.length || 0);
+            } catch (err) {
+              console.error(`Error fetching grades for section ${section.id}:`, err);
+              totalStudents += (section.students?.length || 0);
+            }
+          }
+
+          // Determine status
+          if (totalStudents === 0) {
+            statuses[`${courseCode}-${so.id}`] = "not-yet";
+          } else if (totalGraded === 0) {
+            statuses[`${courseCode}-${so.id}`] = "not-yet";
+          } else if (totalGraded === totalStudents) {
+            statuses[`${courseCode}-${so.id}`] = "assessed";
+          } else {
+            statuses[`${courseCode}-${so.id}`] = "incomplete";
+          }
+        }
+
+        setCourseAssessmentStatus(statuses);
+      } catch (err) {
+        console.error("Error fetching assessment status:", err);
+      }
+    };
+
+    fetchAssessmentStatus();
+  }, [so, coursesData]);
+
+  // ── Filtered courses for grid (by SO, course, section, and school year) ──
+  // Filters by selected SOs, course, section, and school year
   const coursesForGrid = useMemo(() => {
     let filtered = coursesData;
     
-    // Filter by selected SO
-    if (selectedSOId) {
+    // Filter by selected SOs (show courses that map to ANY of the selected SOs)
+    if (selectedSOIds.length > 0) {
       filtered = filtered.filter(course => {
         const mappedSOs = courseMappings[course.courseCode] || [];
         // Handle type comparison (string vs number)
-        return mappedSOs.some(soId => 
-          parseInt(soId) === parseInt(selectedSOId)
+        return selectedSOIds.some(selectedId =>
+          mappedSOs.some(soId => parseInt(soId) === parseInt(selectedId))
         );
       });
+    }
+    
+    // Filter by course code
+    if (selectedCourseCode) {
+      filtered = filtered.filter(course => course.courseCode === selectedCourseCode);
+    }
+    
+    // Filter by section name
+    if (selectedSectionName) {
+      filtered = filtered.filter(course =>
+        course.sections.some(sec => sec.name === selectedSectionName)
+      );
     }
     
     // Filter by school year
@@ -364,8 +485,13 @@ export default function SOAssessment() {
         course.sections.some(sec => sec.schoolYear === selectedSchoolYear)
       );
     }
-    return filtered;
-  }, [coursesData, selectedSOId, selectedSchoolYear, courseMappings]);
+    
+    // Enrich courses with assessment status
+    return filtered.map(course => ({
+      ...course,
+      assessmentStatus: getAssessmentStatus(course),
+    }));
+  }, [coursesData, selectedSOIds, selectedCourseCode, selectedSectionName, selectedSchoolYear, courseMappings, getAssessmentStatus]);
 
   // ── Stats computation ────────────────────────────────
   const stats = useMemo(() => {
@@ -484,20 +610,17 @@ export default function SOAssessment() {
     );
   }
 
-  if (!so) {
+  // Show error only if no student outcomes exist at all
+  if (studentOutcomes.length === 0) {
     return (
       <div className="min-h-screen bg-[#F5F5F0] flex flex-col">
         <Navbar />
         <main className="flex-1 flex flex-col items-center justify-center">
           <h1 className="text-2xl font-bold text-[#231F20] mb-4">
-            {studentOutcomes.length === 0 
-              ? "No Student Outcomes Found" 
-              : "Student Outcome Not Found"}
+            No Student Outcomes Found
           </h1>
           <p className="text-[#6B6B6B] mb-6">
-            {studentOutcomes.length === 0 
-              ? "Please configure Student Outcomes first." 
-              : "The selected outcome could not be found."}
+            Please configure Student Outcomes first.
           </p>
           <Link to="/programchair/student-outcomes">
             <button className="bg-[#FFC20E] hover:bg-[#FFC20E]/90 text-[#231F20] px-6 py-3 rounded-lg font-medium transition-colors">
@@ -561,10 +684,10 @@ export default function SOAssessment() {
               >
                 <div className="flex items-center gap-1.5">
                   {(() => {
-                    const Icon = getSOIcon(studentOutcomes.findIndex(s => s.id === selectedSOId));
+                    const Icon = getSOIcon(studentOutcomes.findIndex(s => s.id === selectedSOIds[0]));
                     return <Icon className="w-4 h-4 text-[#FFC20E] shrink-0" />;
                   })()}
-                  <span className="text-xs font-bold text-white whitespace-nowrap">{so.code}</span>
+                  <span className="text-xs font-bold text-white whitespace-nowrap">{so?.code}</span>
                 </div>
                 {!isNavigatorCollapsed && (
                   <div className="flex items-center gap-1">
@@ -587,11 +710,17 @@ export default function SOAssessment() {
                   <div className="grid grid-cols-3 gap-1">
                     {studentOutcomes.map((outcome, idx) => {
                       const Icon = getSOIcon(idx);
-                      const isActive = outcome.id === selectedSOId;
+                      const isActive = selectedSOIds.includes(outcome.id);
                       return (
                         <button
                           key={outcome.id}
-                          onClick={() => setSelectedSOId(outcome.id)}
+                          onClick={() => {
+                            if (isActive) {
+                              setSelectedSOIds(selectedSOIds.filter(id => id !== outcome.id));
+                            } else {
+                              setSelectedSOIds([...selectedSOIds, outcome.id]);
+                            }
+                          }}
                           className={`flex flex-col items-center justify-center py-1.5 rounded transition-all ${isActive ? 'bg-[#FFC20E] text-[#231F20]' : 'bg-[#3A3A3A] text-[#A5A8AB] hover:bg-[#4A4A4A] hover:text-white'}`}
                           title={outcome.title}
                         >
@@ -627,105 +756,63 @@ export default function SOAssessment() {
         <div className="bg-[#F5F5F0]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
             
-            {/* Student Outcome Selection */}
-            <div className="glass-card p-4 sm:p-6">
-              <h3 className="text-xs sm:text-sm font-medium text-[#6B6B6B] mb-4 uppercase tracking-wider">Select Student Outcome</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-                {studentOutcomes.map((outcome, idx) => {
-                  const Icon = getSOIcon(idx);
-                  const isActive = outcome.id === selectedSOId;
-                  
-                  return (
-                    <button
-                      key={outcome.id}
-                      onClick={() => setSelectedSOId(outcome.id)}
-                      className={cn(
-                        "p-3 sm:p-4 rounded-xl border-2 transition-all text-left hover:scale-105",
-                        isActive 
-                          ? "bg-[#FFC20E] border-[#FFC20E] shadow-lg" 
-                          : "bg-white border-[#A5A8AB] hover:border-[#FFC20E]/50"
-                      )}
-                    >
-                      <Icon className={cn(
-                        "w-5 h-5 sm:w-6 sm:h-6 mb-2",
-                        isActive ? "text-[#231F20]" : "text-[#FFC20E]"
-                      )} />
-                      <p className="text-xs sm:text-sm font-bold mb-1 text-[#231F20]">
-                        {outcome.code}
-                      </p>
-                      <p className={cn(
-                        "text-xs line-clamp-2",
-                        isActive ? "text-[#231F20]/70" : "text-[#6B6B6B]"
-                      )}>
-                        {outcome.title}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
 
-            {/* Student Outcomes Details */}
-            <div className="glass-card p-6">
-              <h3 className="font-semibold text-[#231F20] mb-4 text-lg">Student Outcome Details</h3>
-              {!so ? (
-                <p className="text-sm text-[#6B6B6B]">
-                  Select a Student Outcome above to view its details.
-                </p>
-              ) : (
-                <div className="space-y-6">
-                  {/* SO Header */}
-                  <div className="border-l-4 border-[#FFC20E] pl-4">
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className="px-3 py-1 bg-[#FFC20E] text-[#231F20] rounded-full text-xs font-bold">
-                        {so.code}
-                      </div>
-                    </div>
-                    <h4 className="text-xl font-bold text-[#231F20] mb-2">{so.title}</h4>
-                    <p className="text-sm text-[#6B6B6B] leading-relaxed">{so.description}</p>
-                  </div>
-
-                  {/* Performance Indicators */}
-                  {so.performanceIndicators && so.performanceIndicators.length > 0 && (
-                    <div>
-                      <h4 className="text-base font-semibold text-[#231F20] mb-3">Performance Indicators</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {so.performanceIndicators.map((pi, index) => (
-                          <div key={pi.id} className="p-4 rounded-lg bg-[#FFC20E]/5 border border-[#FFC20E]/20">
-                            <div className="flex items-start gap-3">
-                              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#FFC20E] text-[#231F20] text-xs font-bold flex items-center justify-center mt-0.5">
-                                {index + 1}
-                              </span>
-                              <div>
-                                <p className="font-semibold text-sm text-[#231F20] mb-1">{pi.shortName}</p>
-                                <p className="text-xs text-[#6B6B6B]">{pi.name}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
 
             {/* Filters */}
             <div className="glass-card p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base sm:text-lg font-semibold text-[#231F20]">Filters</h3>
-                {selectedSchoolYear && (
+                {(selectedSOIds.length > 0 || selectedSchoolYear) && (
                   <button
                     onClick={() => {
+                      setSelectedSOIds([]);
                       setSelectedSchoolYear("");
                     }}
-                    className="text-xs font-semibold text-[#FFC20E] hover:text-[#FFC20E]/80 transition-colors flex items-center gap-1"
+                    className="px-3 py-1.5 bg-[#FFC20E] hover:bg-[#FFC20E]/90 text-[#231F20] font-semibold rounded-md transition-colors flex items-center gap-2 text-xs"
                   >
                     <X className="w-4 h-4" />
                     Clear All
                   </button>
                 )}
               </div>
+              
+              {/* Student Outcomes Filter */}
+              <div className="mb-6 pb-6 border-b border-[#8A817C]/20">
+                <div className="flex items-center gap-3 mb-3">
+                  <Lightbulb className="w-5 h-5 text-[#6B6B6B]" />
+                  <span className="text-sm font-medium text-[#6B6B6B]">Student Outcomes:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {studentOutcomes.map((outcome, idx) => {
+                    const Icon = getSOIcon(idx);
+                    const isActive = selectedSOIds.includes(outcome.id);
+                    
+                    return (
+                      <button
+                        key={outcome.id}
+                        onClick={() => {
+                          if (isActive) {
+                            setSelectedSOIds(selectedSOIds.filter(id => id !== outcome.id));
+                          } else {
+                            setSelectedSOIds([...selectedSOIds, outcome.id]);
+                          }
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all",
+                          isActive
+                            ? "bg-[#FFC20E] text-[#231F20] shadow-md"
+                            : "bg-[#F0F0F0] text-[#6B6B6B] border border-[#D0D0D0] hover:bg-[#E8E8E8]"
+                        )}
+                        title={outcome.title}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        {outcome.code}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="flex flex-wrap items-center gap-6">
                 {/* Course filter */}
                 <div className="flex items-center gap-3">
@@ -860,9 +947,11 @@ export default function SOAssessment() {
                 sections={coursesForGrid}
                 selectedSectionId={activeSection?.courseCode}
                 studentOutcomes={studentOutcomes}
-                selectedSOId={selectedSOId}
+                selectedSOIds={selectedSOIds}
                 onSelectSection={handleSelectSectionFromGrid}
                 viewMode={sectionsViewMode}
+                courseMappings={courseMappings}
+                getSOIcon={getSOIcon}
               />
             </div>
 
@@ -991,113 +1080,38 @@ export default function SOAssessment() {
         </div>
 
         {/* Course Sections Modal */}
-        <Dialog open={!!selectedCourseForModal} onOpenChange={(open) => {
-          if (!open) setSelectedCourseForModal(null);
-        }}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-xl">
-                {selectedCourseForModal?.courseName} ({selectedCourseForModal?.courseCode})
-              </DialogTitle>
-              <DialogDescription>
-                View all sections, faculty, and student enrollment details
-              </DialogDescription>
-            </DialogHeader>
-            
-            {selectedCourseForModal && (
-              <div className="space-y-4">
-                {selectedCourseForModal.sections && selectedCourseForModal.sections.length > 0 ? (
-                  <div className="space-y-4">
-                    {selectedCourseForModal.sections.map((section) => {
-                      const facultyName = getFacultyForSection(section, facultyData);
-                      
-                      return (
-                        <div
-                          key={section.id}
-                          className="bg-white rounded-lg border border-[#E5E7EB] overflow-hidden transition-all hover:shadow-md"
-                        >
-                          {/* Section Header */}
-                          <div className="px-5 py-4 border-b border-[#E5E7EB] bg-white">
-                            <div className="flex items-start gap-4">
-                              <div className="w-12 h-12 rounded-lg bg-[#FFC20E] flex items-center justify-center flex-shrink-0">
-                                <Users className="w-6 h-6 text-[#231F20]" />
-                              </div>
-                              <div className="flex-1">
-                                <h4 className="font-bold text-base text-[#231F20] mb-1">
-                                  {section.name}
-                                </h4>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-[#6B6B6B]">
-                                  <div>
-                                    <span className="font-semibold text-[#231F20]">Faculty:</span> {facultyName}
-                                  </div>
-                                  <div>
-                                    <span className="font-semibold text-[#231F20]">Students:</span> {section.students?.length || 0}
-                                  </div>
-                                  <div>
-                                    <span className="font-semibold text-[#231F20]">Year:</span> {section.schoolYear}
-                                  </div>
-                                  <div>
-                                    <span className="font-semibold text-[#231F20]">Schedule:</span> {section.schedule || "—"}
-                                  </div>
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  setSelectedSectionName(section.name);
-                                  setSelectedSchoolYear(section.schoolYear);
-                                  setSelectedCourseForModal(null);
-                                }}
-                                className="px-3 py-1.5 bg-[#FFC20E] text-[#231F20] rounded text-xs font-medium hover:bg-[#FFC20E]/90 transition-colors whitespace-nowrap"
-                              >
-                                View Grades
-                              </button>
-                            </div>
-                          </div>
+        <CourseSectionsModal
+          isOpen={!!selectedCourseForModal}
+          selectedCourse={selectedCourseForModal}
+          facultyData={facultyData}
+          onClose={() => setSelectedCourseForModal(null)}
+          onSelectSection={(section) => {
+            setSelectedCourseCode(section.courseCode);
+            setSelectedSectionName(section.name);
+            setSelectedSchoolYear(section.schoolYear);
+            setSelectedSectionForAssessment(section);
+          }}
+        />
 
-                          {/* Students Table */}
-                          {section.students && section.students.length > 0 && (
-                            <div className="divide-y divide-[#E5E7EB]">
-                              <div className="px-5 py-3 bg-[#F9FAFB]">
-                                <div className="grid grid-cols-12 text-xs font-semibold text-[#6B6B6B] uppercase tracking-wider gap-2">
-                                  <span className="col-span-1">#</span>
-                                  <span className="col-span-4">Name</span>
-                                  <span className="col-span-3">Student ID</span>
-                                  <span className="col-span-2">Year Level</span>
-                                  <span className="col-span-2 text-right">Contact</span>
-                                </div>
-                              </div>
-                              {section.students.map((student, idx) => (
-                                <div
-                                  key={student.id}
-                                  className="px-5 py-3 grid grid-cols-12 text-sm items-center hover:bg-[#FFC20E]/5 transition-colors gap-2"
-                                >
-                                  <span className="col-span-1 text-[#6B6B6B] font-medium">{idx + 1}</span>
-                                  <span className="col-span-4 font-medium text-[#231F20]">{student.name}</span>
-                                  <span className="col-span-3 text-[#6B6B6B] font-mono text-xs">{student.studentId}</span>
-                                  <span className="col-span-2 text-[#6B6B6B] text-xs">{student.yearLevel || "—"}</span>
-                                  <span className="col-span-2 text-right text-[#6B6B6B] text-xs truncate">{student.email || "—"}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* No students message */}
-                          {!section.students || section.students.length === 0 && (
-                            <div className="px-5 py-6 text-center text-sm text-[#6B6B6B]">
-                              No students enrolled in this section yet.
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-[#6B6B6B] text-center py-8">No sections found for this course.</p>
-                )}
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        {/* Student Assessment Modal */}
+        <AssessStudentsModal
+          isOpen={!!selectedSectionForAssessment}
+          selectedSection={selectedSectionForAssessment}
+          studentOutcomes={studentOutcomes}
+          courseMappings={courseMappings}
+          facultyData={facultyData}
+          selectedSOIds={selectedSOIds}
+          onChangeSelectedSO={setSelectedSOIds}
+          onClose={() => {
+            setSelectedSectionForAssessment(null);
+            setSelectedCourseForModal(null);
+          }}
+          onCourseFiltersChange={(courseCode, sectionName, schoolYear) => {
+            setSelectedCourseCode(courseCode);
+            setSelectedSectionName(sectionName);
+            setSelectedSchoolYear(schoolYear);
+          }}
+        />
       </main>
 
       <Footer />
