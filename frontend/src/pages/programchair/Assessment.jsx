@@ -373,6 +373,84 @@ export default function SOAssessment() {
     setSelectedCourseForModal(course);
   };
 
+  // ── State for course assessment status ──
+  const [courseAssessmentStatus, setCourseAssessmentStatus] = useState({}); // courseCode-soId -> status
+
+  // ── Helper function to get assessment status for a course ──
+  const getAssessmentStatus = useCallback((course) => {
+    if (!so) return "not-yet"; // If no SO selected, return not-yet
+    
+    const statusKey = `${course.courseCode}-${so.id}`;
+    return courseAssessmentStatus[statusKey] || "not-yet";
+  }, [so, courseAssessmentStatus]);
+
+  // ── Fetch assessment status for courses ──
+  useEffect(() => {
+    if (!so || coursesData.length === 0) {
+      setCourseAssessmentStatus({});
+      return;
+    }
+
+    const fetchAssessmentStatus = async () => {
+      try {
+        const statuses = {};
+        
+        // For each unique course, check assessment status for the selected SO
+        const uniqueCourses = [...new Set(coursesData.map(c => c.courseCode))];
+        
+        for (const courseCode of uniqueCourses) {
+          const course = coursesData.find(c => c.courseCode === courseCode);
+          if (!course) continue;
+
+          // Check each section of the course
+          let totalGraded = 0;
+          let totalStudents = 0;
+
+          for (const section of course.sections) {
+            try {
+              const res = await axios.get(`${API_BASE_URL}/assessments/load_grades/`, {
+                params: { 
+                  section_id: section.id, 
+                  so_id: so.id, 
+                  school_year: section.schoolYear 
+                },
+              });
+              
+              const savedGrades = res.data.grades || {};
+              const studentsWithGrades = Object.keys(savedGrades).filter(studentId => {
+                const grades = savedGrades[studentId];
+                return Object.values(grades).some(g => g !== null && g !== undefined);
+              });
+
+              totalGraded += studentsWithGrades.length;
+              totalStudents += (section.students?.length || 0);
+            } catch (err) {
+              console.error(`Error fetching grades for section ${section.id}:`, err);
+              totalStudents += (section.students?.length || 0);
+            }
+          }
+
+          // Determine status
+          if (totalStudents === 0) {
+            statuses[`${courseCode}-${so.id}`] = "not-yet";
+          } else if (totalGraded === 0) {
+            statuses[`${courseCode}-${so.id}`] = "not-yet";
+          } else if (totalGraded === totalStudents) {
+            statuses[`${courseCode}-${so.id}`] = "assessed";
+          } else {
+            statuses[`${courseCode}-${so.id}`] = "incomplete";
+          }
+        }
+
+        setCourseAssessmentStatus(statuses);
+      } catch (err) {
+        console.error("Error fetching assessment status:", err);
+      }
+    };
+
+    fetchAssessmentStatus();
+  }, [so, coursesData]);
+
   // ── Filtered courses for grid (by SO, course, section, and school year) ──
   // Filters by selected SOs, course, section, and school year
   const coursesForGrid = useMemo(() => {
@@ -407,8 +485,13 @@ export default function SOAssessment() {
         course.sections.some(sec => sec.schoolYear === selectedSchoolYear)
       );
     }
-    return filtered;
-  }, [coursesData, selectedSOIds, selectedCourseCode, selectedSectionName, selectedSchoolYear, courseMappings]);
+    
+    // Enrich courses with assessment status
+    return filtered.map(course => ({
+      ...course,
+      assessmentStatus: getAssessmentStatus(course),
+    }));
+  }, [coursesData, selectedSOIds, selectedCourseCode, selectedSectionName, selectedSchoolYear, courseMappings, getAssessmentStatus]);
 
   // ── Stats computation ────────────────────────────────
   const stats = useMemo(() => {

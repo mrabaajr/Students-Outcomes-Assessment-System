@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import {
   Dialog,
@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Scale,
   FlaskConical,
+  GripHorizontal,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,8 @@ export function AssessStudentsModal({
   const { toast } = useToast();
   const [students, setStudents] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [modalWidth, setModalWidth] = useState(85); // in vw
+  const [modalHeight, setModalHeight] = useState(90); // in vh
 
   // Initialize students state from selectedSection
   useEffect(() => {
@@ -97,6 +100,63 @@ export function AssessStudentsModal({
       console.error("Error loading grades:", error);
       setStudents(initialStudents);
     }
+  };
+
+  // Handle resize start
+  const handleResizeMouseDown = (e) => {
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidthCurrent = modalWidth;
+    const startHeightCurrent = modalHeight;
+
+    const handleMouseMove = (e) => {
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+
+      const newWidth = startWidthCurrent + (deltaX / window.innerWidth) * 100;
+      const newHeight = startHeightCurrent + (deltaY / window.innerHeight) * 100;
+
+      setModalWidth(Math.max(50, Math.min(95, newWidth)));
+      setModalHeight(Math.max(50, Math.min(95, newHeight)));
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
+  // Handle resize start for touch devices
+  const handleResizeTouchStart = (e) => {
+    const touch = e.touches[0];
+    const startX = touch.clientX;
+    const startY = touch.clientY;
+    const startWidthCurrent = modalWidth;
+    const startHeightCurrent = modalHeight;
+
+    const handleTouchMove = (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - startX;
+      const deltaY = touch.clientY - startY;
+
+      const newWidth = startWidthCurrent + (deltaX / window.innerWidth) * 100;
+      const newHeight = startHeightCurrent + (deltaY / window.innerHeight) * 100;
+
+      setModalWidth(Math.max(50, Math.min(95, newWidth)));
+      setModalHeight(Math.max(50, Math.min(95, newHeight)));
+    };
+
+    const handleTouchEnd = () => {
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
+    document.addEventListener("touchend", handleTouchEnd);
   };
 
   const handleGradeChange = (studentId, criterionKey, value) => {
@@ -196,8 +256,17 @@ export function AssessStudentsModal({
           scrollbar-color: #888 #e5e5e5;
         }
       `}</style>
-      <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader className="flex-shrink-0 flex items-start justify-between">
+      <DialogContent 
+        className="flex flex-col overflow-hidden bg-white relative"
+        style={{
+          width: `${modalWidth}vw`,
+          height: `${modalHeight}vh`,
+          maxWidth: 'none',
+          maxHeight: 'none',
+          position: 'fixed',
+        }}
+      >
+        <DialogHeader className="flex-shrink-0 flex items-start justify-between pr-4">
           <div className="flex items-center gap-3 flex-1">
             <button
               onClick={onClose}
@@ -482,6 +551,19 @@ export function AssessStudentsModal({
             </div>
           </div>
         </div>
+
+        {/* Resize Handle */}
+        <div
+          onMouseDown={handleResizeMouseDown}
+          onTouchStart={handleResizeTouchStart}
+          className="absolute bottom-0 right-0 w-6 h-6 cursor-se-resize hover:bg-[#FFC20E]/30 transition-colors user-select-none"
+          style={{
+            background: 'linear-gradient(135deg, transparent 50%, #FFC20E 50%)',
+            opacity: 0.6,
+            zIndex: 50,
+          }}
+          title="Drag to resize modal"
+        />
       </DialogContent>
     </Dialog>
   );

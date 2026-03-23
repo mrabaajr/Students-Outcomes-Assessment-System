@@ -1,4 +1,4 @@
-import { Users, BookOpen, ChevronRight, Layers } from "lucide-react";
+import { Users, BookOpen, ChevronRight, Layers, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,6 +16,37 @@ export function SectionsGrid({
   courseMappings = {},
   getSOIcon = () => null,
 }) {
+  // Helper to get assessment status badge info
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case "assessed":
+        return {
+          icon: CheckCircle2,
+          label: "Assessed",
+          bgColor: "bg-green-100",
+          textColor: "text-green-700",
+          borderColor: "border-green-300",
+        };
+      case "incomplete":
+        return {
+          icon: AlertCircle,
+          label: "Incomplete",
+          bgColor: "bg-yellow-100",
+          textColor: "text-yellow-700",
+          borderColor: "border-yellow-300",
+        };
+      case "not-yet":
+      default:
+        return {
+          icon: Clock,
+          label: "Not Yet Assessed",
+          bgColor: "bg-gray-100",
+          textColor: "text-gray-700",
+          borderColor: "border-gray-300",
+        };
+    }
+  };
+
   if (sections.length === 0) {
     return (
       <div className="text-center py-12">
@@ -36,6 +67,8 @@ export function SectionsGrid({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {sections.map((course) => {
           const isSelected = selectedSectionId === course.courseCode;
+          const statusInfo = getStatusBadge(course.assessmentStatus);
+          const StatusIcon = statusInfo.icon;
 
           return (
             <div
@@ -64,6 +97,12 @@ export function SectionsGrid({
                     <ChevronRight className="w-3 h-3 text-[#231F20]" />
                   </div>
                 )}
+              </div>
+
+              {/* Assessment Status Badge */}
+              <div className={`mb-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusInfo.bgColor} ${statusInfo.textColor} ${statusInfo.borderColor}`}>
+                <StatusIcon className="w-3.5 h-3.5" />
+                <span>{statusInfo.label}</span>
               </div>
 
               {/* Students and Sections */}
@@ -122,6 +161,8 @@ export function SectionsGrid({
     <div className="space-y-3">
       {sections.map((course) => {
         const isSelected = selectedSectionId === course.courseCode;
+        const statusInfo = getStatusBadge(course.assessmentStatus);
+        const StatusIcon = statusInfo.icon;
 
         return (
           <div
@@ -147,10 +188,17 @@ export function SectionsGrid({
                 </div>
               )}
             </div>
-            
-            <div className="flex items-center gap-4 text-xs text-[#6B6B6B]">
-              <span className="whitespace-nowrap">{course.studentCount || 0} students</span>
-              <span className="whitespace-nowrap">{course.sections?.length || 0} sections</span>
+
+            {/* Assessment Status Badge and Student/Section Info */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-4 text-xs text-[#6B6B6B]">
+                <span className="whitespace-nowrap">{course.studentCount || 0} students</span>
+                <span className="whitespace-nowrap">{course.sections?.length || 0} sections</span>
+              </div>
+              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusInfo.bgColor} ${statusInfo.textColor} ${statusInfo.borderColor}`}>
+                <StatusIcon className="w-3.5 h-3.5" />
+                <span>{statusInfo.label}</span>
+              </div>
             </div>
             
             {/* Mapped SOs */}
