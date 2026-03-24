@@ -33,6 +33,7 @@ const StudentOutcomes = () => {
     ...outcome,
     indicators: (outcome.performanceIndicators || []).map((pi) => ({
       ...pi,
+      description: pi.description || pi.name || "",
       criteria: pi.performanceCriteria || [],
     })),
   });
@@ -42,6 +43,7 @@ const StudentOutcomes = () => {
     ...outcome,
     performanceIndicators: (outcome.indicators || []).map((pi) => ({
       ...pi,
+      name: pi.name || pi.description || "",
       performanceCriteria: pi.criteria || [],
     })),
   });
