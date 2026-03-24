@@ -10,7 +10,7 @@ from io import StringIO
 from .models import Assessment, Grade
 from .serializers import AssessmentSerializer
 from classess.models import Section, Student
-from so.models import StudentOutcome, PerformanceCriterion
+from so.models import StudentOutcome, PerformanceCriterion, PerformanceIndicator
 
 
 class AssessmentViewSet(viewsets.ModelViewSet):
@@ -44,7 +44,10 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             student_key = str(grade.student_id)
             if student_key not in grades_payload:
                 grades_payload[student_key] = {}
-            grades_payload[student_key][str(grade.criterion_id)] = grade.score
+            if grade.criterion_id:
+                grades_payload[student_key][f"criterion:{grade.criterion_id}"] = grade.score
+            elif grade.performance_indicator_id:
+                grades_payload[student_key][f"indicator:{grade.performance_indicator_id}"] = grade.score
 
         return Response({'grades': grades_payload})
 
@@ -80,25 +83,35 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 # Save new grades
                 created_count = 0
                 for student_id_str, criteria_grades in grades_data.items():
-                    for criterion_id_str, score in criteria_grades.items():
+                    for basis_id_str, score in criteria_grades.items():
                         if score is not None:
                             try:
                                 student_id = int(student_id_str)
-                                criterion_id = int(criterion_id_str)
                                 score_val = int(score)
-                                print(f"[SAVE GRADES] Creating grade: student={student_id}, criterion={criterion_id}, score={score_val}")
-                                Grade.objects.create(
-                                    assessment=assessment,
-                                    student_id=student_id,
-                                    criterion_id=criterion_id,
-                                    score=score_val,
-                                )
+                                if isinstance(basis_id_str, str) and basis_id_str.startswith("indicator:"):
+                                    indicator_id = int(basis_id_str.split(":", 1)[1])
+                                    print(f"[SAVE GRADES] Creating indicator grade: student={student_id}, indicator={indicator_id}, score={score_val}")
+                                    Grade.objects.create(
+                                        assessment=assessment,
+                                        student_id=student_id,
+                                        performance_indicator_id=indicator_id,
+                                        score=score_val,
+                                    )
+                                else:
+                                    criterion_id = int(str(basis_id_str).split(":", 1)[-1])
+                                    print(f"[SAVE GRADES] Creating criterion grade: student={student_id}, criterion={criterion_id}, score={score_val}")
+                                    Grade.objects.create(
+                                        assessment=assessment,
+                                        student_id=student_id,
+                                        criterion_id=criterion_id,
+                                        score=score_val,
+                                    )
                                 created_count += 1
                             except ValueError as ve:
                                 print(f"[SAVE GRADES] ValueError converting values: {ve}")
                                 raise
                             except Exception as ge:
-                                print(f"[SAVE GRADES] Error creating grade for student={student_id_str}, criterion={criterion_id_str}: {ge}")
+                                print(f"[SAVE GRADES] Error creating grade for student={student_id_str}, basis={basis_id_str}: {ge}")
                                 raise
 
                 print(f"[SAVE GRADES] Successfully saved {created_count} grades")
@@ -143,10 +156,22 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             
             # Get all performance indicators and criteria for this SO
             performance_indicators = so.performance_indicators.all().order_by('number')
-            all_criteria = []
+            assessment_columns = []
             for pi in performance_indicators:
                 criteria = pi.criteria.all().order_by('number')
-                all_criteria.extend(criteria)
+                if criteria.exists():
+                    for criterion in criteria:
+                        assessment_columns.append({
+                            "key": f"criterion:{criterion.id}",
+                            "label": f"{pi.number}.{criterion.order}",
+                            "basis": criterion.name,
+                        })
+                else:
+                    assessment_columns.append({
+                        "key": f"indicator:{pi.id}",
+                        "label": f"PI {pi.number}",
+                        "basis": pi.description,
+                    })
             
             # Get all students in the section
             enrollments = section.enrollments.select_related('student').all()
@@ -157,10 +182,14 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             if assessment:
                 for grade in assessment.grades.all():
                     student_id = grade.student_id
-                    criterion_id = grade.criterion_id
+                    grade_key = (
+                        f"criterion:{grade.criterion_id}"
+                        if grade.criterion_id
+                        else f"indicator:{grade.performance_indicator_id}"
+                    )
                     if student_id not in grades_by_student:
                         grades_by_student[student_id] = {}
-                    grades_by_student[student_id][criterion_id] = grade.score
+                    grades_by_student[student_id][grade_key] = grade.score
 
             # Create CSV
             output = StringIO()
@@ -177,8 +206,8 @@ class AssessmentViewSet(viewsets.ModelViewSet):
 
             # Column headers
             headers = ['Student ID', 'Student Name']
-            for criterion in all_criteria:
-                headers.append(f"{criterion.performance_indicator.number}.{criterion.number}")
+            for column in assessment_columns:
+                headers.append(column["label"])
             headers.append('Average')
             writer.writerow(headers)
 
@@ -188,8 +217,8 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 student_grades = grades_by_student.get(student.id, {})
                 scores = []
                 
-                for criterion in all_criteria:
-                    score = student_grades.get(criterion.id)
+                for column in assessment_columns:
+                    score = student_grades.get(column["key"])
                     if score is not None:
                         row.append(score)
                         scores.append(score)
@@ -208,7 +237,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             # Summary row
             writer.writerow([])
             summary_row = ['Summary', 'Total Students: ' + str(len(students))]
-            summary_row.extend([''] * (len(all_criteria) - 1))
+            summary_row.extend([''] * (max(len(assessment_columns) - 1, 0)))
             summary_row.append('Class Average')
             
             # Calculate class average

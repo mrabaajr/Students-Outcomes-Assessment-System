@@ -38,11 +38,12 @@ class GradeAdmin(admin.ModelAdmin):
     )
 
     def performance_indicator(self, obj):
-        return obj.criterion.performance_indicator
+        return obj.criterion.performance_indicator if obj.criterion else obj.performance_indicator
 
     performance_indicator.short_description = "Performance Indicator"
 
     def student_outcome(self, obj):
-        return obj.criterion.performance_indicator.student_outcome
+        indicator = obj.criterion.performance_indicator if obj.criterion else obj.performance_indicator
+        return indicator.student_outcome if indicator else None
 
     student_outcome.short_description = "Student Outcome"

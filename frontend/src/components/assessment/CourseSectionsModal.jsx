@@ -101,7 +101,7 @@ export function CourseSectionsModal({
                                 {statusBadge.label}
                               </span>
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-[#6B6B6B]">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs text-[#6B6B6B]">
                               <div>
                                 <span className="font-semibold text-[#231F20]">Faculty:</span>{" "}
                                 {facultyName}
@@ -115,8 +115,12 @@ export function CourseSectionsModal({
                                 {section.schoolYear}
                               </div>
                               <div>
+                                <span className="font-semibold text-[#231F20]">Semester:</span>{" "}
+                                {section.semester || "-"}
+                              </div>
+                              <div>
                                 <span className="font-semibold text-[#231F20]">Curriculum:</span>{" "}
-                                {section.curriculum || "—"}
+                                {section.curriculum || "-"}
                               </div>
                             </div>
                           </div>
@@ -155,10 +159,10 @@ export function CourseSectionsModal({
                                 {student.studentId}
                               </span>
                               <span className="col-span-2 text-[#6B6B6B] text-xs">
-                                {student.yearLevel || "—"}
+                                {student.yearLevel || "-"}
                               </span>
                               <span className="col-span-2 text-right text-[#6B6B6B] text-xs truncate">
-                                {section.curriculum || "—"}
+                                {section.curriculum || "-"}
                               </span>
                             </div>
                           ))}

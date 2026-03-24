@@ -336,6 +336,7 @@ class SectionViewSet(viewsets.ModelViewSet):
                 'name': sec.name,
                 'courseCode': sec.course.code,
                 'courseName': sec.course.name,
+                'facultyName': sec.assigned_faculty.name if sec.assigned_faculty else '',
                 'curriculum': sec.course.curriculum.year if sec.course.curriculum else '',
                 'semester': sec.semester or sec.course.semester or '',
                 'schoolYear': sec.academic_year or '',

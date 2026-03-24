@@ -146,44 +146,47 @@ export function AssessStudentsModal({
         selectedSO = connectedSOs.find(s => s.id === soId) || connectedSOs[0];
       }
       
-      const criterionToCompositeKey = {};
+      const backendKeyToGradeKey = {};
       if (selectedSO) {
         selectedSO.performanceIndicators?.forEach(pi => {
           if (pi.performanceCriteria && pi.performanceCriteria.length > 0) {
             pi.performanceCriteria.forEach(pc => {
-              criterionToCompositeKey[pc.id] = `${pi.id}-${pc.id}`;
+              backendKeyToGradeKey[`criterion:${pc.id}`] = `criterion:${pc.id}`;
             });
           } else {
-            // For indicators without criteria, skip (no grades can be saved for them)
-            // They use the "pi.id-empty" key which we skip in the save function
+            backendKeyToGradeKey[`indicator:${pi.id}`] = `indicator:${pi.id}`;
           }
         });
       }
       
-      // Handle missing criteria from backend
-      // If a criterion is in loaded grades but not in the mapping, add it with criterion ID as key
+      // Handle legacy backend payloads or unexpected keys gracefully.
       Object.keys(loadedGrades).forEach(studentId => {
-        Object.keys(loadedGrades[studentId]).forEach(criterionId => {
-          if (!criterionToCompositeKey[criterionId]) {
-            // Use criterion ID directly as fallback since it's not in any PI
-            console.warn(`Criterion ${criterionId} not found in SO structure, using criterion ID as fallback`);
-            criterionToCompositeKey[criterionId] = criterionId;
+        Object.keys(loadedGrades[studentId]).forEach(rawKey => {
+          const normalizedKey = String(rawKey).includes(":")
+            ? String(rawKey)
+            : `criterion:${rawKey}`;
+
+          if (!backendKeyToGradeKey[normalizedKey]) {
+            console.warn(`Assessment basis ${normalizedKey} not found in SO structure, using raw key as fallback`);
+            backendKeyToGradeKey[normalizedKey] = normalizedKey;
           }
         });
       });
       
-      console.log("Criterion to composite key mapping:", criterionToCompositeKey);
+      console.log("Assessment basis mapping:", backendKeyToGradeKey);
       
-      // Transform loaded grades back to composite key format
+      // Transform loaded grades into local grade keys.
       const transformedGrades = {};
       Object.entries(loadedGrades).forEach(([studentId, criteria]) => {
         transformedGrades[studentId] = {};
-        Object.entries(criteria).forEach(([criterionId, score]) => {
-          const compositeKey = criterionToCompositeKey[criterionId];
-          console.log(`Student ${studentId}: criterion ${criterionId} -> composite ${compositeKey}, score=${score}`);
-          // Only include if we have a valid mapping (skip orphaned criteria)
-          if (compositeKey) {
-            transformedGrades[studentId][compositeKey] = score;
+        Object.entries(criteria).forEach(([rawKey, score]) => {
+          const normalizedKey = String(rawKey).includes(":")
+            ? String(rawKey)
+            : `criterion:${rawKey}`;
+          const gradeKey = backendKeyToGradeKey[normalizedKey];
+          console.log(`Student ${studentId}: basis ${normalizedKey} -> local ${gradeKey}, score=${score}`);
+          if (gradeKey) {
+            transformedGrades[studentId][gradeKey] = score;
           }
         });
       });
@@ -326,46 +329,36 @@ export function AssessStudentsModal({
       return;
     }
 
-    // Transform grades: convert composite keys (pi.id-pc.id) to criterion IDs only
+    // Transform grades into backend basis keys.
     const gradesPayload = {};
-    
-    // Build a set of valid criterion IDs for this SO
-    const validCriterionIds = new Set();
+
+    const validBases = new Set();
     if (selectedAssessmentSO) {
       selectedAssessmentSO.performanceIndicators?.forEach(pi => {
-        if (pi.performanceCriteria) {
+        if (pi.performanceCriteria && pi.performanceCriteria.length > 0) {
           pi.performanceCriteria.forEach(pc => {
-            validCriterionIds.add(pc.id);
+            validBases.add(`criterion:${pc.id}`);
           });
+        } else {
+          validBases.add(`indicator:${pi.id}`);
         }
       });
     }
-    console.log("Valid criterion IDs for SO ", selectedAssessmentSO.id, ":", validCriterionIds);
+    console.log("Valid assessment bases for SO ", selectedAssessmentSO.id, ":", [...validBases]);
     
     students.forEach(student => {
       gradesPayload[student.id] = {};
       console.log(`Processing student ${student.id}:`, student.grades);
       
-      Object.entries(student.grades).forEach(([compositeKey, score]) => {
+      Object.entries(student.grades).forEach(([gradeKey, score]) => {
         if (score !== null && score !== undefined && score !== "") {
-          // Extract criterion ID from composite key (format: "pi_id-criterion_id" or "pi_id-empty")
-          const parts = compositeKey.split('-');
-          const criterionId = parseInt(parts[parts.length - 1]); // Get last part as number
-          
-          // Skip if it's the "empty" placeholder (no criteria case)
-          if (isNaN(criterionId)) {
-            console.log(`  Skipping non-numeric criterion: ${compositeKey}`);
+          if (!validBases.has(gradeKey)) {
+            console.warn(`  Skipping unsupported basis ${gradeKey} for SO ${selectedAssessmentSO.id}`);
             return;
           }
-          
-          // Skip if this criterion doesn't belong to the selected SO
-          if (!validCriterionIds.has(criterionId)) {
-            console.warn(`  Skipping criterion ${criterionId} - NOT in SO ${selectedAssessmentSO.id}, valid IDs: ${[...validCriterionIds].join(',')}`);
-            return;
-          }
-          
-          gradesPayload[student.id][criterionId] = score;
-          console.log(`  Added: criterion ${criterionId} = ${score}`);
+
+          gradesPayload[student.id][gradeKey] = score;
+          console.log(`  Added: ${gradeKey} = ${score}`);
         }
       });
     });
@@ -433,6 +426,10 @@ export function AssessStudentsModal({
   );
   // Use the state variable selectedAssessmentSO which is populated from backend data with correct criteria
   // This ensures we display only the criteria that belong to the selected SO
+  const displayIndicators = selectedAssessmentSO?.performanceIndicators || [];
+  const indicatorsWithoutCriteria = displayIndicators.filter(
+    (pi) => !pi.performanceCriteria || pi.performanceCriteria.length === 0
+  ).length;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -573,7 +570,7 @@ export function AssessStudentsModal({
                   )}
 
                   {/* Students Assessment Table */}
-                  {selectedAssessmentSO && students.length > 0 && (
+                  {selectedAssessmentSO && students.length > 0 && displayIndicators.length > 0 && (
                     <div className="mt-6 pt-6 border-t border-[#E5E7EB] space-y-3">
                       <div>
                         <h4 className="text-base font-semibold text-[#231F20] mb-3 flex items-center gap-2">
@@ -581,8 +578,13 @@ export function AssessStudentsModal({
                           Assess Students — {selectedAssessmentSO.code}
                         </h4>
                         <p className="text-xs text-[#6B6B6B] mb-3">
-                          Rate each student's performance for each criterion (1-6 scale, where 6 is highest)
+                          Rate each student's performance for each criterion or performance indicator (1-6 scale, where 6 is highest)
                         </p>
+                        {indicatorsWithoutCriteria > 0 && (
+                          <div className="mb-3 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+                            {indicatorsWithoutCriteria} performance indicator{indicatorsWithoutCriteria > 1 ? "s use" : " uses"} the performance indicator itself as the grading basis because no criteria are defined yet.
+                          </div>
+                        )}
                       </div>
 
                       <div
@@ -592,7 +594,7 @@ export function AssessStudentsModal({
                         <table
                           className="border-collapse text-sm"
                           style={{
-                            width: `${Math.max(260 + selectedAssessmentSO.performanceIndicators.reduce((sum, pi) => sum + Math.max(pi.performanceCriteria?.length || 1, 1) * 110, 0), 800)}px`,
+                            width: `${Math.max(260 + displayIndicators.reduce((sum, pi) => sum + Math.max(pi.performanceCriteria?.length || 1, 1) * 110, 0), 800)}px`,
                             minWidth: 'calc(100% + 20px)'
                           }}
                         >
@@ -607,7 +609,7 @@ export function AssessStudentsModal({
                                 Student
                               </th>
                               <th
-                                colSpan={selectedAssessmentSO.performanceIndicators.reduce((sum, pi) => sum + Math.max(pi.performanceCriteria?.length || 1, 1), 0)}
+                                colSpan={displayIndicators.reduce((sum, pi) => sum + Math.max(pi.performanceCriteria?.length || 1, 1), 0)}
                                 className="border-r border-[#D1D5DB] px-4 py-3 text-center text-xs font-bold uppercase tracking-widest text-white last:border-r-0"
                               >
                                 Performance Indicators
@@ -623,18 +625,13 @@ export function AssessStudentsModal({
                               >
                                 No. / Name
                               </th>
-                              {selectedAssessmentSO.performanceIndicators.map((pi) => {
-                                // Only render header for PIs that have criteria
-                                if (!pi.performanceCriteria || pi.performanceCriteria.length === 0) {
-                                  return null;
-                                }
-                                
+                              {displayIndicators.map((pi) => {
                                 return (
                                   <td
                                     key={`pi-name-${pi.id}`}
-                                    colSpan={pi.performanceCriteria.length}
+                                    colSpan={Math.max(pi.performanceCriteria?.length || 0, 1)}
                                     className="border-r border-[#E5E7EB] px-2 py-2.5 text-center text-xs font-semibold text-[#231F20] bg-[#F5F5F5] align-middle last:border-r-0 leading-tight"
-                                    style={{ minWidth: `${pi.performanceCriteria.length * 110}px` }}
+                                    style={{ minWidth: `${Math.max(pi.performanceCriteria?.length || 0, 1) * 110}px` }}
                                   >
                                     {pi.name}
                                   </td>
@@ -643,7 +640,7 @@ export function AssessStudentsModal({
                             </tr>
 
                             {/* Row 3: Performance Criteria */}
-                            {selectedAssessmentSO.performanceIndicators.some(pi => pi.performanceCriteria && pi.performanceCriteria.length > 0) && (
+                            {displayIndicators.length > 0 && (
                               <tr className="bg-[#FFF8DB] border-b border-[#E5E7EB]">
                                 <th
                                   colSpan={2}
@@ -652,20 +649,26 @@ export function AssessStudentsModal({
                                 >
                                   Criteria
                                 </th>
-                                {selectedAssessmentSO.performanceIndicators.map((pi) => {
-                                  // Only render criteria for PIs that have criteria
+                                {displayIndicators.map((pi) => {
                                   if (!pi.performanceCriteria || pi.performanceCriteria.length === 0) {
-                                    return null;
+                                    return (
+                                      <th
+                                        key={`pc-${pi.id}-indicator`}
+                                        className="min-w-[110px] border-r border-[#E5E7EB] px-2 py-2 text-center text-xs italic text-[#6B6B6B] bg-[#FFF8DB] last:border-r-0 leading-tight"
+                                      >
+                                        No criteria
+                                      </th>
+                                    );
                                   }
-                                  
+
                                   return pi.performanceCriteria.map((pc) => (
                                     <th
                                       key={`pc-${pi.id}-${pc.id}`}
                                       className="min-w-[110px] border-r border-[#E5E7EB] px-2 py-2 text-center text-xs font-semibold text-[#231F20] bg-[#FFF8DB] last:border-r-0 leading-tight"
                                     >
-                                        {pc.name}
-                                      </th>
-                                    ));
+                                      {pc.name}
+                                    </th>
+                                  ));
                                 })}
                               </tr>
                             )}
@@ -681,12 +684,32 @@ export function AssessStudentsModal({
                                   <p className="font-semibold text-[#231F20]">{student.name}</p>
                                   <p className="text-xs text-[#6B6B6B] mt-1">{student.studentId}</p>
                                 </td>
-                                {selectedAssessmentSO.performanceIndicators.map((pi) => {
-                                  // Only render cells for PIs that have criteria
+                                {displayIndicators.map((pi) => {
                                   if (!pi.performanceCriteria || pi.performanceCriteria.length === 0) {
-                                    return null; // Skip PIs with no criteria
+                                    return (
+                                      <td
+                                        key={`grade-${student.id}-${pi.id}-indicator`}
+                                        className="border-r border-[#E5E7EB] px-2 py-2 text-center min-w-[110px] last:border-r-0"
+                                      >
+                                        <select
+                                          id={`grade-${student.id}-${pi.id}-indicator`}
+                                          name={`grade-${student.id}-${pi.id}-indicator`}
+                                          value={students.find(s => s.id === student.id)?.grades?.[`indicator:${pi.id}`] ?? ""}
+                                          onChange={(e) => handleGradeChange(student.id, `indicator:${pi.id}`, e.target.value ? parseInt(e.target.value) : null)}
+                                          className="w-full px-2 py-1.5 rounded border border-[#D1D5DB] text-sm font-semibold text-[#231F20] focus:border-[#FFC20E] focus:ring-2 focus:ring-[#FFC20E]/30 bg-white cursor-pointer transition-all hover:border-[#FFC20E]"
+                                        >
+                                          <option value="">-</option>
+                                          <option value="1">1</option>
+                                          <option value="2">2</option>
+                                          <option value="3">3</option>
+                                          <option value="4">4</option>
+                                          <option value="5">5</option>
+                                          <option value="6">6</option>
+                                        </select>
+                                      </td>
+                                    );
                                   }
-                                  
+
                                   return pi.performanceCriteria.map((pc) => (
                                     <td
                                       key={`grade-${student.id}-${pi.id}-${pc.id}`}
@@ -695,12 +718,12 @@ export function AssessStudentsModal({
                                       <select
                                         id={`grade-${student.id}-${pi.id}-${pc.id}`}
                                         name={`grade-${student.id}-${pi.id}-${pc.id}`}
-                                        value={students.find(s => s.id === student.id)?.grades?.[`${pi.id}-${pc.id}`] ?? ""}
-                                        onChange={(e) => handleGradeChange(student.id, `${pi.id}-${pc.id}`, e.target.value ? parseInt(e.target.value) : null)}
+                                        value={students.find(s => s.id === student.id)?.grades?.[`criterion:${pc.id}`] ?? ""}
+                                        onChange={(e) => handleGradeChange(student.id, `criterion:${pc.id}`, e.target.value ? parseInt(e.target.value) : null)}
                                         className="w-full px-2 py-1.5 rounded border border-[#D1D5DB] text-sm font-semibold text-[#231F20] focus:border-[#FFC20E] focus:ring-2 focus:ring-[#FFC20E]/30 bg-white cursor-pointer transition-all hover:border-[#FFC20E]"
-                                      >
-                                        <option value="">—</option>
-                                        <option value="1">1</option>
+                                        >
+                                          <option value="">-</option>
+                                          <option value="1">1</option>
                                         <option value="2">2</option>
                                         <option value="3">3</option>
                                         <option value="4">4</option>
@@ -758,3 +781,4 @@ export function AssessStudentsModal({
     </Dialog>
   );
 }
+
