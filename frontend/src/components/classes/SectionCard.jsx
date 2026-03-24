@@ -51,6 +51,21 @@ const SectionCard = ({
               <User className="w-3 h-3" />
               {section.facultyName || "No faculty assigned"}
             </p>
+            
+            {/* StudentOutcomes Display */}
+            {section.studentOutcomes && section.studentOutcomes.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {section.studentOutcomes.map(so => (
+                  <span
+                    key={so.id}
+                    className="bg-[#FFC20E]/20 text-[#231F20] text-xs font-semibold px-2 py-0.5 rounded-full"
+                    title={so.description}
+                  >
+                    SO {so.number}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

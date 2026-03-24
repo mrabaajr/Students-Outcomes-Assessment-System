@@ -4,30 +4,85 @@ import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
 import { SOCard, SOFormDialog } from "@/components/StudentOutcomes/SOCard";
 import { RubricModal } from "@/components/StudentOutcomes/RubricModal";
-import { initialStudentOutcomes } from "@/data/studentOutcomes";
+import { useStudentOutcomes } from "@/hooks/useStudentOutcomes";
 
 const StudentOutcomes = () => {
-  const [outcomes, setOutcomes] = useState(initialStudentOutcomes);
+  const {
+    outcomes: backendOutcomes,
+    hasUnsavedChanges,
+    isLoading,
+    error,
+    saveToBackend,
+    updateOutcome,
+    addOutcome,
+    deleteOutcome,
+    addPerformanceIndicator,
+    updatePerformanceIndicator,
+    deletePerformanceIndicator,
+    addPerformanceCriterion,
+    updatePerformanceCriterion,
+    deletePerformanceCriterion,
+  } = useStudentOutcomes();
+
   const [formOpen, setFormOpen] = useState(false);
   const [editingSO, setEditingSO] = useState(null);
   const [rubricSO, setRubricSO] = useState(null);
 
-  const handleAddOrEdit = (so) => {
-    setOutcomes((prev) => {
-      const exists = prev.find((s) => s.id === so.id);
-      if (exists) return prev.map((s) => (s.id === so.id ? so : s));
-      return [...prev, so];
-    });
+  // Transform backend format (performanceIndicators/performanceCriteria) to UI format (indicators/criteria)
+  const transformToUIFormat = (outcome) => ({
+    ...outcome,
+    indicators: (outcome.performanceIndicators || []).map((pi) => ({
+      ...pi,
+      criteria: pi.performanceCriteria || [],
+    })),
+  });
+
+  // Transform UI format back to backend format
+  const transformToBackendFormat = (outcome) => ({
+    ...outcome,
+    performanceIndicators: (outcome.indicators || []).map((pi) => ({
+      ...pi,
+      performanceCriteria: pi.criteria || [],
+    })),
+  });
+
+  const outcomes = backendOutcomes.map(transformToUIFormat);
+
+  const handleAddOrEdit = async (so) => {
+    const backendSO = transformToBackendFormat(so);
+    
+    if (backendSO.id && typeof backendSO.id === "number") {
+      // Editing existing outcome
+      updateOutcome(backendSO.id, backendSO);
+    } else {
+      // Adding new outcome - need to add it first
+      const newOutcome = addOutcome();
+      // Update the newly added outcome with the form data
+      updateOutcome(newOutcome.id, backendSO);
+    }
+    
     setEditingSO(null);
+    // Trigger save after state updates are processed
+    setTimeout(() => {
+      saveToBackend();
+    }, 100);
   };
 
   const handleDelete = (id) => {
-    setOutcomes((prev) => prev.filter((s) => s.id !== id));
+    deleteOutcome(id);
+    setTimeout(() => {
+      saveToBackend();
+    }, 100);
   };
 
-  const handleSaveRubric = (so) => {
-    setOutcomes((prev) => prev.map((s) => (s.id === so.id ? so : s)));
+  const handleSaveRubric = async (so) => {
+    const backendSO = transformToBackendFormat(so);
+    updateOutcome(backendSO.id, backendSO);
     setRubricSO(null);
+    // Trigger save after a short delay to allow state updates
+    setTimeout(() => {
+      saveToBackend();
+    }, 100);
   };
 
   const usedNumbers = new Set(outcomes.map((s) => s.number));
@@ -54,37 +109,69 @@ const StudentOutcomes = () => {
               Define and manage student outcomes, performance indicators, and
               evaluation criteria for your program assessment.
             </p>
-            <button
-              onClick={() => { setEditingSO(null); setFormOpen(true); }}
-              className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-[#FFC20E] text-[#231F20] rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors"
-            >
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-              ADD NEW SO
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => { setEditingSO(null); setFormOpen(true); }}
+                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-[#FFC20E] text-[#231F20] rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
+              >
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                ADD NEW SO
+              </button>
+              {hasUnsavedChanges && (
+                <button
+                  onClick={saveToBackend}
+                  className="px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg text-sm sm:text-base font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Saving..." : "Save Changes"}
+                </button>
+              )}
+            </div>
           </div>
         </section>
 
-        {/* Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          <div className="flex flex-col gap-4">
-            {[...outcomes].sort((a, b) => a.number - b.number).map((so) => (
-              <SOCard
-                key={so.id}
-                so={so}
-                onEdit={(s) => { setEditingSO(s); setFormOpen(true); }}
-                onDelete={handleDelete}
-                onOpenRubric={setRubricSO}
-              />
-            ))}
-          </div>
-          {outcomes.length === 0 && (
-            <div className="rounded-xl border-2 border-dashed border-[#A5A8AB] bg-white p-12 text-center mt-4">
-              <p className="text-[#6B6B6B]">
-                No student outcomes yet. Click "ADD NEW SO" to get started.
-              </p>
+        {/* Error Message */}
+        {error && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+              Error: {error}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {isLoading && outcomes.length === 0 && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+            <div className="rounded-xl border-2 border-dashed border-[#A5A8AB] bg-white p-12 text-center">
+              <p className="text-[#6B6B6B]">Loading student outcomes...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Content */}
+        {!isLoading && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+            <div className="flex flex-col gap-4">
+              {[...outcomes].sort((a, b) => a.number - b.number).map((so) => (
+                <SOCard
+                  key={so.id}
+                  so={so}
+                  onEdit={(s) => { setEditingSO(s); setFormOpen(true); }}
+                  onDelete={handleDelete}
+                  onOpenRubric={setRubricSO}
+                />
+              ))}
+            </div>
+            {outcomes.length === 0 && (
+              <div className="rounded-xl border-2 border-dashed border-[#A5A8AB] bg-white p-12 text-center mt-4">
+                <p className="text-[#6B6B6B]">
+                  No student outcomes yet. Click "ADD NEW SO" to get started.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       <Footer />

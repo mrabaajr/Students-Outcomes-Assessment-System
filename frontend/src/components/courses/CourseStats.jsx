@@ -13,13 +13,18 @@ const StatCard = ({ icon: Icon, label, value, subtext, iconColor }) => (
   </div>
 );
 
-const CourseStats = ({ courses }) => {
-  const totalCourses = courses.length;
+const CourseStats = ({ courses, studentOutcomes = [] }) => {
+  const totalCourses = courses.length || 1; // Avoid division by zero
   const activeCourses = courses.filter(c => (c.status || 'active') === 'active').length;
   const mappedCourses = courses.filter(c => c.mappedSOs.length > 0).length;
-  const avgSOCoverage = Math.round(
-    (courses.reduce((acc, c) => acc + c.mappedSOs.length, 0) / (totalCourses * 7)) * 100
-  );
+  
+  // Use actual count of student outcomes, fallback to 7 if none available
+  const totalStudentOutcomes = studentOutcomes.length > 0 ? studentOutcomes.length : 7;
+  const totalPossibleMappings = totalCourses * totalStudentOutcomes;
+  const actualMappings = courses.reduce((acc, c) => acc + c.mappedSOs.length, 0);
+  const avgSOCoverage = totalPossibleMappings > 0 
+    ? Math.round((actualMappings / totalPossibleMappings) * 100)
+    : 0;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
