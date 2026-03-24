@@ -285,7 +285,7 @@ class SectionViewSet(viewsets.ModelViewSet):
         
         sections = (
             Section.objects
-            .select_related('course', 'assigned_faculty')
+            .select_related('course', 'course__curriculum', 'assigned_faculty')
             .prefetch_related('enrollments__student')
             .all()
         )
@@ -336,6 +336,7 @@ class SectionViewSet(viewsets.ModelViewSet):
                 'name': sec.name,
                 'courseCode': sec.course.code,
                 'courseName': sec.course.name,
+                'curriculum': sec.course.curriculum.year if sec.course.curriculum else '',
                 'semester': sec.semester or sec.course.semester or '',
                 'schoolYear': sec.academic_year or '',
                 'academicYear': sec.academic_year or '',

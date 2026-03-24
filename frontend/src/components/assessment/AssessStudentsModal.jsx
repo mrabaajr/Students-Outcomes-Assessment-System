@@ -372,6 +372,17 @@ export function AssessStudentsModal({
 
     console.log("Final gradesPayload:", gradesPayload);
 
+    const gradedStudentsCount = Object.values(gradesPayload).filter((criteriaGrades) =>
+      Object.values(criteriaGrades).some((score) => score !== null && score !== undefined && score !== "")
+    ).length;
+    const totalStudents = students.length;
+    const sectionStatus =
+      totalStudents === 0 || gradedStudentsCount === 0
+        ? "not-yet"
+        : gradedStudentsCount === totalStudents
+          ? "assessed"
+          : "incomplete";
+
     setIsSaving(true);
     try {
       const response = await axios.post(`${API_BASE_URL}/assessments/save_grades/`, {
@@ -389,7 +400,12 @@ export function AssessStudentsModal({
       
       // Call the success callback to refresh parent state
       if (onSaveSuccess) {
-        onSaveSuccess();
+        onSaveSuccess({
+          sectionId: selectedSection.id,
+          courseCode: selectedSection.courseCode,
+          soId: selectedAssessmentSO.id,
+          sectionStatus,
+        });
       }
       
       // Close modal after a short delay
@@ -703,10 +719,7 @@ export function AssessStudentsModal({
                       {/* Save Button */}
                       <div className="flex justify-end pt-3">
                         <button
-                          onClick={() => {
-                            handleSave();
-                            onClose();
-                          }}
+                          onClick={handleSave}
                           disabled={isSaving}
                           className="flex items-center gap-2 px-6 py-2.5 bg-[#FFC20E] text-[#231F20] rounded-lg font-semibold hover:bg-[#FFC20E]/90 disabled:opacity-50 transition-colors"
                         >
