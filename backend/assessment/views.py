@@ -6,6 +6,7 @@ from django.db import transaction
 from django.http import HttpResponse
 import csv
 from io import StringIO
+from collections import defaultdict
 
 from .models import Assessment, Grade
 from .serializers import AssessmentSerializer
@@ -74,6 +75,8 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                     student_outcome_id=so_id,
                     school_year=school_year,
                 )
+                if not created:
+                    assessment.save(update_fields=["updated_at"])
                 print(f"[SAVE GRADES] Assessment created={created}, id={assessment.id}")
 
                 # Clear existing grades for this assessment
@@ -125,6 +128,95 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 {'detail': f'Error saving grades: {error_msg}', 'success': False},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @action(detail=False, methods=['post'], url_path='summary')
+    def summary(self, request):
+        """
+        Return assessment status summaries for a batch of section/SO/school-year requests.
+        Expects:
+        {
+          "requests": [
+            {"section_id": 1, "so_id": 2, "school_year": "2025-2026"}
+          ]
+        }
+        """
+        requests_payload = request.data.get('requests', [])
+        if not isinstance(requests_payload, list) or len(requests_payload) == 0:
+            return Response(
+                {'detail': 'requests must be a non-empty list'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        normalized_requests = []
+        section_ids = set()
+        so_ids = set()
+        school_years = set()
+
+        try:
+            for item in requests_payload:
+                section_id = int(item.get('section_id'))
+                so_id = int(item.get('so_id'))
+                school_year = item.get('school_year', '') or ''
+                normalized_requests.append({
+                    'section_id': section_id,
+                    'so_id': so_id,
+                    'school_year': school_year,
+                })
+                section_ids.add(section_id)
+                so_ids.add(so_id)
+                school_years.add(school_year)
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'Each request item must include numeric section_id and so_id'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        sections = {
+            section.id: section
+            for section in Section.objects.prefetch_related('enrollments').filter(id__in=section_ids)
+        }
+        assessments = Assessment.objects.prefetch_related('grades').filter(
+            section_id__in=section_ids,
+            student_outcome_id__in=so_ids,
+            school_year__in=school_years,
+        )
+        assessment_map = {
+            (assessment.section_id, assessment.student_outcome_id, assessment.school_year): assessment
+            for assessment in assessments
+        }
+
+        summaries = []
+        for item in normalized_requests:
+            section = sections.get(item['section_id'])
+            total_students = section.enrollments.count() if section else 0
+            assessment = assessment_map.get((item['section_id'], item['so_id'], item['school_year']))
+            graded_students = 0
+
+            if assessment:
+                student_grade_map = defaultdict(bool)
+                for grade in assessment.grades.all():
+                    if grade.score is not None:
+                        student_grade_map[grade.student_id] = True
+                graded_students = sum(1 for has_grade in student_grade_map.values() if has_grade)
+
+            if total_students == 0 or graded_students == 0:
+                status_value = 'not-yet'
+            elif graded_students == total_students:
+                status_value = 'assessed'
+            else:
+                status_value = 'incomplete'
+
+            summaries.append({
+                'section_id': item['section_id'],
+                'so_id': item['so_id'],
+                'school_year': item['school_year'],
+                'total_students': total_students,
+                'graded_students': graded_students,
+                'status': status_value,
+                'last_assessed': assessment.updated_at.isoformat() if assessment else None,
+            })
+
+        return Response({'summaries': summaries})
 
     @action(detail=False, methods=['get'], url_path='export_csv')
     def export_csv(self, request):

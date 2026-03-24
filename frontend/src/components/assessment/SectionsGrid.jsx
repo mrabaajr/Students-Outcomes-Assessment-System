@@ -15,6 +15,7 @@ export function SectionsGrid({
   viewMode = "grid", // "grid" or "list"
   courseMappings = {},
   getSOIcon = () => null,
+  isLoading = false,
 }) {
   // Helper to get assessment status badge info
   const getStatusBadge = (status) => {
@@ -46,6 +47,57 @@ export function SectionsGrid({
         };
     }
   };
+
+  const formatLastAssessed = (value) => {
+    if (!value) return "Not assessed yet";
+
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) return "Not assessed yet";
+
+    return parsedDate.toLocaleString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  if (isLoading) {
+    const skeletonCards = Array.from({ length: 6 });
+
+    return (
+      <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "space-y-3"}>
+        {skeletonCards.map((_, index) => (
+          <div
+            key={`assessment-skeleton-${index}`}
+            className="p-4 rounded-lg border-2 border-[#8A817C]/15 bg-white animate-pulse"
+          >
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-24 rounded bg-[#E5E7EB]" />
+                <div className="h-3 w-40 rounded bg-[#F1F5F9]" />
+              </div>
+              <div className="h-5 w-5 rounded-full bg-[#FDE68A]" />
+            </div>
+            <div className="h-6 w-32 rounded-full bg-[#F3F4F6] mb-4" />
+            <div className="space-y-2 mb-4">
+              <div className="h-3 w-28 rounded bg-[#F1F5F9]" />
+              <div className="h-3 w-24 rounded bg-[#F1F5F9]" />
+              <div className="h-3 w-36 rounded bg-[#F1F5F9]" />
+            </div>
+            <div className="pt-3 border-t border-[#E5E7EB]">
+              <div className="h-3 w-20 rounded bg-[#E5E7EB] mb-2" />
+              <div className="flex gap-2">
+                <div className="h-6 w-16 rounded bg-[#FEF3C7]" />
+                <div className="h-6 w-16 rounded bg-[#FEF3C7]" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (sections.length === 0) {
     return (
@@ -119,6 +171,9 @@ export function SectionsGrid({
                     <span className="text-xs text-[#6B6B6B]">
                       {course.sections?.length || 0} sections
                     </span>
+                  </div>
+                  <div className="text-xs text-[#6B6B6B]">
+                    Last assessed: <span className="font-medium text-[#231F20]">{formatLastAssessed(course.lastAssessed)}</span>
                   </div>
                 </div>
                 
@@ -194,6 +249,7 @@ export function SectionsGrid({
               <div className="flex items-center gap-4 text-xs text-[#6B6B6B]">
                 <span className="whitespace-nowrap">{course.studentCount || 0} students</span>
                 <span className="whitespace-nowrap">{course.sections?.length || 0} sections</span>
+                <span className="whitespace-nowrap">Last assessed: {formatLastAssessed(course.lastAssessed)}</span>
               </div>
               <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusInfo.bgColor} ${statusInfo.textColor} ${statusInfo.borderColor}`}>
                 <StatusIcon className="w-3.5 h-3.5" />

@@ -24,6 +24,7 @@ export function CourseSectionsModal({
   facultyData,
   selectedSOId,
   sectionStatusMap,
+  sectionLastAssessedMap,
   onClose,
   onSelectSection,
 }) {
@@ -51,6 +52,21 @@ export function CourseSectionsModal({
     }
   };
 
+  const formatLastAssessed = (value) => {
+    if (!value) return "Not assessed yet";
+
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) return "Not assessed yet";
+
+    return parsedDate.toLocaleString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
   return (
     <Dialog
       open={isOpen}
@@ -76,6 +92,8 @@ export function CourseSectionsModal({
                   const facultyName = getFacultyForSection(section, facultyData);
                   const sectionStatus =
                     (selectedSOId && sectionStatusMap?.[`${section.id}-${selectedSOId}`]) || "not-yet";
+                  const lastAssessed =
+                    (selectedSOId && sectionLastAssessedMap?.[`${section.id}-${selectedSOId}`]) || null;
                   const statusBadge = getStatusBadge(sectionStatus);
                   const StatusIcon = statusBadge.icon;
 
@@ -122,6 +140,10 @@ export function CourseSectionsModal({
                                 <span className="font-semibold text-[#231F20]">Curriculum:</span>{" "}
                                 {section.curriculum || "-"}
                               </div>
+                            </div>
+                            <div className="mt-2 text-xs text-[#6B6B6B]">
+                              <span className="font-semibold text-[#231F20]">Last assessed:</span>{" "}
+                              {formatLastAssessed(lastAssessed)}
                             </div>
                           </div>
                           <button

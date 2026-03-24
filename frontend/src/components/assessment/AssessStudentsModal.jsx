@@ -50,6 +50,7 @@ export function AssessStudentsModal({
   const { toast } = useToast();
   const [students, setStudents] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingAssessment, setIsLoadingAssessment] = useState(false);
   const [selectedAssessmentSO, setSelectedAssessmentSO] = useState(null);
   const [modalWidth, setModalWidth] = useState(85); // in vw
   const [modalHeight, setModalHeight] = useState(90); // in vh
@@ -74,6 +75,7 @@ export function AssessStudentsModal({
         loadGrades(selectedSection.id, selectedAssessmentSO.id, selectedSection.schoolYear, initializedStudents, selectedSection.courseCode);
       } else {
         setStudents(initializedStudents);
+        setSelectedAssessmentSO(null);
       }
     }
   }, [selectedSection?.id, isOpen]);
@@ -91,6 +93,8 @@ export function AssessStudentsModal({
   }, [selectedSOIds, selectedSection?.id, isOpen]);
 
   const loadGrades = async (sectionId, soId, schoolYear, initialStudents, courseCode) => {
+    let resolvedSelectedSO = null;
+    setIsLoadingAssessment(true);
     try {
       const response = await axios.get(
         `${API_BASE_URL}/assessments/load_grades/`,
@@ -107,13 +111,12 @@ export function AssessStudentsModal({
       console.log("Backend response data:", response.data);
       
       // Fetch the full SO data directly from backend to ensure we have all criteria
-      let selectedSO = null;
       try {
         const soResponse = await axios.get(`${API_BASE_URL}/student-outcomes/${soId}/`);
         const soData = soResponse.data;
         console.log("Raw SO response from backend:", soData);
         
-        selectedSO = {
+        resolvedSelectedSO = {
           id: soData.id,
           number: soData.number,
           code: `SO ${soData.number}`,
@@ -135,7 +138,7 @@ export function AssessStudentsModal({
             };
           }),
         };
-        console.log("Fetched full SO from backend:", selectedSO);
+        console.log("Fetched full SO from backend:", resolvedSelectedSO);
       } catch (err) {
         console.warn("Could not fetch full SO data, falling back to local data:", err);
         // Fallback to local SO data if fetch fails
@@ -143,12 +146,12 @@ export function AssessStudentsModal({
         const connectedSOs = studentOutcomes.filter(so =>
           courseSOs.some(soId => parseInt(soId) === so.id)
         );
-        selectedSO = connectedSOs.find(s => s.id === soId) || connectedSOs[0];
+        resolvedSelectedSO = connectedSOs.find(s => s.id === soId) || connectedSOs[0];
       }
       
       const backendKeyToGradeKey = {};
-      if (selectedSO) {
-        selectedSO.performanceIndicators?.forEach(pi => {
+      if (resolvedSelectedSO) {
+        resolvedSelectedSO.performanceIndicators?.forEach(pi => {
           if (pi.performanceCriteria && pi.performanceCriteria.length > 0) {
             pi.performanceCriteria.forEach(pc => {
               backendKeyToGradeKey[`criterion:${pc.id}`] = `criterion:${pc.id}`;
@@ -207,15 +210,17 @@ export function AssessStudentsModal({
         });
       });      
       // Save the fetched SO data to state so the UI uses correct criteria
-      setSelectedAssessmentSO(selectedSO);
+      setSelectedAssessmentSO(resolvedSelectedSO);
       setStudents(updatedStudents);
     } catch (error) {
       console.error("Error loading grades:", error);
       // Still set the SO even if grade loading failed, so UI shows correct structure
-      if (selectedSO) {
-        setSelectedAssessmentSO(selectedSO);
+      if (resolvedSelectedSO) {
+        setSelectedAssessmentSO(resolvedSelectedSO);
       }
       setStudents(initialStudents);
+    } finally {
+      setIsLoadingAssessment(false);
     }
   };
 
@@ -570,7 +575,32 @@ export function AssessStudentsModal({
                   )}
 
                   {/* Students Assessment Table */}
-                  {selectedAssessmentSO && students.length > 0 && displayIndicators.length > 0 && (
+                  {isLoadingAssessment && (
+                    <div className="mt-6 pt-6 border-t border-[#E5E7EB] space-y-4 animate-pulse">
+                      <div className="space-y-2">
+                        <div className="h-5 w-44 rounded bg-[#E5E7EB]" />
+                        <div className="h-3 w-72 rounded bg-[#F1F5F9]" />
+                      </div>
+                      <div className="rounded-lg border border-[#D1D5DB] bg-white p-4 space-y-3">
+                        <div className="grid grid-cols-4 gap-3">
+                          <div className="h-10 rounded bg-[#E5E7EB]" />
+                          <div className="h-10 rounded bg-[#E5E7EB]" />
+                          <div className="h-10 rounded bg-[#E5E7EB]" />
+                          <div className="h-10 rounded bg-[#E5E7EB]" />
+                        </div>
+                        {Array.from({ length: 4 }).map((_, rowIndex) => (
+                          <div key={`assessment-loading-row-${rowIndex}`} className="grid grid-cols-4 gap-3">
+                            <div className="h-10 rounded bg-[#F3F4F6]" />
+                            <div className="h-10 rounded bg-[#F9FAFB]" />
+                            <div className="h-10 rounded bg-[#F9FAFB]" />
+                            <div className="h-10 rounded bg-[#F9FAFB]" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!isLoadingAssessment && selectedAssessmentSO && students.length > 0 && displayIndicators.length > 0 && (
                     <div className="mt-6 pt-6 border-t border-[#E5E7EB] space-y-3">
                       <div>
                         <h4 className="text-base font-semibold text-[#231F20] mb-3 flex items-center gap-2">

@@ -25,10 +25,11 @@ class Assessment(models.Model):
     school_year = models.CharField(max_length=20)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ("section", "student_outcome", "school_year")
-        ordering = ["-created_at"]
+        ordering = ["-updated_at", "-created_at"]
 
     def __str__(self):
         return f"{self.section} - SO{self.student_outcome.number} ({self.school_year})"

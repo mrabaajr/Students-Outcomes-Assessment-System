@@ -1,5 +1,5 @@
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import axios from "axios";
 import { SectionsGrid } from "@/components/assessment/SectionsGrid";
 import { CourseSectionsModal } from "@/components/assessment/CourseSectionsModal";
@@ -14,7 +14,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { 
-  Save, 
   Download, 
   Users, 
   CheckCircle2, 
@@ -28,12 +27,13 @@ import {
   UsersRound,
   FlaskConical,
   PenTool,
-  Loader2,
   Calendar,
   Grid3x3,
   List,
   X,
-  RefreshCw,
+  Tag,
+  Clock3,
+  AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -54,9 +54,15 @@ const getFacultyForSection = (section, facultyData) => {
   return match?.name || "No faculty assigned";
 };
 
+const parseSOQuery = (value) =>
+  (value || "")
+    .split(",")
+    .map((item) => parseInt(item, 10))
+    .filter((item) => Number.isInteger(item));
+
 export default function SOAssessment() {
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   // ── API data ─────────────────────────────────────────
   const [studentOutcomes, setStudentOutcomes] = useState([]);
@@ -66,12 +72,12 @@ export default function SOAssessment() {
   const [isLoading, setIsLoading] = useState(true);
 
   // ── Selection state ──────────────────────────────────
-  const [selectedSOIds, setSelectedSOIds] = useState([]);
-  const [selectedCourseCode, setSelectedCourseCode] = useState("");
-  const [selectedSectionName, setSelectedSectionName] = useState("");
-  const [selectedSemester, setSelectedSemester] = useState("");
-  const [selectedFaculty, setSelectedFaculty] = useState("");
-  const [selectedSchoolYear, setSelectedSchoolYear] = useState("");
+  const [selectedSOIds, setSelectedSOIds] = useState(() => parseSOQuery(searchParams.get("so")));
+  const [selectedCourseCode, setSelectedCourseCode] = useState(() => searchParams.get("course") || "");
+  const [selectedSectionName, setSelectedSectionName] = useState(() => searchParams.get("section") || "");
+  const [selectedSemester, setSelectedSemester] = useState(() => searchParams.get("semester") || "");
+  const [selectedFaculty, setSelectedFaculty] = useState(() => searchParams.get("faculty") || "");
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState(() => searchParams.get("year") || "");
 
   // ── Grade state ──────────────────────────────────────
   const [students, setStudents] = useState([]);
@@ -92,6 +98,44 @@ export default function SOAssessment() {
     setSelectedFaculty("");
     setSelectedSchoolYear("");
   }, []);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+
+    if (selectedSOIds.length > 0) {
+      nextParams.set("so", selectedSOIds.join(","));
+    }
+    if (selectedCourseCode) {
+      nextParams.set("course", selectedCourseCode);
+    }
+    if (selectedSectionName) {
+      nextParams.set("section", selectedSectionName);
+    }
+    if (selectedSemester) {
+      nextParams.set("semester", selectedSemester);
+    }
+    if (selectedFaculty) {
+      nextParams.set("faculty", selectedFaculty);
+    }
+    if (selectedSchoolYear) {
+      nextParams.set("year", selectedSchoolYear);
+    }
+
+    const nextString = nextParams.toString();
+    const currentString = searchParams.toString();
+    if (nextString !== currentString) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [
+    searchParams,
+    selectedSOIds,
+    selectedCourseCode,
+    selectedSectionName,
+    selectedSemester,
+    selectedFaculty,
+    selectedSchoolYear,
+    setSearchParams,
+  ]);
 
   // ── Navigator state ──────────────────────────────────
   const [isNavigatorCollapsed, setIsNavigatorCollapsed] = useState(true);
@@ -462,6 +506,9 @@ export default function SOAssessment() {
   // ── State for course assessment status ──
   const [courseAssessmentStatus, setCourseAssessmentStatus] = useState({}); // courseCode-soId -> status
   const [sectionAssessmentStatus, setSectionAssessmentStatus] = useState({}); // sectionId-soId -> status
+  const [courseLastAssessed, setCourseLastAssessed] = useState({}); // courseCode-soId -> iso string
+  const [sectionLastAssessed, setSectionLastAssessed] = useState({}); // sectionId-soId -> iso string
+  const [isStatusLoading, setIsStatusLoading] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0); // Trigger to refresh assessment status
 
   const getRelevantSOIdForCourse = useCallback((courseCode) => {
@@ -475,184 +522,119 @@ export default function SOAssessment() {
     return mappedSOs.length > 0 ? parseInt(mappedSOs[0]) : null;
   }, [courseMappings, selectedSOIds]);
 
-  const getSectionStatusFromGradeMap = useCallback((savedGrades, studentCount) => {
-    if (!studentCount || studentCount <= 0) return "not-yet";
+  const buildAssessmentSummaryRequests = useCallback((courses) => {
+    const requests = [];
 
-    const studentsWithGrades = Object.keys(savedGrades).filter((studentId) => {
-      const grades = savedGrades[studentId] || {};
-      return Object.values(grades).some((g) => g !== null && g !== undefined && g !== "");
-    }).length;
+    courses.forEach((course) => {
+      const relevantSoId = getRelevantSOIdForCourse(course.courseCode);
+      if (!relevantSoId) return;
 
-    if (studentsWithGrades === 0) return "not-yet";
-    if (studentsWithGrades === studentCount) return "assessed";
-    return "incomplete";
-  }, []);
-
-  const fetchSingleCourseAssessmentStatus = useCallback(async (courseCode, soId) => {
-    if (!soId) return;
-
-    const course = coursesData.find((item) => item.courseCode === courseCode);
-    if (!course) return;
-
-    const nextSectionStatuses = {};
-
-    for (const section of course.sections) {
-      try {
-        const res = await axios.get(`${API_BASE_URL}/assessments/load_grades/`, {
-          params: {
-            section_id: section.id,
-            so_id: soId,
-            school_year: section.schoolYear,
-          },
+      course.sections.forEach((section) => {
+        requests.push({
+          section_id: parseInt(section.id),
+          so_id: parseInt(relevantSoId),
+          school_year: section.schoolYear || "",
         });
+      });
+    });
 
-        const savedGrades = res.data.grades || {};
-        nextSectionStatuses[`${section.id}-${soId}`] = getSectionStatusFromGradeMap(
-          savedGrades,
-          section.students?.length || 0
-        );
-      } catch (err) {
-        console.error(`Error fetching grades for section ${section.id}:`, err);
-        nextSectionStatuses[`${section.id}-${soId}`] = "not-yet";
+    return requests;
+  }, [getRelevantSOIdForCourse]);
+
+  const applyAssessmentSummaries = useCallback((summaries, courses) => {
+    const nextSectionStatuses = {};
+    const nextCourseStatuses = {};
+    const nextSectionLastAssessed = {};
+    const nextCourseLastAssessed = {};
+
+    summaries.forEach((summary) => {
+      nextSectionStatuses[`${summary.section_id}-${summary.so_id}`] = summary.status;
+      nextSectionLastAssessed[`${summary.section_id}-${summary.so_id}`] = summary.last_assessed || null;
+    });
+
+    courses.forEach((course) => {
+      const relevantSoId = getRelevantSOIdForCourse(course.courseCode);
+      if (!relevantSoId) return;
+
+      const statusesForCourse = course.sections.map(
+        (section) => nextSectionStatuses[`${section.id}-${relevantSoId}`] || "not-yet"
+      );
+
+      if (statusesForCourse.length === 0) {
+        nextCourseStatuses[`${course.courseCode}-${relevantSoId}`] = "not-yet";
+      } else if (statusesForCourse.every((status) => status === "assessed")) {
+        nextCourseStatuses[`${course.courseCode}-${relevantSoId}`] = "assessed";
+      } else if (statusesForCourse.some((status) => status === "assessed" || status === "incomplete")) {
+        nextCourseStatuses[`${course.courseCode}-${relevantSoId}`] = "incomplete";
+      } else {
+        nextCourseStatuses[`${course.courseCode}-${relevantSoId}`] = "not-yet";
       }
+
+      const latestSectionAssessment = course.sections
+        .map((section) => nextSectionLastAssessed[`${section.id}-${relevantSoId}`])
+        .filter(Boolean)
+        .sort((left, right) => new Date(right) - new Date(left))[0] || null;
+
+      nextCourseLastAssessed[`${course.courseCode}-${relevantSoId}`] = latestSectionAssessment;
+    });
+
+    setSectionAssessmentStatus(nextSectionStatuses);
+    setCourseAssessmentStatus(nextCourseStatuses);
+    setSectionLastAssessed(nextSectionLastAssessed);
+    setCourseLastAssessed(nextCourseLastAssessed);
+  }, [getRelevantSOIdForCourse]);
+
+  const fetchAssessmentSummaries = useCallback(async (courses) => {
+    const requests = buildAssessmentSummaryRequests(courses);
+    if (requests.length === 0) {
+      setSectionAssessmentStatus({});
+      setCourseAssessmentStatus({});
+      setSectionLastAssessed({});
+      setCourseLastAssessed({});
+      return;
     }
 
-    const sectionStatuses = course.sections.map(
-      (section) => nextSectionStatuses[`${section.id}-${soId}`] || "not-yet"
-    );
-
-    let nextCourseStatus = "not-yet";
-    if (sectionStatuses.length > 0) {
-      if (sectionStatuses.every((status) => status === "assessed")) {
-        nextCourseStatus = "assessed";
-      } else if (sectionStatuses.some((status) => status === "assessed" || status === "incomplete")) {
-        nextCourseStatus = "incomplete";
-      }
+    setIsStatusLoading(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/assessments/summary/`, {
+        requests,
+      });
+      applyAssessmentSummaries(response.data.summaries || [], courses);
+    } finally {
+      setIsStatusLoading(false);
     }
-
-    setSectionAssessmentStatus((prev) => ({
-      ...prev,
-      ...nextSectionStatuses,
-    }));
-
-    setCourseAssessmentStatus((prev) => ({
-      ...prev,
-      [`${courseCode}-${soId}`]: nextCourseStatus,
-    }));
-  }, [coursesData, getSectionStatusFromGradeMap]);
+  }, [applyAssessmentSummaries, buildAssessmentSummaryRequests]);
 
   // Function to trigger refresh of assessment status (called from modal after save)
   const triggerStatusRefresh = useCallback((payload) => {
     if (payload?.courseCode && payload?.soId && payload?.sectionId) {
-      const sectionKey = `${payload.sectionId}-${payload.soId}`;
-      const nextSectionStatuses = {
-        ...sectionAssessmentStatus,
-        [sectionKey]: payload.sectionStatus || "not-yet",
-      };
-
-      setSectionAssessmentStatus(nextSectionStatuses);
-
-      const course = coursesData.find((item) => item.courseCode === payload.courseCode);
-      if (course) {
-        const relevantStatuses = course.sections.map((section) => {
-          if (String(section.id) === String(payload.sectionId)) {
-            return payload.sectionStatus || "not-yet";
-          }
-          return nextSectionStatuses[`${section.id}-${payload.soId}`] || "not-yet";
-        });
-
-        let nextCourseStatus = "not-yet";
-        if (relevantStatuses.length > 0) {
-          if (relevantStatuses.every((status) => status === "assessed")) {
-            nextCourseStatus = "assessed";
-          } else if (relevantStatuses.some((status) => status === "assessed" || status === "incomplete")) {
-            nextCourseStatus = "incomplete";
-          }
-        }
-
-        setCourseAssessmentStatus((prev) => ({
-          ...prev,
-          [`${payload.courseCode}-${payload.soId}`]: nextCourseStatus,
-        }));
-      }
-
-      fetchSingleCourseAssessmentStatus(payload.courseCode, payload.soId);
+      fetchAssessmentSummaries(coursesData);
       return;
     }
 
     setRefreshCounter((prev) => prev + 1);
-  }, [courseAssessmentStatus, coursesData, fetchSingleCourseAssessmentStatus, sectionAssessmentStatus]);
+  }, [coursesData, fetchAssessmentSummaries]);
 
   // ── Fetch assessment status for courses ──
   useEffect(() => {
     if (coursesData.length === 0) {
       setCourseAssessmentStatus({});
       setSectionAssessmentStatus({});
+      setCourseLastAssessed({});
+      setSectionLastAssessed({});
       return;
     }
 
     const fetchAssessmentStatus = async () => {
       try {
-        const nextCourseStatuses = {};
-        const nextSectionStatuses = {};
-
-        const uniqueCourses = [...new Set(coursesData.map(c => c.courseCode))];
-
-        for (const courseCode of uniqueCourses) {
-          const course = coursesData.find(c => c.courseCode === courseCode);
-          if (!course) continue;
-          const relevantSoId = getRelevantSOIdForCourse(courseCode);
-
-          if (!relevantSoId) {
-            nextCourseStatuses[`${courseCode}-none`] = "not-yet";
-            continue;
-          }
-
-          for (const section of course.sections) {
-            try {
-              const res = await axios.get(`${API_BASE_URL}/assessments/load_grades/`, {
-                params: { 
-                  section_id: section.id, 
-                  so_id: relevantSoId, 
-                  school_year: section.schoolYear 
-                },
-              });
-
-              const savedGrades = res.data.grades || {};
-              nextSectionStatuses[`${section.id}-${relevantSoId}`] = getSectionStatusFromGradeMap(
-                savedGrades,
-                section.students?.length || 0
-              );
-            } catch (err) {
-              console.error(`Error fetching grades for section ${section.id}:`, err);
-              nextSectionStatuses[`${section.id}-${relevantSoId}`] = "not-yet";
-            }
-          }
-
-          const statusesForCourse = course.sections.map(
-            (section) => nextSectionStatuses[`${section.id}-${relevantSoId}`] || "not-yet"
-          );
-
-          if (statusesForCourse.length === 0) {
-            nextCourseStatuses[`${courseCode}-${relevantSoId}`] = "not-yet";
-          } else if (statusesForCourse.every((status) => status === "assessed")) {
-            nextCourseStatuses[`${courseCode}-${relevantSoId}`] = "assessed";
-          } else if (statusesForCourse.some((status) => status === "assessed" || status === "incomplete")) {
-            nextCourseStatuses[`${courseCode}-${relevantSoId}`] = "incomplete";
-          } else {
-            nextCourseStatuses[`${courseCode}-${relevantSoId}`] = "not-yet";
-          }
-        }
-
-        setSectionAssessmentStatus(nextSectionStatuses);
-        setCourseAssessmentStatus(nextCourseStatuses);
+        await fetchAssessmentSummaries(coursesData);
       } catch (err) {
         console.error("Error fetching assessment status:", err);
       }
     };
 
     fetchAssessmentStatus();
-  }, [coursesData, getRelevantSOIdForCourse, getSectionStatusFromGradeMap, refreshCounter]);
+  }, [coursesData, fetchAssessmentSummaries, refreshCounter]);
 
   // ── Filtered courses for grid (by SO, course, section, and school year) ──
   // Filters by selected SOs, course, section, and school year
@@ -706,12 +688,16 @@ export default function SOAssessment() {
     // Enrich courses with assessment status
     return filtered.map(course => ({
       ...course,
+      lastAssessed:
+        courseLastAssessed[
+          `${course.courseCode}-${getRelevantSOIdForCourse(course.courseCode)}`
+        ] || null,
       assessmentStatus:
         courseAssessmentStatus[
           `${course.courseCode}-${getRelevantSOIdForCourse(course.courseCode)}`
         ] || "not-yet",
     }));
-  }, [courseAssessmentStatus, coursesData, getRelevantSOIdForCourse, selectedSOIds, selectedCourseCode, selectedSectionName, selectedSemester, selectedFaculty, selectedSchoolYear, courseMappings]);
+  }, [courseAssessmentStatus, courseLastAssessed, coursesData, getRelevantSOIdForCourse, selectedSOIds, selectedCourseCode, selectedSectionName, selectedSemester, selectedFaculty, selectedSchoolYear, courseMappings]);
 
   // ── Stats computation ────────────────────────────────
   const stats = useMemo(() => {
@@ -778,172 +764,308 @@ export default function SOAssessment() {
     };
   }, [so, students]);
 
-  // ── Save handler ─────────────────────────────────────
-  const handleSave = async () => {
-    if (!activeSection || !so) return;
-    
-    const gradesPayload = {};
-    students.forEach(student => {
-      const studentGrades = {};
-      Object.entries(student.grades).forEach(([piId, score]) => {
-        if (score !== null && score !== undefined) {
-          studentGrades[piId] = score;
-        }
-      });
-      if (Object.keys(studentGrades).length > 0) {
-        gradesPayload[student.id] = studentGrades;
-      }
+  const selectedCourseForExport = useMemo(
+    () => coursesData.find((course) => course.courseCode === selectedCourseCode) || null,
+    [coursesData, selectedCourseCode]
+  );
+
+  const exportContext = useMemo(() => {
+    if (!selectedCourseForExport) {
+      return {
+        sections: [],
+        relevantSOIds: [],
+        sectionCount: 0,
+        soCount: 0,
+        rowCount: 0,
+        summaryText: "Select a course to preview and export its assessment data.",
+      };
+    }
+
+    const relevantSOIds = selectedSOIds.length > 0
+      ? selectedSOIds
+      : (courseMappings[selectedCourseCode] || []).map((id) => parseInt(id));
+
+    const sections = selectedCourseForExport.sections.filter((section) => {
+      if (selectedSectionName && section.name !== selectedSectionName) return false;
+      if (selectedSemester && section.semester !== selectedSemester) return false;
+      if (selectedFaculty && (section.facultyName || "No faculty assigned") !== selectedFaculty) return false;
+      if (selectedSchoolYear && section.schoolYear !== selectedSchoolYear) return false;
+      return true;
     });
 
-    try {
-      await axios.post(`${API_BASE_URL}/assessments/save_grades/`, {
-        section_id: activeSection.id,
-        so_id: so.id,
-        school_year: selectedSchoolYear,
-        grades: gradesPayload,
+    const rowCount = sections.reduce(
+      (total, section) => total + ((section.students?.length || 0) * relevantSOIds.length),
+      0
+    );
+
+    return {
+      sections,
+      relevantSOIds,
+      sectionCount: sections.length,
+      soCount: relevantSOIds.length,
+      rowCount,
+      summaryText: `Exporting ${sections.length} section${sections.length === 1 ? "" : "s"}, ${relevantSOIds.length} SO${relevantSOIds.length === 1 ? "" : "s"}, ${rowCount} row${rowCount === 1 ? "" : "s"}`,
+    };
+  }, [
+    courseMappings,
+    selectedCourseCode,
+    selectedCourseForExport,
+    selectedFaculty,
+    selectedSOIds,
+    selectedSchoolYear,
+    selectedSectionName,
+    selectedSemester,
+  ]);
+
+  const activeFilterChips = useMemo(() => {
+    const chips = [];
+
+    selectedSOIds.forEach((soId) => {
+      const outcome = studentOutcomes.find((item) => item.id === soId);
+      if (!outcome) return;
+      chips.push({
+        key: `so-${soId}`,
+        label: outcome.code,
+        onRemove: () => setSelectedSOIds((prev) => prev.filter((item) => item !== soId)),
       });
-      setIsSaved(true);
-      toast({ title: "Assessment Saved", description: `Grades for ${so.code} have been saved successfully.` });
-    } catch (err) {
-      console.error("Error saving:", err);
-      toast({ title: "Error", description: "Failed to save assessment.", variant: "destructive" });
+    });
+
+    if (selectedCourseCode) {
+      chips.push({
+        key: "course",
+        label: `Course: ${selectedCourseCode}`,
+        onRemove: () => setSelectedCourseCode(""),
+      });
     }
-  };
+
+    if (selectedSectionName) {
+      chips.push({
+        key: "section",
+        label: `Section: ${selectedSectionName}`,
+        onRemove: () => setSelectedSectionName(""),
+      });
+    }
+
+    if (selectedSemester) {
+      chips.push({
+        key: "semester",
+        label: `Semester: ${selectedSemester}`,
+        onRemove: () => setSelectedSemester(""),
+      });
+    }
+
+    if (selectedFaculty) {
+      chips.push({
+        key: "faculty",
+        label: `Faculty: ${selectedFaculty}`,
+        onRemove: () => setSelectedFaculty(""),
+      });
+    }
+
+    if (selectedSchoolYear) {
+      chips.push({
+        key: "year",
+        label: `School Year: ${selectedSchoolYear}`,
+        onRemove: () => setSelectedSchoolYear(""),
+      });
+    }
+
+    return chips;
+  }, [
+    selectedSOIds,
+    studentOutcomes,
+    selectedCourseCode,
+    selectedSectionName,
+    selectedSemester,
+    selectedFaculty,
+    selectedSchoolYear,
+  ]);
 
   const handleExport = async () => {
-    console.log("Export button clicked");
-    console.log("selectedSectionForAssessment:", selectedSectionForAssessment);
-    console.log("activeSection:", activeSection);
-    console.log("selectedSOIds:", selectedSOIds);
-    console.log("selectedSchoolYear:", selectedSchoolYear);
-    
-    // Auto-select first SO if none selected
-    let useSOIds = selectedSOIds;
-    if (!selectedSOIds.length && studentOutcomes.length > 0) {
-      useSOIds = [studentOutcomes[0].id];
-      setSelectedSOIds([studentOutcomes[0].id]);
-      console.log("Auto-selected first SO:", studentOutcomes[0].id);
-    }
-    
-    // Auto-select first course if none selected
-    let useCourseCode = selectedCourseCode;
-    if (!selectedCourseCode && courseOptions.length > 0) {
-      useCourseCode = courseOptions[0].code;
-      setSelectedCourseCode(courseOptions[0].code);
-      console.log("Auto-selected first course:", courseOptions[0].code);
-    }
-    
-    // Auto-select first section if none selected
-    let useSectionName = selectedSectionName;
-    if (!selectedSectionName && sectionOptions.length > 0) {
-      useSectionName = sectionOptions[0];
-      setSelectedSectionName(sectionOptions[0]);
-      console.log("Auto-selected first section:", sectionOptions[0]);
-    }
-    
-    // Get the section with selected/auto-selected values
-    const selectedSection = sectionsData.find(
-      sec => sec.courseCode === useCourseCode 
-          && sec.name === useSectionName
-    );
-    
-    const section = selectedSectionForAssessment || selectedSection;
-    
-    if (!section) {
-      console.log("No section found even after auto-select");
-      toast({ 
-        title: "Export Failed", 
-        description: "Please select a course and section from the Filters section at the top of the page.", 
-        variant: "destructive" 
-      });
-      return;
-    }
-    
-    if (!useSOIds.length) {
-      console.log("No SO selected");
-      toast({ 
-        title: "Export Failed", 
-        description: "Please select a Student Outcome from the Filters section.", 
-        variant: "destructive" 
-      });
-      return;
-    }
-    
-    if (!selectedSchoolYear && !section.schoolYear) {
-      console.log("No school year selected");
-      toast({ 
-        title: "Export Failed", 
-        description: "Please select a school year from the Filters section.", 
-        variant: "destructive" 
+    if (!selectedCourseCode) {
+      toast({
+        title: "Export Failed",
+        description: "Select a course first, then export that course's assessment data.",
+        variant: "destructive",
       });
       return;
     }
 
     try {
-      const sectionId = section.id;
-      const soId = useSOIds[0];
-      const schoolYear = selectedSchoolYear || section.schoolYear;
-      
-      console.log("Exporting with params:", { sectionId, soId, schoolYear });
+      const selectedCourse = selectedCourseForExport;
+      if (!selectedCourse) {
+        toast({
+          title: "Export Failed",
+          description: "The selected course could not be found.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      const response = await axios.get(
-        `${API_BASE_URL}/assessments/export_csv/`,
-        {
-          params: {
-            section_id: sectionId,
-            so_id: soId,
-            school_year: schoolYear,
-          },
-          responseType: 'blob',
+      const relevantSOIds = exportContext.relevantSOIds;
+
+      if (relevantSOIds.length === 0) {
+        toast({
+          title: "Export Failed",
+          description: "This course has no mapped Student Outcomes to export.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const filteredSections = exportContext.sections;
+
+      if (filteredSections.length === 0) {
+        toast({
+          title: "Export Failed",
+          description: "No sections match the current course filters.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const soMap = new Map(studentOutcomes.map((outcome) => [outcome.id, outcome]));
+      const rows = [];
+
+      for (const section of filteredSections) {
+        for (const soId of relevantSOIds) {
+          const soRecord = soMap.get(parseInt(soId));
+          if (!soRecord) continue;
+
+          const response = await axios.get(`${API_BASE_URL}/assessments/load_grades/`, {
+            params: {
+              section_id: section.id,
+              so_id: soId,
+              school_year: section.schoolYear,
+            },
+          });
+
+          const gradesByStudent = response.data.grades || {};
+          const basisLabels = {};
+
+          (soRecord.performanceIndicators || []).forEach((pi) => {
+            if (pi.performanceCriteria && pi.performanceCriteria.length > 0) {
+              pi.performanceCriteria.forEach((pc) => {
+                basisLabels[`criterion:${pc.id}`] = `${pi.name} - ${pc.name}`;
+              });
+            } else {
+              basisLabels[`indicator:${pi.id}`] = pi.name;
+            }
+          });
+
+          for (const student of section.students || []) {
+            const studentGrades = gradesByStudent[String(student.id)] || {};
+            const gradeEntries = Object.entries(studentGrades);
+
+            if (gradeEntries.length === 0) {
+              rows.push({
+                courseCode: section.courseCode,
+                courseName: section.courseName,
+                section: section.name,
+                semester: section.semester || "",
+                schoolYear: section.schoolYear || "",
+                faculty: section.facultyName || "No faculty assigned",
+                curriculum: section.curriculum || "",
+                soCode: soRecord.code,
+                soTitle: soRecord.title,
+                studentId: student.studentId,
+                studentName: student.name,
+                yearLevel: student.yearLevel || "",
+                basis: "",
+                score: "",
+                status: "Not Yet Assessed",
+              });
+              continue;
+            }
+
+            gradeEntries.forEach(([basisKey, score]) => {
+              rows.push({
+                courseCode: section.courseCode,
+                courseName: section.courseName,
+                section: section.name,
+                semester: section.semester || "",
+                schoolYear: section.schoolYear || "",
+                faculty: section.facultyName || "No faculty assigned",
+                curriculum: section.curriculum || "",
+                soCode: soRecord.code,
+                soTitle: soRecord.title,
+                studentId: student.studentId,
+                studentName: student.name,
+                yearLevel: student.yearLevel || "",
+                basis: basisLabels[basisKey] || basisKey,
+                score: score ?? "",
+                status: "Assessed",
+              });
+            });
+          }
         }
-      );
+      }
 
-      console.log("Export response received:", response);
-      
-      // Create a URL for the blob and trigger download
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
+      const headers = [
+        "Course Code",
+        "Course Name",
+        "Section",
+        "Semester",
+        "School Year",
+        "Faculty",
+        "Curriculum",
+        "SO Code",
+        "SO Title",
+        "Student ID",
+        "Student Name",
+        "Year Level",
+        "Basis",
+        "Score",
+        "Status",
+      ];
+      const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+      const csv = [
+        headers.join(","),
+        ...rows.map((row) => [
+          row.courseCode,
+          row.courseName,
+          row.section,
+          row.semester,
+          row.schoolYear,
+          row.faculty,
+          row.curriculum,
+          row.soCode,
+          row.soTitle,
+          row.studentId,
+          row.studentName,
+          row.yearLevel,
+          row.basis,
+          row.score,
+          row.status,
+        ].map(csvEscape).join(",")),
+      ].join("\r\n");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
       link.href = url;
-      link.setAttribute('download', `Assessment_${section.name}_${schoolYear}.csv`);
+      link.setAttribute("download", `${selectedCourseCode}_assessment_export.csv`);
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      console.log("Download triggered");
-      toast({ 
-        title: "Export Successful", 
-        description: "Assessment data exported as CSV file." 
+      toast({
+        title: "Export Successful",
+        description: `${exportContext.summaryText} for ${selectedCourseCode}.`,
       });
     } catch (err) {
       console.error("Error exporting:", err);
-      console.error("Error response:", err.response?.data);
-      toast({ 
-        title: "Export Failed", 
-        description: err.response?.data?.detail || err.message || "Failed to export assessment data.", 
-        variant: "destructive" 
+      toast({
+        title: "Export Failed",
+        description: err.response?.data?.detail || err.message || "Failed to export course assessment data.",
+        variant: "destructive",
       });
     }
   };
 
   // ── Loading state ────────────────────────────────────
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#F5F5F0] flex flex-col">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-[#FFC20E]" />
-            <p className="text-[#6B6B6B]">Loading assessment data...</p>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
-  // Show error only if no student outcomes exist at all
-  if (studentOutcomes.length === 0) {
+  if (!isLoading && studentOutcomes.length === 0) {
     return (
       <div className="min-h-screen bg-[#F5F5F0] flex flex-col">
         <Navbar />
@@ -987,21 +1109,27 @@ export default function SOAssessment() {
               Measure the performance of student learning outcomes across courses and sections. Select an outcome to view its details and assessment data.
             </p>
 
-            <div className="flex flex-wrap gap-3 sm:gap-4">
-              <button 
-                onClick={handleSave}
-                className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors"
-              >
-                <Save className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>SAVE ASSESSMENT</span>
-              </button>
-              <button 
-                onClick={handleExport}
-                className="flex items-center gap-2 bg-transparent text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#3A3A3A] transition-colors border border-[#A5A8AB]"
-              >
-                <Download className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>Export Data</span>
-              </button>
+            <div className="flex flex-col gap-3 sm:gap-4">
+              <div className="flex flex-wrap gap-3 sm:gap-4">
+                <button
+                  onClick={handleExport}
+                  disabled={!selectedCourseCode}
+                  className="flex items-center gap-2 bg-transparent text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium transition-colors border border-[#A5A8AB] enabled:hover:bg-[#3A3A3A] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span>Export Course CSV</span>
+                </button>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-[#F3F4F6]">
+                  {exportContext.summaryText}
+                </p>
+                {!selectedCourseCode && (
+                  <p className="text-xs text-[#A5A8AB]">
+                    Select a course to enable export, preview row counts, and generate a course CSV.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -1065,17 +1193,12 @@ export default function SOAssessment() {
                   
                   <div className="flex gap-1 mt-1.5 pt-1.5 border-t border-[#FFC20E]/30">
                     <button
-                      onClick={handleSave}
-                      className="flex-1 flex items-center justify-center gap-1 bg-[#FFC20E] text-[#231F20] px-2 py-1 rounded text-[10px] font-bold hover:bg-[#FFC20E]/90 transition-colors"
-                    >
-                      <Save className="w-3 h-3" />
-                      <span>SAVE</span>
-                    </button>
-                    <button
                       onClick={handleExport}
-                      className="flex items-center justify-center bg-[#3A3A3A] text-[#FFC20E] p-1 rounded hover:bg-[#4A4A4A] transition-colors"
+                      disabled={!selectedCourseCode}
+                      className="flex-1 flex items-center justify-center gap-1 bg-[#3A3A3A] text-[#FFC20E] px-2 py-1 rounded text-[10px] font-bold hover:bg-[#4A4A4A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Download className="w-3 h-3" />
+                      <span>EXPORT</span>
                     </button>
                   </div>
                 </div>
@@ -1294,44 +1417,88 @@ export default function SOAssessment() {
                   </div>
                 </div>
               </div>
+
+              <div className="mt-5 pt-5 border-t border-[#8A817C]/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <Tag className="w-4 h-4 text-[#6B6B6B]" />
+                  <span className="text-sm font-medium text-[#6B6B6B]">Active filters</span>
+                </div>
+                {activeFilterChips.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {activeFilterChips.map((chip) => (
+                      <button
+                        key={chip.key}
+                        onClick={chip.onRemove}
+                        className="inline-flex items-center gap-2 rounded-full border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-medium text-[#231F20] hover:border-[#FFC20E] hover:bg-[#FFF8DB] transition-colors"
+                      >
+                        <span>{chip.label}</span>
+                        <X className="w-3.5 h-3.5 text-[#6B6B6B]" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#6B6B6B]">
+                    No active filters. Your current selection is shareable through the page URL once you apply filters.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Courses Grid */}
             <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-[#231F20] text-lg flex items-center gap-3">
-                  <span>Courses</span>
-                  <span className="text-sm font-normal text-[#6B6B6B]\">({coursesForGrid.length} total)</span>
-                </h3>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSectionsViewMode("grid")}
-                    className={cn(
-                      "p-2 rounded-lg transition-all",
-                      sectionsViewMode === "grid"
-                        ? "bg-[#FFC20E] text-[#231F20]"
-                        : "bg-[#8A817C]/10 text-[#231F20] hover:bg-[#8A817C]/20"
-                    )}
-                    title="Grid view"
-                  >
-                    <Grid3x3 className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => setSectionsViewMode("list")}
-                    className={cn(
-                      "p-2 rounded-lg transition-all",
-                      sectionsViewMode === "list"
-                        ? "bg-[#FFC20E] text-[#231F20]"
-                        : "bg-[#8A817C]/10 text-[#231F20] hover:bg-[#8A817C]/20"
-                    )}
-                    title="List view"
-                  >
-                    <List className="w-5 h-5" />
-                  </button>
+              <div className="flex flex-col gap-4 mb-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-[#231F20] text-lg flex items-center gap-3">
+                    <span>Courses</span>
+                    <span className="text-sm font-normal text-[#6B6B6B]">({coursesForGrid.length} total)</span>
+                  </h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSectionsViewMode("grid")}
+                      className={cn(
+                        "p-2 rounded-lg transition-all",
+                        sectionsViewMode === "grid"
+                          ? "bg-[#FFC20E] text-[#231F20]"
+                          : "bg-[#8A817C]/10 text-[#231F20] hover:bg-[#8A817C]/20"
+                      )}
+                      title="Grid view"
+                    >
+                      <Grid3x3 className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => setSectionsViewMode("list")}
+                      className={cn(
+                        "p-2 rounded-lg transition-all",
+                        sectionsViewMode === "list"
+                          ? "bg-[#FFC20E] text-[#231F20]"
+                          : "bg-[#8A817C]/10 text-[#231F20] hover:bg-[#8A817C]/20"
+                      )}
+                      title="List view"
+                    >
+                      <List className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-[#6B6B6B]">
+                  <span className="font-medium text-[#231F20]">Status legend:</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-100 px-2.5 py-1 text-green-700">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Assessed
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-300 bg-yellow-100 px-2.5 py-1 text-yellow-700">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Incomplete
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-gray-100 px-2.5 py-1 text-gray-700">
+                    <Clock3 className="w-3.5 h-3.5" />
+                    Not Yet Assessed
+                  </span>
                 </div>
               </div>
               <SectionsGrid
                 sections={coursesForGrid}
+                isLoading={isLoading || isStatusLoading}
                 selectedSectionId={activeSection?.courseCode}
                 studentOutcomes={studentOutcomes}
                 selectedSOIds={selectedSOIds}
@@ -1473,6 +1640,7 @@ export default function SOAssessment() {
           facultyData={facultyData}
           selectedSOId={selectedCourseForModal ? getRelevantSOIdForCourse(selectedCourseForModal.courseCode) : null}
           sectionStatusMap={sectionAssessmentStatus}
+          sectionLastAssessedMap={sectionLastAssessed}
           onClose={() => setSelectedCourseForModal(null)}
           onSelectSection={(section) => {
             setSelectedCourseCode(section.courseCode);

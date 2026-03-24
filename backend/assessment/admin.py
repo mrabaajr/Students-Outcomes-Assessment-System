@@ -9,8 +9,9 @@ class GradeInline(admin.TabularInline):
 
 @admin.register(Assessment)
 class AssessmentAdmin(admin.ModelAdmin):
-    list_display = ("section", "student_outcome", "school_year", "created_at")
+    list_display = ("section", "student_outcome", "school_year", "created_at", "updated_at")
     list_filter = ("section", "student_outcome", "school_year")
+    readonly_fields = ("created_at", "updated_at")
     inlines = [GradeInline]
 
 
