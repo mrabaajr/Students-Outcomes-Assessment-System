@@ -375,6 +375,12 @@ export default function SOAssessment() {
 
   // ── State for course assessment status ──
   const [courseAssessmentStatus, setCourseAssessmentStatus] = useState({}); // courseCode-soId -> status
+  const [refreshCounter, setRefreshCounter] = useState(0); // Trigger to refresh assessment status
+
+  // Function to trigger refresh of assessment status (called from modal after save)
+  const triggerStatusRefresh = useCallback(() => {
+    setRefreshCounter(prev => prev + 1);
+  }, []);
 
   // ── Helper function to get assessment status for a course ──
   const getAssessmentStatus = useCallback((course) => {
@@ -449,7 +455,7 @@ export default function SOAssessment() {
     };
 
     fetchAssessmentStatus();
-  }, [so, coursesData]);
+  }, [so, coursesData, refreshCounter]);
 
   // ── Filtered courses for grid (by SO, course, section, and school year) ──
   // Filters by selected SOs, course, section, and school year
@@ -590,8 +596,120 @@ export default function SOAssessment() {
     }
   };
 
-  const handleExport = () => {
-    toast({ title: "Exporting Data", description: "Generating Excel file..." });
+  const handleExport = async () => {
+    console.log("Export button clicked");
+    console.log("selectedSectionForAssessment:", selectedSectionForAssessment);
+    console.log("activeSection:", activeSection);
+    console.log("selectedSOIds:", selectedSOIds);
+    console.log("selectedSchoolYear:", selectedSchoolYear);
+    
+    // Auto-select first SO if none selected
+    let useSOIds = selectedSOIds;
+    if (!selectedSOIds.length && studentOutcomes.length > 0) {
+      useSOIds = [studentOutcomes[0].id];
+      setSelectedSOIds([studentOutcomes[0].id]);
+      console.log("Auto-selected first SO:", studentOutcomes[0].id);
+    }
+    
+    // Auto-select first course if none selected
+    let useCourseCode = selectedCourseCode;
+    if (!selectedCourseCode && courseOptions.length > 0) {
+      useCourseCode = courseOptions[0].code;
+      setSelectedCourseCode(courseOptions[0].code);
+      console.log("Auto-selected first course:", courseOptions[0].code);
+    }
+    
+    // Auto-select first section if none selected
+    let useSectionName = selectedSectionName;
+    if (!selectedSectionName && sectionOptions.length > 0) {
+      useSectionName = sectionOptions[0];
+      setSelectedSectionName(sectionOptions[0]);
+      console.log("Auto-selected first section:", sectionOptions[0]);
+    }
+    
+    // Get the section with selected/auto-selected values
+    const selectedSection = sectionsData.find(
+      sec => sec.courseCode === useCourseCode 
+          && sec.name === useSectionName
+    );
+    
+    const section = selectedSectionForAssessment || selectedSection;
+    
+    if (!section) {
+      console.log("No section found even after auto-select");
+      toast({ 
+        title: "Export Failed", 
+        description: "Please select a course and section from the Filters section at the top of the page.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    if (!useSOIds.length) {
+      console.log("No SO selected");
+      toast({ 
+        title: "Export Failed", 
+        description: "Please select a Student Outcome from the Filters section.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    if (!selectedSchoolYear && !section.schoolYear) {
+      console.log("No school year selected");
+      toast({ 
+        title: "Export Failed", 
+        description: "Please select a school year from the Filters section.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    try {
+      const sectionId = section.id;
+      const soId = useSOIds[0];
+      const schoolYear = selectedSchoolYear || section.schoolYear;
+      
+      console.log("Exporting with params:", { sectionId, soId, schoolYear });
+
+      const response = await axios.get(
+        `${API_BASE_URL}/assessments/export_csv/`,
+        {
+          params: {
+            section_id: sectionId,
+            so_id: soId,
+            school_year: schoolYear,
+          },
+          responseType: 'blob',
+        }
+      );
+
+      console.log("Export response received:", response);
+      
+      // Create a URL for the blob and trigger download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Assessment_${section.name}_${schoolYear}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      console.log("Download triggered");
+      toast({ 
+        title: "Export Successful", 
+        description: "Assessment data exported as CSV file." 
+      });
+    } catch (err) {
+      console.error("Error exporting:", err);
+      console.error("Error response:", err.response?.data);
+      toast({ 
+        title: "Export Failed", 
+        description: err.response?.data?.detail || err.message || "Failed to export assessment data.", 
+        variant: "destructive" 
+      });
+    }
   };
 
   // ── Loading state ────────────────────────────────────
@@ -1111,6 +1229,7 @@ export default function SOAssessment() {
             setSelectedSectionName(sectionName);
             setSelectedSchoolYear(schoolYear);
           }}
+          onSaveSuccess={triggerStatusRefresh}
         />
       </main>
 

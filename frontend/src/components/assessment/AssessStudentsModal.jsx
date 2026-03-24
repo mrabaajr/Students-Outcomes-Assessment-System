@@ -45,16 +45,19 @@ export function AssessStudentsModal({
   onChangeSelectedSO,
   onClose,
   onCourseFiltersChange,
+  onSaveSuccess,
 }) {
   const { toast } = useToast();
   const [students, setStudents] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedAssessmentSO, setSelectedAssessmentSO] = useState(null);
   const [modalWidth, setModalWidth] = useState(85); // in vw
   const [modalHeight, setModalHeight] = useState(90); // in vh
 
   // Initialize students state from selectedSection
   useEffect(() => {
-    if (selectedSection?.students) {
+    if (selectedSection?.students && isOpen) {
+      console.log("Modal opened/reloading, initializing students for section:", selectedSection.id);
       const initializedStudents = (selectedSection.students || []).map(student => ({
         ...student,
         grades: {},
@@ -68,14 +71,26 @@ export function AssessStudentsModal({
       const selectedAssessmentSO = connectedSOs.length > 0 ? connectedSOs[0] : null;
 
       if (selectedAssessmentSO) {
-        loadGrades(selectedSection.id, selectedAssessmentSO.id, selectedSection.schoolYear, initializedStudents);
+        loadGrades(selectedSection.id, selectedAssessmentSO.id, selectedSection.schoolYear, initializedStudents, selectedSection.courseCode);
       } else {
         setStudents(initializedStudents);
       }
     }
-  }, [selectedSection?.id]);
+  }, [selectedSection?.id, isOpen]);
 
-  const loadGrades = async (sectionId, soId, schoolYear, initialStudents) => {
+  // Reload grades when user switches between SO tabs
+  useEffect(() => {
+    if (selectedSection?.students && selectedSOIds.length > 0 && isOpen) {
+      console.log("Selected SO changed to:", selectedSOIds[0]);
+      const initializedStudents = (selectedSection.students || []).map(student => ({
+        ...student,
+        grades: {},
+      }));
+      loadGrades(selectedSection.id, selectedSOIds[0], selectedSection.schoolYear, initializedStudents, selectedSection.courseCode);
+    }
+  }, [selectedSOIds, selectedSection?.id, isOpen]);
+
+  const loadGrades = async (sectionId, soId, schoolYear, initialStudents, courseCode) => {
     try {
       const response = await axios.get(
         `${API_BASE_URL}/assessments/load_grades/`,
@@ -88,16 +103,115 @@ export function AssessStudentsModal({
         }
       );
       const loadedGrades = response.data.grades || {};
+      console.log("Loaded grades from backend:", loadedGrades);
+      console.log("Backend response data:", response.data);
+      
+      // Fetch the full SO data directly from backend to ensure we have all criteria
+      let selectedSO = null;
+      try {
+        const soResponse = await axios.get(`${API_BASE_URL}/student-outcomes/${soId}/`);
+        const soData = soResponse.data;
+        console.log("Raw SO response from backend:", soData);
+        
+        selectedSO = {
+          id: soData.id,
+          number: soData.number,
+          code: `SO ${soData.number}`,
+          title: soData.title,
+          description: soData.description,
+          performanceIndicators: (soData.performance_indicators || soData.performanceIndicators || []).map(pi => {
+            console.log(`PI ${pi.id}:`, pi);
+            const picList = (pi.criteria || pi.performanceCriteria || pi.performance_criteria || []);
+            console.log(`  Criteria count: ${picList.length}`, picList);
+            return {
+              id: pi.id,
+              number: pi.number,
+              name: pi.description,
+              performanceCriteria: picList.map(pc => ({
+                id: pc.id,
+                name: pc.name || '',
+                order: pc.order ?? 0,
+              })),
+            };
+          }),
+        };
+        console.log("Fetched full SO from backend:", selectedSO);
+      } catch (err) {
+        console.warn("Could not fetch full SO data, falling back to local data:", err);
+        // Fallback to local SO data if fetch fails
+        const courseSOs = courseMappings[courseCode] || [];
+        const connectedSOs = studentOutcomes.filter(so =>
+          courseSOs.some(soId => parseInt(soId) === so.id)
+        );
+        selectedSO = connectedSOs.find(s => s.id === soId) || connectedSOs[0];
+      }
+      
+      const criterionToCompositeKey = {};
+      if (selectedSO) {
+        selectedSO.performanceIndicators?.forEach(pi => {
+          if (pi.performanceCriteria && pi.performanceCriteria.length > 0) {
+            pi.performanceCriteria.forEach(pc => {
+              criterionToCompositeKey[pc.id] = `${pi.id}-${pc.id}`;
+            });
+          } else {
+            // For indicators without criteria, skip (no grades can be saved for them)
+            // They use the "pi.id-empty" key which we skip in the save function
+          }
+        });
+      }
+      
+      // Handle missing criteria from backend
+      // If a criterion is in loaded grades but not in the mapping, add it with criterion ID as key
+      Object.keys(loadedGrades).forEach(studentId => {
+        Object.keys(loadedGrades[studentId]).forEach(criterionId => {
+          if (!criterionToCompositeKey[criterionId]) {
+            // Use criterion ID directly as fallback since it's not in any PI
+            console.warn(`Criterion ${criterionId} not found in SO structure, using criterion ID as fallback`);
+            criterionToCompositeKey[criterionId] = criterionId;
+          }
+        });
+      });
+      
+      console.log("Criterion to composite key mapping:", criterionToCompositeKey);
+      
+      // Transform loaded grades back to composite key format
+      const transformedGrades = {};
+      Object.entries(loadedGrades).forEach(([studentId, criteria]) => {
+        transformedGrades[studentId] = {};
+        Object.entries(criteria).forEach(([criterionId, score]) => {
+          const compositeKey = criterionToCompositeKey[criterionId];
+          console.log(`Student ${studentId}: criterion ${criterionId} -> composite ${compositeKey}, score=${score}`);
+          // Only include if we have a valid mapping (skip orphaned criteria)
+          if (compositeKey) {
+            transformedGrades[studentId][compositeKey] = score;
+          }
+        });
+      });
+      console.log("Transformed grades after mapping:", transformedGrades);
+      
       const updatedStudents = initialStudents.map(student => ({
         ...student,
         grades: {
           ...student.grades,
-          ...loadedGrades[student.id],
+          ...transformedGrades[student.id],
         },
       }));
+      console.log("Updated students with loaded grades:", updatedStudents);
+      updatedStudents.forEach(s => {
+        console.log(`  Student ${s.id} final grades:`, s.grades);
+        Object.entries(s.grades).forEach(([key, val]) => {
+          console.log(`    ${key} = ${val}`);
+        });
+      });      
+      // Save the fetched SO data to state so the UI uses correct criteria
+      setSelectedAssessmentSO(selectedSO);
       setStudents(updatedStudents);
     } catch (error) {
       console.error("Error loading grades:", error);
+      // Still set the SO even if grade loading failed, so UI shows correct structure
+      if (selectedSO) {
+        setSelectedAssessmentSO(selectedSO);
+      }
       setStudents(initialStudents);
     }
   };
@@ -174,40 +288,119 @@ export function AssessStudentsModal({
   };
 
   const handleSave = async () => {
-    if (!selectedSection) return;
+    console.log("Save Assessment button clicked");
+    console.log("selectedSection:", selectedSection);
+    console.log("selectedSOIds:", selectedSOIds);
+    
+    if (!selectedSection) {
+      console.log("No section selected");
+      toast({
+        description: "No section selected",
+        variant: "destructive",
+        duration: 2000,
+      });
+      return;
+    }
 
     const courseSOs = courseMappings[selectedSection.courseCode] || [];
+    console.log("courseSOs:", courseSOs);
+    
     const connectedSOs = studentOutcomes.filter(so =>
       courseSOs.some(soId => parseInt(soId) === so.id)
     );
+    console.log("connectedSOs:", connectedSOs);
+    
     const selectedAssessmentSO = connectedSOs.find(s =>
       selectedSOIds.length > 0 && s.id === selectedSOIds[0]
     ) || connectedSOs[0];
 
-    if (!selectedAssessmentSO) return;
+    console.log("selectedAssessmentSO:", selectedAssessmentSO);
 
+    if (!selectedAssessmentSO) {
+      console.log("No Student Outcome selected");
+      toast({
+        description: "Please select a Student Outcome first",
+        variant: "destructive",
+        duration: 2000,
+      });
+      return;
+    }
+
+    // Transform grades: convert composite keys (pi.id-pc.id) to criterion IDs only
     const gradesPayload = {};
+    
+    // Build a set of valid criterion IDs for this SO
+    const validCriterionIds = new Set();
+    if (selectedAssessmentSO) {
+      selectedAssessmentSO.performanceIndicators?.forEach(pi => {
+        if (pi.performanceCriteria) {
+          pi.performanceCriteria.forEach(pc => {
+            validCriterionIds.add(pc.id);
+          });
+        }
+      });
+    }
+    console.log("Valid criterion IDs for SO ", selectedAssessmentSO.id, ":", validCriterionIds);
+    
     students.forEach(student => {
-      gradesPayload[student.id] = student.grades;
+      gradesPayload[student.id] = {};
+      console.log(`Processing student ${student.id}:`, student.grades);
+      
+      Object.entries(student.grades).forEach(([compositeKey, score]) => {
+        if (score !== null && score !== undefined && score !== "") {
+          // Extract criterion ID from composite key (format: "pi_id-criterion_id" or "pi_id-empty")
+          const parts = compositeKey.split('-');
+          const criterionId = parseInt(parts[parts.length - 1]); // Get last part as number
+          
+          // Skip if it's the "empty" placeholder (no criteria case)
+          if (isNaN(criterionId)) {
+            console.log(`  Skipping non-numeric criterion: ${compositeKey}`);
+            return;
+          }
+          
+          // Skip if this criterion doesn't belong to the selected SO
+          if (!validCriterionIds.has(criterionId)) {
+            console.warn(`  Skipping criterion ${criterionId} - NOT in SO ${selectedAssessmentSO.id}, valid IDs: ${[...validCriterionIds].join(',')}`);
+            return;
+          }
+          
+          gradesPayload[student.id][criterionId] = score;
+          console.log(`  Added: criterion ${criterionId} = ${score}`);
+        }
+      });
     });
+
+    console.log("Final gradesPayload:", gradesPayload);
 
     setIsSaving(true);
     try {
-      await axios.post(`${API_BASE_URL}/assessments/save_grades/`, {
+      const response = await axios.post(`${API_BASE_URL}/assessments/save_grades/`, {
         section_id: selectedSection.id,
         so_id: selectedAssessmentSO.id,
         school_year: selectedSection.schoolYear,
         grades: gradesPayload,
       });
 
+      console.log("Save response:", response);
       toast({
         description: "Assessment saved successfully!",
         duration: 2000,
       });
+      
+      // Call the success callback to refresh parent state
+      if (onSaveSuccess) {
+        onSaveSuccess();
+      }
+      
+      // Close modal after a short delay
+      setTimeout(() => {
+        onClose();
+      }, 2000);
     } catch (error) {
       console.error("Error saving assessment:", error);
+      console.error("Error response:", error.response?.data);
       toast({
-        description: "Failed to save assessment",
+        description: error.response?.data?.detail || "Failed to save assessment",
         variant: "destructive",
         duration: 2000,
       });
@@ -222,9 +415,8 @@ export function AssessStudentsModal({
   const connectedSOs = studentOutcomes.filter(so =>
     courseSOs.some(soId => parseInt(soId) === so.id)
   );
-  const selectedAssessmentSO = connectedSOs.find(s =>
-    selectedSOIds.length > 0 && s.id === selectedSOIds[0]
-  ) || connectedSOs[0];
+  // Use the state variable selectedAssessmentSO which is populated from backend data with correct criteria
+  // This ensures we display only the criteria that belong to the selected SO
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -415,16 +607,23 @@ export function AssessStudentsModal({
                               >
                                 No. / Name
                               </th>
-                              {selectedAssessmentSO.performanceIndicators.map((pi) => (
-                                <td
-                                  key={`pi-name-${pi.id}`}
-                                  colSpan={Math.max(pi.performanceCriteria?.length || 1, 1)}
-                                  className="border-r border-[#E5E7EB] px-2 py-2.5 text-center text-xs font-semibold text-[#231F20] bg-[#F5F5F5] align-middle last:border-r-0 leading-tight"
-                                  style={{ minWidth: `${Math.max(pi.performanceCriteria?.length || 1, 1) * 110}px` }}
-                                >
-                                  {pi.name}
-                                </td>
-                              ))}
+                              {selectedAssessmentSO.performanceIndicators.map((pi) => {
+                                // Only render header for PIs that have criteria
+                                if (!pi.performanceCriteria || pi.performanceCriteria.length === 0) {
+                                  return null;
+                                }
+                                
+                                return (
+                                  <td
+                                    key={`pi-name-${pi.id}`}
+                                    colSpan={pi.performanceCriteria.length}
+                                    className="border-r border-[#E5E7EB] px-2 py-2.5 text-center text-xs font-semibold text-[#231F20] bg-[#F5F5F5] align-middle last:border-r-0 leading-tight"
+                                    style={{ minWidth: `${pi.performanceCriteria.length * 110}px` }}
+                                  >
+                                    {pi.name}
+                                  </td>
+                                );
+                              })}
                             </tr>
 
                             {/* Row 3: Performance Criteria */}
@@ -437,25 +636,21 @@ export function AssessStudentsModal({
                                 >
                                   Criteria
                                 </th>
-                                {selectedAssessmentSO.performanceIndicators.map((pi) =>
-                                  (pi.performanceCriteria && pi.performanceCriteria.length > 0) ? (
-                                    pi.performanceCriteria.map((pc) => (
-                                      <th
-                                        key={`pc-${pi.id}-${pc.id}`}
-                                        className="min-w-[110px] border-r border-[#E5E7EB] px-2 py-2 text-center text-xs font-semibold text-[#231F20] bg-[#FFF8DB] last:border-r-0 leading-tight"
-                                      >
+                                {selectedAssessmentSO.performanceIndicators.map((pi) => {
+                                  // Only render criteria for PIs that have criteria
+                                  if (!pi.performanceCriteria || pi.performanceCriteria.length === 0) {
+                                    return null;
+                                  }
+                                  
+                                  return pi.performanceCriteria.map((pc) => (
+                                    <th
+                                      key={`pc-${pi.id}-${pc.id}`}
+                                      className="min-w-[110px] border-r border-[#E5E7EB] px-2 py-2 text-center text-xs font-semibold text-[#231F20] bg-[#FFF8DB] last:border-r-0 leading-tight"
+                                    >
                                         {pc.name}
                                       </th>
-                                    ))
-                                  ) : (
-                                    <th
-                                      key={`pc-${pi.id}-empty`}
-                                      colSpan={1}
-                                      className="min-w-[110px] border-r border-[#E5E7EB] px-2 py-2 last:border-r-0 bg-[#FFF8DB]"
-                                    >
-                                    </th>
-                                  )
-                                )}
+                                    ));
+                                })}
                               </tr>
                             )}
                           </thead>
@@ -470,40 +665,22 @@ export function AssessStudentsModal({
                                   <p className="font-semibold text-[#231F20]">{student.name}</p>
                                   <p className="text-xs text-[#6B6B6B] mt-1">{student.studentId}</p>
                                 </td>
-                                {selectedAssessmentSO.performanceIndicators.map((pi) =>
-                                  (pi.performanceCriteria && pi.performanceCriteria.length > 0) ? (
-                                    pi.performanceCriteria.map((pc) => (
-                                      <td
-                                        key={`grade-${student.id}-${pi.id}-${pc.id}`}
-                                        className="border-r border-[#E5E7EB] px-2 py-2 text-center min-w-[110px] last:border-r-0"
-                                      >
-                                        <select
-                                          id={`grade-${student.id}-${pi.id}-${pc.id}`}
-                                          name={`grade-${student.id}-${pi.id}-${pc.id}`}
-                                          value={students.find(s => s.id === student.id)?.grades?.[`${pi.id}-${pc.id}`] ?? ""}
-                                          onChange={(e) => handleGradeChange(student.id, `${pi.id}-${pc.id}`, e.target.value ? parseInt(e.target.value) : null)}
-                                          className="w-full px-2 py-1.5 rounded border border-[#D1D5DB] text-sm font-semibold text-[#231F20] focus:border-[#FFC20E] focus:ring-2 focus:ring-[#FFC20E]/30 bg-white cursor-pointer transition-all hover:border-[#FFC20E]"
-                                        >
-                                          <option value="">—</option>
-                                          <option value="1">1</option>
-                                          <option value="2">2</option>
-                                          <option value="3">3</option>
-                                          <option value="4">4</option>
-                                          <option value="5">5</option>
-                                          <option value="6">6</option>
-                                        </select>
-                                      </td>
-                                    ))
-                                  ) : (
+                                {selectedAssessmentSO.performanceIndicators.map((pi) => {
+                                  // Only render cells for PIs that have criteria
+                                  if (!pi.performanceCriteria || pi.performanceCriteria.length === 0) {
+                                    return null; // Skip PIs with no criteria
+                                  }
+                                  
+                                  return pi.performanceCriteria.map((pc) => (
                                     <td
-                                      key={`grade-${student.id}-${pi.id}-empty`}
+                                      key={`grade-${student.id}-${pi.id}-${pc.id}`}
                                       className="border-r border-[#E5E7EB] px-2 py-2 text-center min-w-[110px] last:border-r-0"
                                     >
                                       <select
-                                        id={`grade-${student.id}-${pi.id}-empty`}
-                                        name={`grade-${student.id}-${pi.id}`}
-                                        value={students.find(s => s.id === student.id)?.grades?.[`${pi.id}-empty`] ?? ""}
-                                        onChange={(e) => handleGradeChange(student.id, `${pi.id}-empty`, e.target.value ? parseInt(e.target.value) : null)}
+                                        id={`grade-${student.id}-${pi.id}-${pc.id}`}
+                                        name={`grade-${student.id}-${pi.id}-${pc.id}`}
+                                        value={students.find(s => s.id === student.id)?.grades?.[`${pi.id}-${pc.id}`] ?? ""}
+                                        onChange={(e) => handleGradeChange(student.id, `${pi.id}-${pc.id}`, e.target.value ? parseInt(e.target.value) : null)}
                                         className="w-full px-2 py-1.5 rounded border border-[#D1D5DB] text-sm font-semibold text-[#231F20] focus:border-[#FFC20E] focus:ring-2 focus:ring-[#FFC20E]/30 bg-white cursor-pointer transition-all hover:border-[#FFC20E]"
                                       >
                                         <option value="">—</option>
@@ -515,8 +692,8 @@ export function AssessStudentsModal({
                                         <option value="6">6</option>
                                       </select>
                                     </td>
-                                  )
-                                )}
+                                  ));
+                                })}
                               </tr>
                             ))}
                           </tbody>
