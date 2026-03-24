@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Grid, TableIcon, Filter, Search, GraduationCap } from 'lucide-react';
+import axios from 'axios';
 import Navbar from '../../components/dashboard/Navbar';
 import Footer from '../../components/dashboard/Footer';
 import CourseStats from '../../components/courses/CourseStats';
@@ -13,6 +14,8 @@ import { useToast } from '../../hooks/use-toast';
 import { useCourses } from '../../hooks/useCourses';
 import { useStudentOutcomes } from '../../hooks/useStudentOutcomes';
 import { academicYears, semesters } from '../../data/mockCoursesData';
+
+const API_BASE_URL = 'http://localhost:8000/api';
 
 const Courses = () => {
   const { toast } = useToast();
@@ -35,8 +38,32 @@ const Courses = () => {
   const [selectedSemester, setSelectedSemester] = useState('All Semesters');
   const [selectedCurriculum, setSelectedCurriculum] = useState('All Curriculums');
 
-  /* Temporary curriculum list */
-  const [curriculums, setCurriculums] = useState(['All Curriculums', '2018', '2023', '2025']);
+  /* Curriculum list from backend */
+  const [curriculums, setCurriculums] = useState(['All Curriculums']);
+  const [currriculumsLoading, setCurriculumsLoading] = useState(true);
+
+  /* Fetch curriculums from backend */
+  useEffect(() => {
+    const fetchCurriculums = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/curricula/`);
+        const curriculumList = response.data?.results || response.data;
+        if (Array.isArray(curriculumList)) {
+          // Extract curriculum years/names
+          const curriculumNames = curriculumList.map(c => c.year || c.name || c.id);
+          setCurriculums(['All Curriculums', ...curriculumNames]);
+        }
+      } catch (err) {
+        console.error('Error fetching curriculums:', err);
+        // Fallback to default curriculums if fetch fails
+        setCurriculums(['All Curriculums', '2018', '2023', '2025']);
+      } finally {
+        setCurriculumsLoading(false);
+      }
+    };
+    
+    fetchCurriculums();
+  }, []);
 
   /* Modals */
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -369,7 +396,7 @@ const Courses = () => {
             </div>
           </div>
 
-          <CourseStats courses={courses} />
+          <CourseStats courses={courses} studentOutcomes={studentOutcomes} />
 
           <div className="mt-6">
 

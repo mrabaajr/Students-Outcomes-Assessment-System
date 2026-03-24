@@ -49,7 +49,7 @@ export function useCourses() {
         studentCount: course.studentCount || course.student_count || 0,
         enrolledStudents: course.studentCount || course.student_count || 0,
         status: course.status || 'active',
-        mappedSOs: course.mappedSOs || [],
+        mappedSOs: course.mappedSOs || course.mapped_sos || [],
         performanceIndicators: course.performanceIndicators || [],
       }));
 
@@ -94,7 +94,7 @@ export function useCourses() {
         academicYear: response.data.academicYear || response.data.academic_year,
         studentCount: response.data.studentCount || response.data.student_count || 0,
         enrolledStudents: response.data.studentCount || response.data.student_count || 0,
-        mappedSOs: response.data.mappedSOs || [],
+        mappedSOs: response.data.mappedSOs || response.data.mapped_sos || [],
         performanceIndicators: response.data.performanceIndicators || [],
       };
 
@@ -141,7 +141,7 @@ export function useCourses() {
         academicYear: response.data.academicYear || response.data.academic_year,
         studentCount: response.data.studentCount || response.data.student_count || 0,
         enrolledStudents: response.data.studentCount || response.data.student_count || 0,
-        mappedSOs: response.data.mappedSOs || [],
+        mappedSOs: response.data.mappedSOs || response.data.mapped_sos || [],
         performanceIndicators: response.data.performanceIndicators || [],
       };
 
@@ -191,7 +191,7 @@ export function useCourses() {
         academicYear: response.data.courseMapping.academicYear || response.data.courseMapping.academic_year,
         studentCount: response.data.courseMapping.studentCount || response.data.courseMapping.student_count || 0,
         enrolledStudents: response.data.courseMapping.studentCount || response.data.courseMapping.student_count || 0,
-        mappedSOs: response.data.courseMapping.mappedSOs || [],
+        mappedSOs: response.data.courseMapping.mappedSOs || response.data.courseMapping.mapped_sos || [],
         performanceIndicators: response.data.courseMapping.performanceIndicators || [],
       };
 
