@@ -147,10 +147,14 @@ class SectionViewSet(viewsets.ModelViewSet):
     # load_all – returns all sections + faculty in the
     # frontend's data format so the Classes page can
     # hydrate from the backend on mount.
+    # Includes StudentOutcome mappings for each section.
     # --------------------------------------------------
     @action(detail=False, methods=['get'], permission_classes=[AllowAny],
             url_path='load_all')
     def load_all(self, request):
+        from courses.models import CourseSOMapping
+        from courses.serializers import CourseSOMappingSerializer
+        
         sections = (
             Section.objects
             .select_related('course', 'assigned_faculty')
@@ -174,6 +178,31 @@ class SectionViewSet(viewsets.ModelViewSet):
                     'course': s.program,
                     'yearLevel': _year_str(s.year_level),
                 })
+            
+            # Get StudentOutcome mappings for this section's course
+            student_outcomes = []
+            try:
+                mapping = CourseSOMapping.objects.filter(
+                    course=sec.course,
+                    academic_year=sec.academic_year
+                ).first()
+                
+                if mapping:
+                    # Serialize the mapping to get mapped_sos_details
+                    mapping_serializer = CourseSOMappingSerializer(mapping)
+                    so_details = mapping_serializer.data.get('mapped_sos_details', [])
+                    student_outcomes = [
+                        {
+                            'id': so['id'],
+                            'number': so['number'],
+                            'title': so['title'],
+                            'description': so['description'][:100] + '...' if len(so['description']) > 100 else so['description'],
+                        }
+                        for so in so_details if isinstance(so, dict)
+                    ]
+            except Exception:
+                pass
+            
             sections_payload.append({
                 'id': str(sec.id),
                 'name': sec.name,
@@ -183,6 +212,7 @@ class SectionViewSet(viewsets.ModelViewSet):
                 'schoolYear': sec.academic_year or '',
                 'academicYear': sec.academic_year or '',
                 'students': students,
+                'studentOutcomes': student_outcomes,
             })
 
         # Faculty from the dedicated Faculty model
