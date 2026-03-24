@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { BookOpen, Users, Plus, Settings, Loader2, Search, Filter, RotateCcw } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { BookOpen, Users, Plus, Settings, Loader2, Search, Filter, RotateCcw, AlertCircle, CheckCircle, X } from "lucide-react";
 import axios from "axios";
 import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
@@ -161,6 +161,17 @@ const Index = () => {
   const [editingFaculty, setEditingFaculty] = useState(null);
   const [deleteFacultyId, setDeleteFacultyId] = useState(null);
 
+  // CSV Import
+  const [importCSVModal, setImportCSVModal] = useState({
+    isOpen: false,
+    sectionId: null,
+    sectionName: null,
+    loading: false,
+    result: null,
+    error: null,
+  });
+  const fileInputRef = useRef(null);
+
   // --- Section handlers ---
   const handleSaveSection = (data) => {
     if (editingSection) {
@@ -243,6 +254,109 @@ const Index = () => {
       setDeleteFacultyId(null);
       setHasUnsavedChanges(true);
     }
+  };
+
+  // --- CSV Import handlers ---
+  const handleImportCSV = (sectionId) => {
+    const section = sectionsData.find(s => s.id === sectionId);
+    if (!section) return;
+    
+    setImportCSVModal({
+      isOpen: true,
+      sectionId,
+      sectionName: section.name,
+      loading: false,
+      result: null,
+      error: null,
+    });
+  };
+
+  const handleChooseFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.name.endsWith('.csv')) {
+      setImportCSVModal((prev) => ({
+        ...prev,
+        error: "Please select a CSV file",
+      }));
+      return;
+    }
+
+    setImportCSVModal((prev) => ({
+      ...prev,
+      loading: true,
+      error: null,
+    }));
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await axios.post(
+        `/api/sections/${importCSVModal.sectionId}/import-csv/`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      setImportCSVModal((prev) => ({
+        ...prev,
+        loading: false,
+        result: {
+          message: response.data.message,
+          created: response.data.created || 0,
+          updated: response.data.updated || 0,
+          skipped: response.data.skipped || 0,
+          errors: response.data.errors || [],
+        },
+      }));
+
+      // Update local sections data with imported students
+      if (response.data.created > 0 || response.data.updated > 0) {
+        setHasUnsavedChanges(true);
+        // Reload sections from backend to sync with database
+        try {
+          const reloadRes = await axios.get('/api/sections/load_all/');
+          const { sections } = reloadRes.data;
+          if (sections.length > 0) {
+            setSectionsData(sections);
+          }
+        } catch (e) {
+          console.error('Failed to reload sections after import:', e);
+        }
+      }
+    } catch (err) {
+      setImportCSVModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: err.response?.data?.error || `Error: ${err.message}`,
+      }));
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const closeImportCSVModal = () => {
+    setImportCSVModal({
+      isOpen: false,
+      sectionId: null,
+      sectionName: null,
+      loading: false,
+      result: null,
+      error: null,
+    });
   };
 
   // Save all changes to backend
@@ -506,6 +620,7 @@ const Index = () => {
                       onAddStudent={handleAddStudent}
                       onEditStudent={handleEditStudent}
                       onDeleteStudent={(sectionId, studentId) => setDeleteStudent({ sectionId, studentId })}
+                      onImportCSV={handleImportCSV}
                     />
                   );
                 })
@@ -611,6 +726,15 @@ const Index = () => {
 
       <Footer />
 
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv"
+        style={{ display: 'none' }}
+        onChange={handleFileSelect}
+      />
+
       {/* Dialogs */}
       <SectionFormDialog
         open={sectionDialog}
@@ -652,6 +776,117 @@ const Index = () => {
         title="Delete Faculty"
         description="Are you sure you want to delete this faculty member?"
       />
+
+      {/* CSV Import Modal */}
+      {importCSVModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-[#231F20]">
+                  Import Students to {importCSVModal.sectionName}
+                </h2>
+                <button
+                  onClick={closeImportCSVModal}
+                  className="text-[#6B6B6B] hover:text-[#231F20]"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {importCSVModal.loading && (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FFC20E] mb-4"></div>
+                  <p className="text-[#6B6B6B]">Processing CSV file...</p>
+                </div>
+              )}
+
+              {importCSVModal.error && !importCSVModal.result && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                  <div className="flex gap-3">
+                    <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-red-800 font-semibold">Import Failed</p>
+                      <p className="text-red-700 text-sm mt-1">{importCSVModal.error}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {importCSVModal.result && (
+                <div className="space-y-4">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-green-800 font-semibold">{importCSVModal.result.message}</p>
+                        <div className="text-green-700 text-sm mt-2 space-y-1">
+                          <p>✓ Created: {importCSVModal.result.created} students</p>
+                          <p>✓ Updated: {importCSVModal.result.updated} students</p>
+                          {importCSVModal.result.skipped > 0 && (
+                            <p>⊝ Skipped: {importCSVModal.result.skipped} rows</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {importCSVModal.result.errors && importCSVModal.result.errors.length > 0 && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <p className="text-yellow-800 font-semibold text-sm mb-2">Issues encountered:</p>
+                      <ul className="text-yellow-700 text-xs space-y-1">
+                        {importCSVModal.result.errors.slice(0, 5).map((error, idx) => (
+                          <li key={idx}>• {error}</li>
+                        ))}
+                        {importCSVModal.result.errors.length > 5 && (
+                          <li>• ... and {importCSVModal.result.errors.length - 5} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!importCSVModal.loading && !importCSVModal.result && !importCSVModal.error && (
+                <div className="py-8">
+                  <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <div className="text-[#6B6B6B] text-4xl mb-3">📁</div>
+                    <p className="text-[#231F20] font-semibold mb-1">Select a CSV file</p>
+                    <p className="text-xs text-[#6B6B6B] mb-4">
+                      Required columns: student_id, first_name, last_name, program, year_level
+                    </p>
+                    <button
+                      onClick={handleChooseFile}
+                      className="px-4 py-2 bg-[#FFC20E] text-[#231F20] text-sm font-medium rounded hover:bg-[#FFC20E]/90 transition"
+                    >
+                      Choose File
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-6 flex gap-2">
+                {importCSVModal.result && (
+                  <button
+                    onClick={closeImportCSVModal}
+                    className="flex-1 px-4 py-2 bg-[#FFC20E] text-[#231F20] text-sm font-medium rounded hover:bg-[#FFC20E]/90 transition"
+                  >
+                    Close
+                  </button>
+                )}
+                {!importCSVModal.loading && !importCSVModal.result && (
+                  <button
+                    onClick={closeImportCSVModal}
+                    className="flex-1 px-4 py-2 bg-gray-200 text-[#231F20] text-sm font-medium rounded hover:bg-gray-300 transition"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
