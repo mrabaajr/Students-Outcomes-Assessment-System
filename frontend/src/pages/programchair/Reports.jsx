@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
@@ -7,11 +7,14 @@ import SOPerformance from "@/components/reports/SOPerformance.jsx";
 import CourseSummary from "@/components/reports/CourseSummary.jsx";
 import SOSummaryTables from "@/components/reports/SOSummaryTables.jsx";
 import ReportsFilter from "@/components/reports/ReportsFilter.jsx";
+import { useToast } from "@/hooks/use-toast";
 import { FileDown, Loader2 } from "lucide-react";
 
 const API_BASE_URL = "http://localhost:8000/api";
 
 export default function Reports() {
+  const { toast } = useToast();
+  const reportContentRef = useRef(null);
   const [filters, setFilters] = useState({
     schoolYear: "",
     course: "",
@@ -39,9 +42,191 @@ export default function Reports() {
     setIsLoading(false);
   }, [filters]);
 
+  const handleSaveSummaryTable = useCallback(
+    async (tablePayload) => {
+      const payload = {
+        so_id: tablePayload.so_id,
+        school_year: filters.schoolYear || "",
+        course_id: filters.course || null,
+        section_id: filters.section || null,
+        formula: tablePayload.formula,
+        variables: tablePayload.variables,
+        table_data: tablePayload.table_data,
+      };
+
+      const res = await axios.post(`${API_BASE_URL}/reports/save_summary_table/`, payload);
+      const savedTemplate = res.data?.report_template;
+
+      setData((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          so_summary_tables: (current.so_summary_tables || []).map((table) =>
+            table.so_id === tablePayload.so_id
+              ? {
+                  ...tablePayload.table_data,
+                  so_id: tablePayload.so_id,
+                  report_config_id: savedTemplate?.id ?? table.report_config_id ?? null,
+                  formula: tablePayload.formula,
+                  variables: tablePayload.variables,
+                }
+              : table
+          ),
+        };
+      });
+
+      toast({
+        title: "Report summary saved",
+        description: `SO ${tablePayload.so_number} customizations are now stored in the backend.`,
+      });
+
+      return savedTemplate;
+    },
+    [filters.course, filters.schoolYear, filters.section, toast]
+  );
+
   useEffect(() => {
     fetchReport();
   }, [fetchReport]);
+
+  const handleExportReport = useCallback(() => {
+    if (!data || !reportContentRef.current) {
+      toast({
+        title: "No report to export",
+        description: "Load report data first before exporting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const exportWindow = window.open("", "_blank", "width=1280,height=900");
+    if (!exportWindow) {
+      toast({
+        title: "Popup blocked",
+        description: "Allow popups for this site to export the report as PDF.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const filtersSummary = [
+      filters.schoolYear ? `School Year: ${filters.schoolYear}` : null,
+      filters.course
+        ? `Course: ${
+            data.filter_options?.courses?.find((course) => String(course.id) === String(filters.course))
+              ?.code || filters.course
+          }`
+        : null,
+      filters.section
+        ? `Section: ${
+            data.filter_options?.sections?.find((section) => String(section.id) === String(filters.section))
+              ?.name || filters.section
+          }`
+        : null,
+      filters.outcome
+        ? `Student Outcome: SO ${
+            data.filter_options?.student_outcomes?.find((so) => String(so.id) === String(filters.outcome))
+              ?.number || filters.outcome
+          }`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    const reportMarkup = reportContentRef.current.innerHTML;
+
+    exportWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>Assessment Reports Export</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              font-family: Arial, sans-serif;
+              color: #231f20;
+              background: #ffffff;
+            }
+            .page {
+              padding: 32px;
+            }
+            .export-header {
+              border-bottom: 2px solid #231f20;
+              margin-bottom: 24px;
+              padding-bottom: 16px;
+            }
+            .export-header h1 {
+              margin: 0 0 8px;
+              font-size: 28px;
+            }
+            .export-header p {
+              margin: 0;
+              color: #555;
+              font-size: 14px;
+              line-height: 1.5;
+            }
+            .grid, .recharts-responsive-container {
+              width: 100% !important;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            th, td {
+              border: 1px solid #d1d5db;
+              padding: 8px;
+              vertical-align: top;
+            }
+            .glass-card {
+              border: 1px solid #d1d5db;
+              border-radius: 12px;
+              padding: 20px;
+              background: #fff;
+              break-inside: avoid;
+              margin-bottom: 20px;
+            }
+            button, textarea, input, select {
+              border: 0;
+              background: transparent;
+              color: inherit;
+              font: inherit;
+              padding: 0;
+            }
+            textarea, input {
+              width: 100%;
+            }
+            svg {
+              max-width: 100%;
+              height: auto;
+            }
+            @media print {
+              body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+              .page { padding: 16px; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="page">
+            <div class="export-header">
+              <h1>Assessment Reports & Performance Summary</h1>
+              <p>Generated from the Program Chair reports page.</p>
+              <p>${filtersSummary || "All available report data"}</p>
+            </div>
+            ${reportMarkup}
+          </div>
+        </body>
+      </html>
+    `);
+    exportWindow.document.close();
+    exportWindow.focus();
+
+    setTimeout(() => {
+      exportWindow.print();
+    }, 500);
+  }, [data, filters.course, filters.outcome, filters.schoolYear, filters.section, toast]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -65,9 +250,13 @@ export default function Reports() {
               Overview of student outcomes and course performance across selected filters.
             </p>
 
-            <button className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors">
+            <button
+              onClick={handleExportReport}
+              disabled={!data || isLoading}
+              className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+            >
               <FileDown className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>EXPORT AS FILE</span>
+              <span>EXPORT AS PDF</span>
             </button>
           </div>
         </section>
@@ -82,7 +271,7 @@ export default function Reports() {
         </div>
 
         {/* Report Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 space-y-6 sm:space-y-8">
+        <div ref={reportContentRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 space-y-6 sm:space-y-8">
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-10 h-10 animate-spin text-[#FFC20E]" />
@@ -91,7 +280,10 @@ export default function Reports() {
           ) : data ? (
             <>
               <StatCards metrics={data.metrics} />
-              <SOSummaryTables tables={data.so_summary_tables || []} />
+              <SOSummaryTables
+                tables={data.so_summary_tables || []}
+                onSaveTable={handleSaveSummaryTable}
+              />
               <SOPerformance soData={data.so_performance || []} />
               <CourseSummary courses={data.course_summary || []} />
             </>

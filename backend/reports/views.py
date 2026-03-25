@@ -1,19 +1,172 @@
+from rest_framework import status
 from rest_framework.viewsets import ViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count
+from django.db.utils import OperationalError, ProgrammingError
 from collections import defaultdict
 
 from assessment.models import Assessment, Grade
 from so.models import StudentOutcome
-from courses.models import Course
+from courses.models import Course, CourseSOMapping
 from classess.models import Section
+from .models import ReportTemplate
+from .serializers import ReportTemplateSerializer
+
+
+DEFAULT_FORMULA = "(got80OrHigher / studentsAnswered) * distribution"
+DEFAULT_VARIABLES = [
+    {"key": "distribution", "label": "Distribution (i)"},
+    {"key": "studentsAnswered", "label": "Students Answered"},
+    {"key": "got80OrHigher", "label": "Got 80% or Higher"},
+]
 
 
 class ReportViewSet(ViewSet):
     permission_classes = [AllowAny]
     authentication_classes = []
+
+    def _report_scope_filters(self, school_year="", course_id=None, section_id=None):
+        return {
+            "school_year": school_year or "",
+            "course_id": course_id or None,
+            "section_id": section_id or None,
+        }
+
+    def _build_default_conclusion(self, attainment_percent, target_level):
+        comparison = "higher than" if attainment_percent >= target_level else "lower than"
+        return (
+            f"{round(attainment_percent, 2)}% of the class got satisfactory rating or higher. "
+            f"Thus, the level of attainment is {comparison} the target level of {target_level}%."
+        )
+
+    def _merge_saved_table(self, base_table, saved_table):
+        if not saved_table:
+            return dict(base_table)
+
+        merged = dict(base_table)
+        merged["program"] = saved_table.get("program", merged.get("program"))
+        merged["source_assessment"] = saved_table.get(
+            "source_assessment", merged.get("source_assessment")
+        )
+        merged["time_of_data_collection"] = saved_table.get(
+            "time_of_data_collection", merged.get("time_of_data_collection")
+        )
+
+        merged_totals = dict(merged.get("totals", {}))
+        saved_totals = saved_table.get("totals", {})
+        for field in ("target_level", "target_statement", "conclusion"):
+            if field in saved_totals:
+                merged_totals[field] = saved_totals[field]
+        merged["totals"] = merged_totals
+
+        saved_courses = {
+            course.get("course_id"): course for course in saved_table.get("courses", [])
+        }
+        merged_courses = []
+        for course in merged.get("courses", []):
+            saved_course = saved_courses.get(course.get("course_id"))
+            if not saved_course:
+                merged_courses.append(course)
+                continue
+
+            merged_course = dict(course)
+            for field in (
+                "course_name",
+                "actual_class_size",
+                "cli",
+                "answered_count",
+                "virtual_class_size",
+                "weighted_total",
+            ):
+                if field in saved_course:
+                    merged_course[field] = saved_course[field]
+
+            saved_indicators = {
+                indicator.get("indicator_id"): indicator
+                for indicator in saved_course.get("indicators", [])
+            }
+            base_indicators = list(merged_course.get("indicators", []))
+            merged_course["indicators"] = []
+            for indicator in base_indicators:
+                saved_indicator = saved_indicators.get(indicator.get("indicator_id"))
+                if not saved_indicator:
+                    merged_course["indicators"].append(indicator)
+                    continue
+
+                merged_indicator = dict(indicator)
+                for key, value in saved_indicator.items():
+                    if key != "indicator_id":
+                        merged_indicator[key] = value
+                merged_course["indicators"].append(merged_indicator)
+
+            merged_courses.append(merged_course)
+
+        merged["courses"] = merged_courses
+        return merged
+
+    def _build_course_mapping_lookup(self):
+        mapping_rows = CourseSOMapping.objects.prefetch_related("mapped_sos").all()
+        exact_lookup = {}
+        fallback_lookup = {}
+
+        for mapping in mapping_rows:
+            mapped_numbers = {so.number for so in mapping.mapped_sos.all()}
+            exact_lookup[(mapping.course_id, mapping.academic_year)] = mapped_numbers
+
+            existing = fallback_lookup.get(mapping.course_id)
+            if existing is None or mapping.academic_year > existing["academic_year"]:
+                fallback_lookup[mapping.course_id] = {
+                    "academic_year": mapping.academic_year,
+                    "mapped_numbers": mapped_numbers,
+                }
+
+        return exact_lookup, {
+            course_id: payload["mapped_numbers"]
+            for course_id, payload in fallback_lookup.items()
+        }
+
+    def _merge_template_into_table(self, base_table, template):
+        if not template:
+            merged = dict(base_table)
+            merged["report_config_id"] = None
+            merged["formula"] = DEFAULT_FORMULA
+            merged["variables"] = list(DEFAULT_VARIABLES)
+            return merged
+
+        merged = self._merge_saved_table(base_table, template.table_data or {})
+        merged["report_config_id"] = template.id
+        merged["formula"] = template.formula or DEFAULT_FORMULA
+        merged["variables"] = template.variables or list(DEFAULT_VARIABLES)
+        return merged
+
+    def _apply_saved_templates(self, tables, school_year="", course_id=None, section_id=None):
+        if not tables:
+            return tables
+
+        scope_filters = self._report_scope_filters(
+            school_year=school_year,
+            course_id=course_id,
+            section_id=section_id,
+        )
+        try:
+            template_map = {
+                template.student_outcome_id: template
+                for template in ReportTemplate.objects.filter(
+                    student_outcome_id__in=[table["so_id"] for table in tables],
+                    **scope_filters,
+                )
+            }
+        except (OperationalError, ProgrammingError):
+            template_map = {}
+
+        merged_tables = []
+        for table in tables:
+            merged_tables.append(
+                self._merge_template_into_table(table, template_map.get(table["so_id"]))
+            )
+        return merged_tables
 
     def _build_so_summary_tables(self, assessments):
         so_tables = []
@@ -31,8 +184,19 @@ class ReportViewSet(ViewSet):
             )
         )
 
+        mapped_so_numbers_by_course_year, fallback_so_numbers_by_course = (
+            self._build_course_mapping_lookup()
+        )
+
         grouped_by_so = defaultdict(list)
         for assessment in assessment_rows:
+            mapped_numbers = mapped_so_numbers_by_course_year.get(
+                (assessment.section.course_id, assessment.school_year)
+            )
+            if mapped_numbers is None:
+                mapped_numbers = fallback_so_numbers_by_course.get(assessment.section.course_id)
+            if mapped_numbers is not None and assessment.student_outcome.number not in mapped_numbers:
+                continue
             grouped_by_so[assessment.student_outcome_id].append(assessment)
 
         for _, so_assessments in sorted(
@@ -77,7 +241,13 @@ class ReportViewSet(ViewSet):
                 answered_students = set()
                 for assessment in course_assessments:
                     for grade in assessment.grades.all():
-                        indicator = grade.criterion.performance_indicator
+                        indicator = (
+                            grade.criterion.performance_indicator
+                            if grade.criterion_id
+                            else grade.performance_indicator
+                        )
+                        if indicator is None:
+                            continue
                         grades_by_student_indicator[(grade.student_id, indicator.id)].append(grade.score)
                         answered_students.add(grade.student_id)
 
@@ -147,7 +317,6 @@ class ReportViewSet(ViewSet):
 
             sorted_courses = list(dict.fromkeys(source_courses))
             target_level = 80
-            comparison = "higher than" if attainment_percent >= target_level else "lower than"
             source_label = ", ".join(sorted_courses) if sorted_courses else "No courses"
             school_year_label = ", ".join(school_years) if school_years else "N/A"
             program_label = ", ".join(sorted(programs)) if programs else "Computer Engineering"
@@ -168,11 +337,12 @@ class ReportViewSet(ViewSet):
                     "weighted_satisfactory_total": round(weighted_satisfactory_total, 4),
                     "attainment_percent": round(attainment_percent, 2),
                     "target_level": target_level,
-                    "conclusion": (
-                        f"{round(attainment_percent, 2)}% of the class got satisfactory rating or higher. "
-                        f"Thus, the level of attainment is {comparison} the target level of {target_level}%."
-                    ),
+                    "target_statement": f"{target_level}% of the class gets satisfactory rating or higher",
+                    "conclusion": self._build_default_conclusion(attainment_percent, target_level),
                 },
+                "report_config_id": None,
+                "formula": DEFAULT_FORMULA,
+                "variables": list(DEFAULT_VARIABLES),
             })
 
         return so_tables
@@ -329,6 +499,7 @@ class ReportViewSet(ViewSet):
             {
                 "id": section.id,
                 "name": section.name,
+                "course_id": section.course_id,
                 "course__code": section.course.code,
                 "school_year": section.academic_year,
             }
@@ -339,7 +510,12 @@ class ReportViewSet(ViewSet):
             StudentOutcome.objects.values("id", "number", "title").order_by("number")
         )
 
-        so_summary_tables = self._build_so_summary_tables(assessments)
+        so_summary_tables = self._apply_saved_templates(
+            self._build_so_summary_tables(assessments),
+            school_year=school_year,
+            course_id=course_id,
+            section_id=section_id,
+        )
 
         return Response({
             "metrics": {
@@ -362,3 +538,74 @@ class ReportViewSet(ViewSet):
                 "student_outcomes": all_sos,
             },
         })
+
+    @action(detail=False, methods=["post"], url_path="save_summary_table")
+    def save_summary_table(self, request):
+        so_id = request.data.get("so_id")
+        if not so_id:
+            return Response(
+                {"detail": "so_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        table_data = request.data.get("table_data")
+        if not isinstance(table_data, dict):
+            return Response(
+                {"detail": "table_data must be an object"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            student_outcome = StudentOutcome.objects.get(id=so_id)
+        except StudentOutcome.DoesNotExist:
+            return Response(
+                {"detail": "Student outcome not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        course_id = request.data.get("course_id") or None
+        section_id = request.data.get("section_id") or None
+        school_year = request.data.get("school_year", "") or ""
+
+        if course_id:
+            try:
+                Course.objects.get(id=course_id)
+            except Course.DoesNotExist:
+                return Response(
+                    {"detail": "Course not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        if section_id:
+            try:
+                Section.objects.get(id=section_id)
+            except Section.DoesNotExist:
+                return Response(
+                    {"detail": "Section not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        try:
+            template, _ = ReportTemplate.objects.update_or_create(
+                student_outcome=student_outcome,
+                course_id=course_id,
+                section_id=section_id,
+                school_year=school_year,
+                defaults={
+                    "formula": request.data.get("formula") or DEFAULT_FORMULA,
+                    "variables": request.data.get("variables") or list(DEFAULT_VARIABLES),
+                    "table_data": table_data,
+                },
+            )
+        except (OperationalError, ProgrammingError):
+            return Response(
+                {"detail": "Report templates table is not available yet. Run migrations first."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            {
+                "message": "Report summary saved successfully.",
+                "report_template": ReportTemplateSerializer(template).data,
+            }
+        )
