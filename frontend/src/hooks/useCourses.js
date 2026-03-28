@@ -49,7 +49,7 @@ export function useCourses() {
         studentCount: course.studentCount || course.student_count || 0,
         enrolledStudents: course.studentCount || course.student_count || 0,
         status: course.status || 'active',
-        mappedSOs: course.mappedSOs || [],
+        mappedSOs: course.mappedSOs || course.mapped_sos || [],
         performanceIndicators: course.performanceIndicators || [],
       }));
 
@@ -94,7 +94,7 @@ export function useCourses() {
         academicYear: response.data.academicYear || response.data.academic_year,
         studentCount: response.data.studentCount || response.data.student_count || 0,
         enrolledStudents: response.data.studentCount || response.data.student_count || 0,
-        mappedSOs: response.data.mappedSOs || [],
+        mappedSOs: response.data.mappedSOs || response.data.mapped_sos || [],
         performanceIndicators: response.data.performanceIndicators || [],
       };
 
@@ -114,11 +114,12 @@ export function useCourses() {
     setError(null);
     try {
       // Map frontend field names to backend expected fields
+      // IMPORTANT: PUT requests require ALL fields including course and curriculum
       const payload = {
-        course: courseData.selectedCourseId || courseData.course,
+        course: courseData.course || courseData.selectedCourseId, // Required ForeignKey
+        curriculum: courseData.curriculum, // Required ForeignKey
         code: courseData.code,
         name: courseData.name,
-        curriculum: courseData.curriculum,
         semester: courseData.semester,
         academic_year: courseData.academic_year,
         year_level: courseData.year_level || '',
@@ -126,6 +127,9 @@ export function useCourses() {
         description: courseData.description || '',
         mappedSOs: courseData.mappedSOs || [],
       };
+      
+      console.log('Updating course:', courseId, 'Payload:', payload);
+      
       const response = await axios.put(
         `${API_BASE_URL}/course-so-mappings/${courseId}/`,
         payload,
@@ -137,7 +141,7 @@ export function useCourses() {
         academicYear: response.data.academicYear || response.data.academic_year,
         studentCount: response.data.studentCount || response.data.student_count || 0,
         enrolledStudents: response.data.studentCount || response.data.student_count || 0,
-        mappedSOs: response.data.mappedSOs || [],
+        mappedSOs: response.data.mappedSOs || response.data.mapped_sos || [],
         performanceIndicators: response.data.performanceIndicators || [],
       };
 
@@ -145,6 +149,7 @@ export function useCourses() {
       return { success: true, course: updated };
     } catch (err) {
       console.error('Error updating course:', err);
+      console.error('Error response data:', err.response?.data);
       return {
         success: false,
         message: err.response?.data?.detail || 'Failed to update course',
@@ -186,7 +191,7 @@ export function useCourses() {
         academicYear: response.data.courseMapping.academicYear || response.data.courseMapping.academic_year,
         studentCount: response.data.courseMapping.studentCount || response.data.courseMapping.student_count || 0,
         enrolledStudents: response.data.courseMapping.studentCount || response.data.courseMapping.student_count || 0,
-        mappedSOs: response.data.courseMapping.mappedSOs || [],
+        mappedSOs: response.data.courseMapping.mappedSOs || response.data.courseMapping.mapped_sos || [],
         performanceIndicators: response.data.courseMapping.performanceIndicators || [],
       };
 

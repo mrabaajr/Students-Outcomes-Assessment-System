@@ -1,17 +1,14 @@
-import { useState, useEffect } from 'react';
-import { useStudentOutcomes } from '../../hooks/useStudentOutcomes';
-import { SOTabs } from '../../components/StudentOutcomes/SOTabs';
-import { SODetails } from '../../components/StudentOutcomes/SODetails';
-import { PITable } from '../../components/StudentOutcomes/PITable';
-import { Button } from '../../components/ui/button';
-import { useToast } from '../../hooks/use-toast';
-import Navbar from '../../components/dashboard/Navbar';
-import Footer from '../../components/dashboard/Footer';
-import { Plus, Settings, Loader2 } from 'lucide-react';
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import Navbar from "@/components/dashboard/Navbar";
+import Footer from "@/components/dashboard/Footer";
+import { SOCard, SOFormDialog } from "@/components/StudentOutcomes/SOCard";
+import { RubricModal } from "@/components/StudentOutcomes/RubricModal";
+import { useStudentOutcomes } from "@/hooks/useStudentOutcomes";
 
 const StudentOutcomes = () => {
   const {
-    outcomes,
+    outcomes: backendOutcomes,
     hasUnsavedChanges,
     isLoading,
     error,
@@ -22,214 +19,181 @@ const StudentOutcomes = () => {
     addPerformanceIndicator,
     updatePerformanceIndicator,
     deletePerformanceIndicator,
-
-    // ✅ NEW CRITERION FUNCTIONS
     addPerformanceCriterion,
     updatePerformanceCriterion,
     deletePerformanceCriterion,
-
   } = useStudentOutcomes();
 
-  const [selectedId, setSelectedId] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const { toast } = useToast();
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingSO, setEditingSO] = useState(null);
+  const [rubricSO, setRubricSO] = useState(null);
 
-  useEffect(() => {
-    if (
-      outcomes.length > 0 &&
-      (!selectedId || !outcomes.find(o => o.id === selectedId))
-    ) {
-      setSelectedId(outcomes[0].id);
-    }
-  }, [outcomes, selectedId]);
+  // Transform backend format (performanceIndicators/performanceCriteria) to UI format (indicators/criteria)
+  const transformToUIFormat = (outcome) => ({
+    ...outcome,
+    indicators: (outcome.performanceIndicators || []).map((pi) => ({
+      ...pi,
+      description: pi.description || pi.name || "",
+      criteria: pi.performanceCriteria || [],
+    })),
+  });
 
-  const selectedOutcome = outcomes.find((o) => o.id === selectedId);
+  // Transform UI format back to backend format
+  const transformToBackendFormat = (outcome) => ({
+    ...outcome,
+    performanceIndicators: (outcome.indicators || []).map((pi) => ({
+      ...pi,
+      name: pi.name || pi.description || "",
+      performanceCriteria: pi.criteria || [],
+    })),
+  });
 
-  const handleAddOutcome = () => {
-    const newOutcome = addOutcome();
-    setSelectedId(newOutcome.id);
-  };
+  const outcomes = backendOutcomes.map(transformToUIFormat);
 
-  const handleDeleteOutcome = (id) => {
-    deleteOutcome(id);
-    if (selectedId === id && outcomes.length > 1) {
-      const remaining = outcomes.filter(o => o.id !== id);
-      setSelectedId(remaining[0]?.id || null);
-    }
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    const result = await saveToBackend();
-    setIsSaving(false);
-
-    if (result.success) {
-      toast({
-        title: 'Changes saved',
-        description: 'Your changes have been saved to the database.',
-      });
+  const handleAddOrEdit = async (so) => {
+    const backendSO = transformToBackendFormat(so);
+    
+    if (backendSO.id && typeof backendSO.id === "number") {
+      // Editing existing outcome
+      updateOutcome(backendSO.id, backendSO);
     } else {
-      toast({
-        title: 'Error saving changes',
-        description: result.message,
-        variant: 'destructive',
-      });
+      // Adding new outcome - need to add it first
+      const newOutcome = addOutcome();
+      // Update the newly added outcome with the form data
+      updateOutcome(newOutcome.id, backendSO);
     }
+    
+    setEditingSO(null);
+    // Trigger save after state updates are processed
+    setTimeout(() => {
+      saveToBackend();
+    }, 100);
   };
 
-  // ----------------------------
-  // LOADING STATE
-  // ----------------------------
+  const handleDelete = (id) => {
+    deleteOutcome(id);
+    setTimeout(() => {
+      saveToBackend();
+    }, 100);
+  };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-[#FFC20E]" />
-            <p className="text-[#6B6B6B]">Loading student outcomes...</p>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
+  const handleSaveRubric = async (so) => {
+    const backendSO = transformToBackendFormat(so);
+    updateOutcome(backendSO.id, backendSO);
+    setRubricSO(null);
+    // Trigger save after a short delay to allow state updates
+    setTimeout(() => {
+      saveToBackend();
+    }, 100);
+  };
+
+  const usedNumbers = new Set(outcomes.map((s) => s.number));
+  let nextNumber = 1;
+  while (usedNumbers.has(nextNumber)) nextNumber++;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background">
       <Navbar />
 
       <main className="flex-1">
-        {/* HERO */}
+        {/* Hero */}
         <section className="bg-[#231F20] border-b border-[#A5A8AB] pt-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-10 sm:pb-14 lg:pb-16">
             <div className="inline-block px-3 py-1 bg-[#3A3A3A] rounded-full text-xs text-[#A5A8AB] mb-4">
               OUTCOMES MANAGEMENT
             </div>
-
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-              <span className="text-white">Student Outcomes</span>
+              <span className="text-white">Student</span>
               <br />
-              <span className="text-[#FFC20E]">Configuration</span>
+              <span className="text-[#FFC20E]">Outcomes</span>
             </h1>
-
-            <p className="text-[#A5A8AB] max-w-xl mb-8">
+            <p className="text-sm sm:text-base text-[#A5A8AB] max-w-xl mb-6 sm:mb-8">
               Define and manage student outcomes, performance indicators, and
               evaluation criteria for your program assessment.
             </p>
-
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap items-center gap-3">
               <button
-                onClick={handleAddOutcome}
-                className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-6 py-3 rounded-lg font-medium hover:bg-[#FFC20E]/90 transition-colors"
+                onClick={() => { setEditingSO(null); setFormOpen(true); }}
+                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-[#FFC20E] text-[#231F20] rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
               >
-                <Plus size={18} />
-                <span>ADD NEW SO</span>
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                ADD NEW SO
               </button>
-
-              <button
-                onClick={handleSave}
-                disabled={!hasUnsavedChanges || isSaving}
-                className="flex items-center gap-2 bg-transparent text-white px-6 py-3 rounded-lg font-medium hover:bg-[#3A3A3A] transition-colors border border-[#A5A8AB] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSaving ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <Settings size={18} />
-                )}
-                <span>{isSaving ? 'SAVING...' : 'SAVE CHANGES'}</span>
-              </button>
+              {hasUnsavedChanges && (
+                <button
+                  onClick={saveToBackend}
+                  className="px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg text-sm sm:text-base font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Saving..." : "Save Changes"}
+                </button>
+              )}
             </div>
           </div>
         </section>
 
-        {/* CONTENT */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          <SOTabs
-            outcomes={outcomes}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onAdd={handleAddOutcome}
-            onDelete={handleDeleteOutcome}
-          />
+        {/* Error Message */}
+        {error && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+              Error: {error}
+            </div>
+          </div>
+        )}
 
-          <div className="mt-6 space-y-6">
-            {selectedOutcome ? (
-              <>
-                <SODetails
-                  outcome={selectedOutcome}
-                  onUpdate={(updates) =>
-                    updateOutcome(selectedOutcome.id, updates)
-                  }
+        {/* Loading State */}
+        {isLoading && outcomes.length === 0 && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+            <div className="rounded-xl border-2 border-dashed border-[#A5A8AB] bg-white p-12 text-center">
+              <p className="text-[#6B6B6B]">Loading student outcomes...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Content */}
+        {!isLoading && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+            <div className="flex flex-col gap-4">
+              {[...outcomes].sort((a, b) => a.number - b.number).map((so) => (
+                <SOCard
+                  key={so.id}
+                  so={so}
+                  onEdit={(s) => { setEditingSO(s); setFormOpen(true); }}
+                  onDelete={handleDelete}
+                  onOpenRubric={setRubricSO}
                 />
-
-                <PITable
-                  indicators={selectedOutcome.performanceIndicators}
-                  onAdd={() =>
-                    addPerformanceIndicator(selectedOutcome.id)
-                  }
-                  onUpdate={(piId, updates) =>
-                    updatePerformanceIndicator(
-                      selectedOutcome.id,
-                      piId,
-                      updates
-                    )
-                  }
-                  onDelete={(piId) =>
-                    deletePerformanceIndicator(
-                      selectedOutcome.id,
-                      piId
-                    )
-                  }
-
-                  // ✅ NEW CRITERION PROPS
-                  onAddCriterion={(piId) =>
-                    addPerformanceCriterion(
-                      selectedOutcome.id,
-                      piId
-                    )
-                  }
-                  onUpdateCriterion={(piId, criterionId, updates) =>
-                    updatePerformanceCriterion(
-                      selectedOutcome.id,
-                      piId,
-                      criterionId,
-                      updates
-                    )
-                  }
-                  onDeleteCriterion={(piId, criterionId) =>
-                    deletePerformanceCriterion(
-                      selectedOutcome.id,
-                      piId,
-                      criterionId
-                    )
-                  }
-                />
-              </>
-            ) : (
-              <div className="glass-card p-12 text-center">
-                <Settings className="w-16 h-16 mx-auto mb-4 text-[#A5A8AB]" />
-                <h3 className="text-lg font-semibold text-[#231F20] mb-2">
-                  No Student Outcomes
-                </h3>
-                <p className="text-[#6B6B6B] mb-6">
-                  Get started by creating your first student outcome
+              ))}
+            </div>
+            {outcomes.length === 0 && (
+              <div className="rounded-xl border-2 border-dashed border-[#A5A8AB] bg-white p-12 text-center mt-4">
+                <p className="text-[#6B6B6B]">
+                  No student outcomes yet. Click "ADD NEW SO" to get started.
                 </p>
-                <Button
-                  onClick={handleAddOutcome}
-                  className="bg-[#FFC20E] text-[#231F20] hover:bg-[#FFC20E]/90"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add New SO
-                </Button>
               </div>
             )}
           </div>
-        </div>
+        )}
       </main>
 
       <Footer />
+
+      <SOFormDialog
+        key={editingSO?.id ?? "new"}
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        onSave={handleAddOrEdit}
+        editingSO={editingSO}
+        nextNumber={nextNumber}
+      />
+      {rubricSO && (
+        <RubricModal
+          open={!!rubricSO}
+          onOpenChange={(open) => !open && setRubricSO(null)}
+          studentOutcome={rubricSO}
+          onSave={handleSaveRubric}
+        />
+      )}
     </div>
   );
 };

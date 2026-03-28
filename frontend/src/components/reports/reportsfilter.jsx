@@ -11,7 +11,7 @@ export default function ReportsFilter({ filters, setFilters, filterOptions }) {
   const filteredSections = useMemo(() => {
     if (!filters.course) return sections;
     return sections.filter(
-      (s) => String(s.course__code) === filters.course || String(s.id) === filters.section
+      (s) => String(s.course_id) === filters.course || String(s.id) === filters.section
     );
   }, [sections, filters.course]);
 

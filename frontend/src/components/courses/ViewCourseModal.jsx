@@ -29,14 +29,6 @@ const ViewCourseModal = ({ isOpen, onClose, course, studentOutcomes = [] }) => {
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
-          {/* Status */}
-          <Badge 
-            variant={course.status === 'active' ? 'default' : 'secondary'}
-            className={course.status === 'active' ? 'bg-success text-success-foreground' : ''}
-          >
-            {course.status}
-          </Badge>
-
           {/* Details Grid */}
           <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-2">

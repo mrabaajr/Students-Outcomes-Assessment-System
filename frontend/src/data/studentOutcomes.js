@@ -1,232 +1,153 @@
-// Student Outcomes data and related utilities
+export const generateId = () => crypto.randomUUID();
 
-export const studentOutcomes = [
+const buildCriteria = (criteria = []) =>
+  criteria.map((criterion) => ({
+    id: generateId(),
+    name: criterion,
+  }));
+
+const buildIndicator = (description, criteria = []) => ({
+  id: generateId(),
+  description,
+  criteria: buildCriteria(criteria),
+});
+
+export const initialStudentOutcomes = [
   {
-    id: 1,
-    code: "SO1",
-    name: "Engineering Knowledge",
-    description: "Apply knowledge of mathematics, natural science, computing and engineering",
-    performanceIndicators: [
-      {
-        id: "PI1.1",
-        description: "Apply mathematics to solve engineering problems",
-        targetLevel: 3,
-        weight: 0.3,
-      },
-      {
-        id: "PI1.2",
-        description: "Apply natural science principles to engineering solutions",
-        targetLevel: 3,
-        weight: 0.3,
-      },
-      {
-        id: "PI1.3",
-        description: "Apply computing fundamentals to solve problems",
-        targetLevel: 3,
-        weight: 0.4,
-      },
+    id: generateId(),
+    number: 1,
+    title: "T.I.P. SO 1",
+    description:
+      "identify, formulate, and solve complex engineering problems by applying knowledge and principles of engineering, science, and mathematics",
+    indicators: [
+      buildIndicator(
+        "identify complex engineering problems by applying knowledge and principles of engineering, science, and mathematics"
+      ),
+      buildIndicator(
+        "formulate engineering solutions in solving complex engineering problems by applying knowledge and principles of engineering, science, and mathematics"
+      ),
+      buildIndicator(
+        "solve complex engineering problems by applying knowledge and principles of engineering, science, and mathematics.",
+        [
+          "Approaches in solving complex engineering problems.",
+          "Application of appropriate mathematical, science, and engineering principles in solving complex engineering problems",
+        ]
+      ),
     ],
   },
   {
-    id: 2,
-    code: "SO2",
-    name: "Problem Analysis",
-    description: "Identify, formulate, research literature and analyze complex engineering problems",
-    performanceIndicators: [
-      {
-        id: "PI2.1",
-        description: "Identify and formulate complex engineering problems",
-        targetLevel: 3,
-        weight: 0.4,
-      },
-      {
-        id: "PI2.2",
-        description: "Research and analyze literature relevant to the problem",
-        targetLevel: 3,
-        weight: 0.3,
-      },
-      {
-        id: "PI2.3",
-        description: "Analyze problems using appropriate methodologies",
-        targetLevel: 3,
-        weight: 0.3,
-      },
+    id: generateId(),
+    number: 2,
+    title: "T.I.P. SO 2",
+    description:
+      "apply engineering design to produce solutions that meet specified needs with consideration of public health, safety, welfare, global, cultural, social, environmental, and economic factors.",
+    indicators: [
+      buildIndicator(
+        "Identify a problem and formulate engineering solutions and/or satisfy a need"
+      ),
+      buildIndicator("Use trade-offs to determine final design choice"),
+      buildIndicator(
+        "solve complex engineering problems by applying knowledge and principles of engineering, science, and mathematics."
+      ),
+      buildIndicator("Apply appropriate standards and codes in the design process"),
     ],
   },
   {
-    id: 3,
-    code: "SO3",
-    name: "Design/Development of Solutions",
-    description: "Design solutions for complex engineering problems and design system components",
-    performanceIndicators: [
-      {
-        id: "PI3.1",
-        description: "Design solutions that meet specified needs",
-        targetLevel: 3,
-        weight: 0.4,
-      },
-      {
-        id: "PI3.2",
-        description: "Consider public health, safety, and welfare in design",
-        targetLevel: 3,
-        weight: 0.3,
-      },
-      {
-        id: "PI3.3",
-        description: "Design system components with appropriate constraints",
-        targetLevel: 3,
-        weight: 0.3,
-      },
+    id: generateId(),
+    number: 3,
+    title: "T.I.P. SO 3",
+    description:
+      "communicate effectively on complex engineering activities with various communities including engineering experts and society at large using appropriate levels of discourse.",
+    indicators: [
+      buildIndicator(
+        "Ability to communicate effectively and inclusively on complex engineering activities with a range of audiences by being able to comprehend in a variety of ways considering cultural, language, and learning differences",
+        ["Comprehension on complex engineering activities"]
+      ),
+      buildIndicator(
+        "Ability to communicate effectively and inclusively on complex engineering activities with a range of audiences by being able to write in a variety of ways considering cultural, language, and learning differences",
+        [
+          "Problem Statement or purpose",
+          "Expression of ideas",
+          "Illustrations to support the core messages",
+          "Conclusion and summary",
+          "List of references",
+        ]
+      ),
+      buildIndicator(
+        "Ability to communicate effectively and inclusively on complex engineering activities with a range of audiences by being able to present in a variety of ways considering cultural, language, and learning differences",
+        [
+          "Confidence in presenting the topic",
+          "Coherence and consistency",
+          "Energy and enthusiasm",
+        ]
+      ),
     ],
   },
   {
-    id: 4,
-    code: "SO4",
-    name: "Investigation",
-    description: "Conduct investigations of complex problems using research-based knowledge",
-    performanceIndicators: [
-      {
-        id: "PI4.1",
-        description: "Plan and conduct investigations systematically",
-        targetLevel: 3,
-        weight: 0.4,
-      },
-      {
-        id: "PI4.2",
-        description: "Apply research-based knowledge and methods",
-        targetLevel: 3,
-        weight: 0.3,
-      },
-      {
-        id: "PI4.3",
-        description: "Analyze and interpret investigation results",
-        targetLevel: 3,
-        weight: 0.3,
-      },
+    id: generateId(),
+    number: 4,
+    title: "T.I.P. SO 4",
+    description:
+      "recognize ethical and professional responsibilities in engineering situations and make informed judgments, which must consider the impact of engineering solutions in global, economic, environmental, and societal contexts.",
+    indicators: [
+      buildIndicator(
+        "An ability to apply principles of ethics and commit to professional ethics, technology ethics, data ethics, global responsibilities, and norms of engineering practice; and adhere to relevant national and international laws",
+        [
+          "Apply principles of ethics and comply with professional Ethics, Technology Ethics and Data Ethics.",
+          "Adopt global responsibilities and norms of engineering practice",
+          "Adhere to relevant national and international laws",
+        ]
+      ),
+      buildIndicator("An ability to comprehend the need for diversity and inclusion"),
+      buildIndicator(
+        "An ability to recognize ethical and professional responsibilities in engineering situations and make informed judgments which must consider the sustainability impact of engineering solutions in human, cultural, global, economic, environmental, and societal contexts",
+        [
+          "ability to recognize ethical and professional responsibilities in engineering situations",
+          "ability to make informed judgments which must consider the sustainability impact of engineering solutions in human, cultural, global, economic, environmental, and societal contexts",
+        ]
+      ),
     ],
   },
   {
-    id: 5,
-    code: "SO5",
-    name: "Modern Tool Usage",
-    description: "Create, select, and apply appropriate techniques, resources, and modern engineering tools",
-    performanceIndicators: [
-      {
-        id: "PI5.1",
-        description: "Select appropriate modern engineering tools",
-        targetLevel: 3,
-        weight: 0.3,
-      },
-      {
-        id: "PI5.2",
-        description: "Apply tools effectively to engineering activities",
-        targetLevel: 3,
-        weight: 0.4,
-      },
-      {
-        id: "PI5.3",
-        description: "Understand limitations of modern tools",
-        targetLevel: 3,
-        weight: 0.3,
-      },
+    id: generateId(),
+    number: 5,
+    title: "T.I.P. SO 5",
+    description:
+      "function effectively as an individual member in diverse and inclusive teams and/or leader who provide leadership, create a collaborative and inclusive environment, establish goals, plan tasks, and meet objectives in multi-disciplinary and long-distance settings by applying knowledge of engineering and management principles",
+    indicators: [
+      buildIndicator(
+        "Ability to function effectively as an individual member in diverse and inclusive teams and/or leader who provide leadership"
+      ),
+      buildIndicator("Ability to create a collaborative and inclusive environment"),
+      buildIndicator(
+        "Ability to establish goals, plan tasks, and meet objectives in multi-disciplinary, multicultural, and long-distance setting by applying knowledge of engineering and management principles"
+      ),
     ],
   },
   {
-    id: 6,
-    code: "SO6",
-    name: "The Engineer and Society",
-    description: "Apply reasoning informed by contextual knowledge to assess societal, health, safety, legal and cultural issues",
-    performanceIndicators: [
-      {
-        id: "PI6.1",
-        description: "Assess societal and health impacts of engineering solutions",
-        targetLevel: 3,
-        weight: 0.35,
-      },
-      {
-        id: "PI6.2",
-        description: "Consider safety and legal issues in engineering practice",
-        targetLevel: 3,
-        weight: 0.35,
-      },
-      {
-        id: "PI6.3",
-        description: "Apply cultural awareness in engineering contexts",
-        targetLevel: 3,
-        weight: 0.3,
-      },
+    id: generateId(),
+    number: 6,
+    title: "T.I.P. SO 6",
+    description:
+      "develop and conduct appropriate experimentation, analyze and interpret data, and use engineering judgment to draw conclusions",
+    indicators: [
+      buildIndicator("Develop appropriate experimentation"),
+      buildIndicator("Conduct appropriate experimentation"),
+      buildIndicator("Ability to analyze and interpret data"),
+      buildIndicator("Use of engineering judgment to draw conclusions"),
     ],
   },
   {
-    id: 7,
-    code: "SO7",
-    name: "Environment and Sustainability",
-    description: "Understand the impact of professional engineering solutions in societal and environmental contexts",
-    performanceIndicators: [
-      {
-        id: "PI7.1",
-        description: "Assess environmental impact of engineering solutions",
-        targetLevel: 3,
-        weight: 0.4,
-      },
-      {
-        id: "PI7.2",
-        description: "Apply sustainability principles in engineering design",
-        targetLevel: 3,
-        weight: 0.35,
-      },
-      {
-        id: "PI7.3",
-        description: "Understand global and societal context of solutions",
-        targetLevel: 3,
-        weight: 0.25,
-      },
+    id: generateId(),
+    number: 7,
+    title: "T.I.P. SO 7",
+    description:
+      "acquire and apply new knowledge as needed, using appropriate learning strategies to engage in independent and life-long learning, creativity and adaptability to new and emerging technologies, and critical thinking in the broadest context of technological change.",
+    indicators: [
+      buildIndicator("Acquire and apply new knowledge from outside sources"),
+      buildIndicator("Learn independently"),
+      buildIndicator("Critical thinking in the broadest context of technological change"),
+      buildIndicator("Creativity and adaptability to new and emerging technologies"),
     ],
   },
 ];
-
-export const courses = [
-  { id: 1, code: "CS101", name: "Introduction to Programming" },
-  { id: 2, code: "CS201", name: "Data Structures" },
-  { id: 3, code: "CS301", name: "Database Systems" },
-  { id: 4, code: "CS401", name: "Software Engineering" },
-  { id: 5, code: "IT202", name: "Web Development" },
-];
-
-export const sections = [
-  { id: 1, name: "Section A", courseId: 1 },
-  { id: 2, name: "Section B", courseId: 1 },
-  { id: 3, name: "Section A", courseId: 2 },
-  { id: 4, name: "Section A", courseId: 3 },
-];
-
-// Generate sample students for testing
-export const generateSampleStudents = (soId) => {
-  const so = studentOutcomes.find(s => s.id === soId);
-  if (!so) return [];
-
-  const firstNames = ["John", "Emma", "Michael", "Sophia", "William", "Olivia", "James", "Ava", "Benjamin", "Isabella"];
-  const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"];
-  
-  const students = [];
-  for (let i = 0; i < 30; i++) {
-    const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-    const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-    const studentId = `2024${String(1000 + i).padStart(4, '0')}`;
-    
-    const grades = {};
-    so.performanceIndicators.forEach(pi => {
-      // Generate random grades (0-4) or null for some students
-      grades[pi.id] = Math.random() > 0.2 ? Math.floor(Math.random() * 5) : null;
-    });
-    
-    students.push({
-      id: i + 1,
-      studentId,
-      name: `${firstName} ${lastName}`,
-      grades,
-    });
-  }
-  
-  return students;
-};

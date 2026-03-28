@@ -1,22 +1,21 @@
 import { Eye, Pencil, Trash2, BookMarked } from 'lucide-react';
 import { Button } from '../ui/button';
 
-const CourseCard = ({ course, onView, onEdit, onDelete }) => {
+const CourseCard = ({ course, onView, onEdit, onDelete, studentOutcomes = [] }) => {
+  // Filter mapped SOs - handle both string/number IDs or full objects
+  const mappedSODetails = studentOutcomes.filter(so => 
+    course.mappedSOs?.some(mapped => {
+      if (typeof mapped === 'object') return mapped.id === so.id;
+      return String(mapped) === String(so.id);
+    })
+  );
+
   return (
     <div className="glass-card p-5 hover-lift">
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-bold text-[#231F20] text-lg">{course.code}</h3>
-            <span className={`text-xs px-2 py-0.5 rounded ${
-              course.status === 'active' 
-                ? 'bg-success/10 text-success font-medium' 
-                : 'bg-[#A5A8AB]/20 text-[#6B6B6B] font-medium'
-            }`}>
-              {course.status || 'active'}
-            </span>
-          </div>
+          <h3 className="font-bold text-[#231F20] text-lg mb-1">{course.code}</h3>
           <p className="text-sm text-[#6B6B6B]">{course.name}</p>
         </div>
       </div>
@@ -33,10 +32,10 @@ const CourseCard = ({ course, onView, onEdit, onDelete }) => {
       <div className="mb-4 pb-4 border-b border-[#E5E7EB]">
         <p className="text-xs text-[#6B6B6B] mb-2">Mapped SOs:</p>
         <div className="flex flex-wrap gap-1">
-          {course.mappedSOs && course.mappedSOs.length > 0 ? (
-            course.mappedSOs.map((soId) => (
-              <span key={soId} className="bg-[#FFC20E]/20 text-[#231F20] border border-[#FFC20E]/30 text-xs px-2 py-1 rounded font-medium">
-                SO {soId}
+          {mappedSODetails.length > 0 ? (
+            mappedSODetails.map((so) => (
+              <span key={so.id} className="bg-[#FFC20E]/20 text-[#231F20] border border-[#FFC20E]/30 text-xs px-2 py-1 rounded font-medium">
+                SO {so.number}
               </span>
             ))
           ) : (

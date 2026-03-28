@@ -1,7 +1,9 @@
 import { useState, useCallback } from "react";
 import { Save, Download, Upload, CheckCircle2, AlertCircle, Circle, RotateCcw } from "lucide-react";
+import axios from "axios";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
+import { toast } from "../../hooks/use-toast";
 
 const sections = [
   { id: "CPE41S1", label: "CPE 401 - CPE41S1 (Computer Networks)", courseId: "CPE401" },
@@ -116,6 +118,101 @@ const FacultyAssessments = () => {
 
   const handleSave = () => setSaved(true);
   const handleClear = () => { setGrades({}); setSaved(false); };
+
+  const handleExportCSV = async () => {
+    if (!selectedSection || !selectedSO) {
+      toast({
+        title: "Export Failed",
+        description: "Please select a section and student outcome first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Find the section ID to get courseId (in this case it's a string ID from sections array)
+      const section = sections.find(s => s.id === selectedSection);
+      const sectionObj = { id: selectedSection, name: selectedSection };
+      const soObj = availableSOs.find(so => so.id === selectedSO);
+
+      // Create CSV data
+      const csvContent = [];
+      
+      // Header info
+      csvContent.push(['Assessment Export']);
+      csvContent.push(['Section', selectedSection]);
+      csvContent.push(['Course', section?.label?.split(' - ')[0] || '']);
+      csvContent.push(['Student Outcome', soObj?.title || '']);
+      csvContent.push(['School Year', '2024-2025']);
+      csvContent.push([]);
+
+      // Column headers
+      const headers = ['Student ID', 'Student Name'];
+      for (const criterion of allCriteria) {
+        headers.push(criterion.label);
+      }
+      headers.push('Average');
+      csvContent.push(headers);
+
+      // Student rows
+      for (const student of students) {
+        const row = [student.id, student.name];
+        const scores = [];
+        
+        for (const criterion of allCriteria) {
+          const score = grades[`${student.id}-${criterion.id}`];
+          if (score !== undefined && score !== "") {
+            row.push(score);
+            scores.push(score);
+          } else {
+            row.push('');
+          }
+        }
+
+        // Average
+        if (scores.length > 0) {
+          const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2);
+          row.push(avg);
+        } else {
+          row.push('Not Graded');
+        }
+
+        csvContent.push(row);
+      }
+
+      // Convert to CSV string
+      const csvString = csvContent.map(row => 
+        row.map(cell => 
+          typeof cell === 'string' && cell.includes(',') ? `"${cell}"` : cell
+        ).join(',')
+      ).join('\n');
+
+      // Create blob and download
+      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Assessment_${selectedSection}_${selectedSO}_2024-2025.csv`);
+      link.style.visibility = 'hidden';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "Export Successful",
+        description: "Assessment data exported as CSV file.",
+      });
+    } catch (err) {
+      console.error("Error exporting:", err);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export assessment data.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -258,9 +355,9 @@ const FacultyAssessments = () => {
                 <Save className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span>SAVE GRADES</span>
               </button>
-              <button className="flex items-center gap-2 bg-white text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-gray-50 transition-colors border border-gray-200">
+              <button onClick={handleExportCSV} className="flex items-center gap-2 bg-white text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-gray-50 transition-colors border border-gray-200">
                 <Download className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>EXPORT TEMPLATE</span>
+                <span>EXPORT CSV</span>
               </button>
               <button className="flex items-center gap-2 bg-white text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-gray-50 transition-colors border border-gray-200">
                 <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
