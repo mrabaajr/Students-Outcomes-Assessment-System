@@ -23,6 +23,12 @@ DEFAULT_VARIABLES = [
 ]
 
 
+def faculty_display_name(faculty):
+    if not faculty:
+        return ""
+    return " ".join(part for part in [faculty.first_name, faculty.last_name] if part).strip() or faculty.email
+
+
 class ReportViewSet(ViewSet):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -466,12 +472,13 @@ class ReportViewSet(ViewSet):
             pass_rate = round((passed_s / total_s) * 100, 1) if total_s > 0 else 0
 
             # Faculty names
-            faculty_names = list(
-                Section.objects
-                .filter(course_id=c_id, assessments__in=assessments)
-                .exclude(assigned_faculty__isnull=True)
-                .values_list("assigned_faculty__name", flat=True)
-                .distinct()
+            faculty_names = sorted(
+                {
+                    faculty_display_name(section.faculty)
+                    for section in Section.objects.select_related("faculty")
+                    .filter(course_id=c_id, assessments__in=assessments)
+                    if section.faculty
+                }
             )
 
             course_summary.append({

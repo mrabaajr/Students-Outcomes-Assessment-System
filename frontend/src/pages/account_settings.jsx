@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Lock, CheckCircle, X, UserPlus } from "lucide-react";
+import { Lock, CheckCircle, UserPlus } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import Navbar from "../components/dashboard/Navbar";
 import Footer from "../components/dashboard/Footer";
+import FacultyAccountModal from "@/components/accounts/FacultyAccountModal";
 
 const API_BASE_URL = "http://localhost:8000/api";
 
@@ -18,19 +19,7 @@ const Index = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   
-  // Faculty account creation states
   const [showFacultyModal, setShowFacultyModal] = useState(false);
-  const [facultyForm, setFacultyForm] = useState({
-    username: "",
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    passwordConfirmation: ""
-  });
-  const [facultyErrors, setFacultyErrors] = useState("");
-  const [facultySuccess, setFacultySuccess] = useState("");
-  const [isFacultySubmitting, setIsFacultySubmitting] = useState(false);
   
   const location = useLocation();
   const isProgramChair = location.pathname.startsWith('/programchair');
@@ -70,93 +59,6 @@ const Index = () => {
       setErrorMessage("Failed to update password. Please try again.");
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleFacultyFormChange = (e) => {
-    const { name, value } = e.target;
-    setFacultyForm(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const validateFacultyForm = () => {
-    if (!facultyForm.username || !facultyForm.firstName || !facultyForm.lastName || !facultyForm.email || !facultyForm.password || !facultyForm.passwordConfirmation) {
-      setFacultyErrors("All fields are required");
-      return false;
-    }
-
-    if (facultyForm.password.length < 8) {
-      setFacultyErrors("Password must be at least 8 characters");
-      return false;
-    }
-
-    if (facultyForm.password !== facultyForm.passwordConfirmation) {
-      setFacultyErrors("Passwords do not match");
-      return false;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(facultyForm.email)) {
-      setFacultyErrors("Please enter a valid email address");
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleFacultySubmit = async (e) => {
-    e.preventDefault();
-    setFacultyErrors("");
-    setFacultySuccess("");
-
-    if (!validateFacultyForm()) {
-      return;
-    }
-
-    setIsFacultySubmitting(true);
-    try {
-      const response = await fetch("/api/users/create-faculty/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-        },
-        body: JSON.stringify({
-          username: facultyForm.username,
-          first_name: facultyForm.firstName,
-          last_name: facultyForm.lastName,
-          email: facultyForm.email,
-          password: facultyForm.password,
-          role: "faculty"
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        setFacultyErrors(errorData.message || "Failed to create faculty account");
-        return;
-      }
-
-      setFacultySuccess("Faculty account created successfully!");
-      setFacultyForm({
-        username: "",
-        firstName: "",
-        lastName: "",
-        email: "",
-        password: "",
-        passwordConfirmation: ""
-      });
-
-      setTimeout(() => {
-        setShowFacultyModal(false);
-        setFacultySuccess("");
-      }, 2000);
-    } catch (error) {
-      setFacultyErrors("Failed to create faculty account. Please try again.");
-    } finally {
-      setIsFacultySubmitting(false);
     }
   };
 
@@ -347,175 +249,10 @@ const Index = () => {
         </div>
       </main>
 
-      {/* Faculty Account Creation Modal */}
-      {showFacultyModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-[#D1D5DB]">
-              <h2 className="text-xl font-bold text-[#231F20] flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-[#FFC20E]" />
-                Create Faculty Account
-              </h2>
-              <button
-                onClick={() => {
-                  setShowFacultyModal(false);
-                  setFacultyErrors("");
-                  setFacultySuccess("");
-                }}
-                className="text-[#6B6B6B] hover:text-[#231F20] transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6">
-              {facultySuccess && (
-                <div className="mb-4 p-4 bg-success/10 border border-success rounded-lg flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-success">{facultySuccess}</p>
-                  </div>
-                </div>
-              )}
-
-              {facultyErrors && (
-                <div className="mb-4 p-4 bg-destructive/10 border border-destructive rounded-lg">
-                  <p className="text-sm font-medium text-destructive">{facultyErrors}</p>
-                </div>
-              )}
-
-              <form onSubmit={handleFacultySubmit} className="space-y-4">
-                {/* Username */}
-                <div>
-                  <Label className="text-sm font-semibold text-[#231F20]">
-                    <span className="text-destructive">*</span> Username
-                  </Label>
-                  <Input
-                    type="text"
-                    name="username"
-                    placeholder="Enter username"
-                    value={facultyForm.username}
-                    onChange={handleFacultyFormChange}
-                    disabled={isFacultySubmitting}
-                    className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
-                    required
-                  />
-                </div>
-
-                {/* First Name */}
-                <div>
-                  <Label className="text-sm font-semibold text-[#231F20]">
-                    <span className="text-destructive">*</span> First Name
-                  </Label>
-                  <Input
-                    type="text"
-                    name="firstName"
-                    placeholder="Enter first name"
-                    value={facultyForm.firstName}
-                    onChange={handleFacultyFormChange}
-                    disabled={isFacultySubmitting}
-                    className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
-                    required
-                  />
-                </div>
-
-                {/* Last Name */}
-                <div>
-                  <Label className="text-sm font-semibold text-[#231F20]">
-                    <span className="text-destructive">*</span> Last Name
-                  </Label>
-                  <Input
-                    type="text"
-                    name="lastName"
-                    placeholder="Enter last name"
-                    value={facultyForm.lastName}
-                    onChange={handleFacultyFormChange}
-                    disabled={isFacultySubmitting}
-                    className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
-                    required
-                  />
-                </div>
-
-                {/* Email */}
-                <div>
-                  <Label className="text-sm font-semibold text-[#231F20]">
-                    <span className="text-destructive">*</span> Email
-                  </Label>
-                  <Input
-                    type="email"
-                    name="email"
-                    placeholder="Enter email address"
-                    value={facultyForm.email}
-                    onChange={handleFacultyFormChange}
-                    disabled={isFacultySubmitting}
-                    className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
-                    required
-                  />
-                </div>
-
-                {/* Password */}
-                <div>
-                  <Label className="text-sm font-semibold text-[#231F20]">
-                    <span className="text-destructive">*</span> Password
-                  </Label>
-                  <Input
-                    type="password"
-                    name="password"
-                    placeholder="Enter password (min. 8 characters)"
-                    value={facultyForm.password}
-                    onChange={handleFacultyFormChange}
-                    disabled={isFacultySubmitting}
-                    className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
-                    required
-                  />
-                </div>
-
-                {/* Password Confirmation */}
-                <div>
-                  <Label className="text-sm font-semibold text-[#231F20]">
-                    <span className="text-destructive">*</span> Confirm Password
-                  </Label>
-                  <Input
-                    type="password"
-                    name="passwordConfirmation"
-                    placeholder="Re-enter password"
-                    value={facultyForm.passwordConfirmation}
-                    onChange={handleFacultyFormChange}
-                    disabled={isFacultySubmitting}
-                    className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
-                    required
-                  />
-                </div>
-
-                {/* Modal Actions */}
-                <div className="flex gap-3 pt-4">
-                  <Button
-                    type="submit"
-                    disabled={isFacultySubmitting}
-                    className="flex-1 px-4 py-2.5 bg-[#FFC20E] text-[#231F20] font-semibold hover:bg-[#FFC20E]/90 transition-colors"
-                  >
-                    {isFacultySubmitting ? "Creating..." : "Create Account"}
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setShowFacultyModal(false);
-                      setFacultyErrors("");
-                      setFacultySuccess("");
-                    }}
-                    disabled={isFacultySubmitting}
-                    className="flex-1 px-4 py-2.5 bg-[#D1D5DB] text-[#231F20] font-semibold hover:bg-[#D1D5DB]/80 transition-colors"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+      <FacultyAccountModal
+        open={showFacultyModal}
+        onClose={() => setShowFacultyModal(false)}
+      />
 
       <Footer />
     </div>

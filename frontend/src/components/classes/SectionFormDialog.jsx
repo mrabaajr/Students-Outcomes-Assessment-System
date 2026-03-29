@@ -1,27 +1,27 @@
 import { useState, useEffect } from "react";
+import axios from "axios";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import axios from "axios";
+
 
 const API_BASE_URL = "http://localhost:8000/api";
 
-const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
+
+const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions = [] }) => {
   const [name, setName] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [courseCode, setCourseCode] = useState("");
   const [courseName, setCourseName] = useState("");
-  const [schedule, setSchedule] = useState("");
-  const [room, setRoom] = useState("");
   const [schoolYear, setSchoolYear] = useState("");
   const [schoolYears, setSchoolYears] = useState([]);
+  const [facultyEmail, setFacultyEmail] = useState("");
 
-  // Backend courses list
   const [backendCourses, setBackendCourses] = useState([]);
   const [loadingCourses, setLoadingCourses] = useState(false);
 
-  // Fetch courses from backend
   useEffect(() => {
     if (!open) return;
     setLoadingCourses(true);
@@ -51,32 +51,30 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
 
   useEffect(() => {
     if (initialData) {
-      setName(initialData.name);
-      setCourseCode(initialData.courseCode);
-      setCourseName(initialData.courseName);
-      setSchedule(initialData.schedule);
-      setRoom(initialData.room);
+      setName(initialData.name || "");
+      setCourseCode(initialData.courseCode || "");
+      setCourseName(initialData.courseName || "");
       setSchoolYear(initialData.schoolYear || "");
-      // Try to match to a backend course
+      setFacultyEmail(initialData.facultyEmail || "");
+
       const match = backendCourses.find(
-        (c) => c.code === initialData.courseCode && c.name === initialData.courseName
+        (course) => course.code === initialData.courseCode && course.name === initialData.courseName
       );
       setSelectedCourseId(match ? String(match.id) : "");
     } else {
       setName("");
       setCourseCode("");
       setCourseName("");
-      setSchedule("");
-      setRoom("");
       setSchoolYear("");
+      setFacultyEmail("");
       setSelectedCourseId("");
     }
   }, [initialData, open, backendCourses]);
 
-  const handleCourseSelect = (e) => {
-    const id = e.target.value;
+  const handleCourseSelect = (event) => {
+    const id = event.target.value;
     setSelectedCourseId(id);
-    const course = backendCourses.find((c) => String(c.id) === id);
+    const course = backendCourses.find((item) => String(item.id) === id);
     if (course) {
       setCourseCode(course.code);
       setCourseName(course.name);
@@ -86,9 +84,15 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave({ name, courseCode, courseName, schedule, room, schoolYear });
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    onSave({
+      name,
+      courseCode,
+      courseName,
+      schoolYear,
+      facultyEmail,
+    });
     onClose();
   };
 
@@ -101,12 +105,17 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Section Name</Label>
-            <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. CPE11S1" required />
+            <Input
+              id="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. CPE32S1"
+              required
+            />
           </div>
 
-          {/* Course selection from backend */}
           <div className="space-y-2">
-            <Label htmlFor="courseSelect">Select Course</Label>
+            <Label htmlFor="courseSelect">Course</Label>
             <select
               id="courseSelect"
               value={selectedCourseId}
@@ -117,34 +126,29 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
               <option value="">
                 {loadingCourses ? "Loading courses..." : "-- Select a course --"}
               </option>
-              {backendCourses.map((c) => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.code} — {c.name}
+              {backendCourses.map((course) => (
+                <option key={course.id} value={String(course.id)}>
+                  {course.code} - {course.name}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Course Code</Label>
-              <Input value={courseCode} readOnly className="bg-muted" />
-            </div>
-            <div className="space-y-2">
-              <Label>Course Name</Label>
-              <Input value={courseName} readOnly className="bg-muted" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="schedule">Schedule</Label>
-              <Input id="schedule" value={schedule} onChange={e => setSchedule(e.target.value)} placeholder="e.g. MWF 8:00-9:30" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="room">Room</Label>
-              <Input id="room" value={room} onChange={e => setRoom(e.target.value)} placeholder="e.g. Room 401" required />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="facultySelect">Professor</Label>
+            <select
+              id="facultySelect"
+              value={facultyEmail}
+              onChange={(event) => setFacultyEmail(event.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">-- Leave unassigned --</option>
+              {facultyOptions.map((faculty) => (
+                <option key={faculty.id} value={faculty.email}>
+                  {faculty.name} ({faculty.email})
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-2">
@@ -152,7 +156,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
             <select
               id="schoolYear"
               value={schoolYear}
-              onChange={e => setSchoolYear(e.target.value)}
+              onChange={(event) => setSchoolYear(event.target.value)}
               required
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -164,6 +168,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
               ))}
             </select>
           </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit">{initialData ? "Update" : "Add"}</Button>
@@ -173,5 +178,6 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
     </Dialog>
   );
 };
+
 
 export default SectionFormDialog;

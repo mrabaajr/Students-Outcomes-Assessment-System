@@ -1,8 +1,6 @@
 import { useState } from "react";
 import {
   Users,
-  Clock,
-  MapPin,
   BookOpen,
   ChevronDown,
   ChevronUp,
@@ -70,17 +68,9 @@ const SectionCard = ({
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="hidden sm:flex flex-col items-end text-xs text-[#6B6B6B] gap-0.5">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {section.schedule}
-            </span>
-            <span className="flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              {section.room}
-            </span>
+          <div className="hidden sm:flex flex-col items-end text-xs gap-1">
             {section.schoolYear && (
-              <span className="flex items-center gap-1 font-semibold text-[#231F20]">
+              <span className="font-semibold text-[#231F20]">
                 SY {section.schoolYear}
               </span>
             )}
