@@ -1,4 +1,4 @@
-import { Eye, Pencil, Trash2, BookMarked } from 'lucide-react';
+import { Eye, Pencil, Trash2, BookMarked, Calendar, GraduationCap } from 'lucide-react';
 import { Button } from '../ui/button';
 
 const CourseCard = ({ course, onView, onEdit, onDelete, studentOutcomes = [] }) => {
@@ -25,6 +25,14 @@ const CourseCard = ({ course, onView, onEdit, onDelete, studentOutcomes = [] }) 
         <div className="flex items-center gap-2 text-sm text-[#6B6B6B]">
           <BookMarked className="h-4 w-4" />
           <span>{course.academicYear}</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-[#6B6B6B]">
+          <Calendar className="h-4 w-4" />
+          <span>{course.semester || 'No semester assigned'}</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-[#6B6B6B]">
+          <GraduationCap className="h-4 w-4" />
+          <span>{course.curriculum || 'No curriculum assigned'}</span>
         </div>
       </div>
 

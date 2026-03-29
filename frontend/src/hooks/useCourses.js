@@ -3,6 +3,29 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
+const normalizeCourse = (course) => ({
+  id: course.id,
+  course: course.course,
+  code: course.code,
+  name: course.name,
+  section: course.section || '',
+  department: course.department,
+  description: course.description || '',
+  credits: course.credits || 3,
+  curriculum: course.curriculum_year || course.curriculumYear || course.curriculum,
+  curriculum_year: course.curriculum_year || course.curriculumYear || course.curriculum,
+  semester: course.semester,
+  year_level: course.year_level || '',
+  academic_year: course.academic_year || '',
+  academicYear: course.academicYear || course.academic_year,
+  instructor: course.instructor || '',
+  studentCount: course.studentCount || course.student_count || 0,
+  enrolledStudents: course.studentCount || course.student_count || 0,
+  status: course.status || 'active',
+  mappedSOs: course.mappedSOs || course.mapped_sos || [],
+  performanceIndicators: course.performanceIndicators || [],
+});
+
 const getErrorMessage = (err, fallback) => {
   const detail = err.response?.data?.detail;
   if (typeof detail === 'string') return detail;
@@ -53,27 +76,7 @@ export function useCourses() {
         headers: getAuthHeader(),
       });
 
-      const transformed = response.data.map(course => ({
-        id: course.id,
-        course: course.course,
-        code: course.code,
-        name: course.name,
-        section: course.section || '',
-        department: course.department,
-        description: course.description || '',
-        credits: course.credits || 3,
-        curriculum: course.curriculum_year || course.curriculum,
-        semester: course.semester,
-        year_level: course.year_level || '',
-        academic_year: course.academic_year || '',
-        academicYear: course.academicYear || course.academic_year,
-        instructor: course.instructor || '',
-        studentCount: course.studentCount || course.student_count || 0,
-        enrolledStudents: course.studentCount || course.student_count || 0,
-        status: course.status || 'active',
-        mappedSOs: course.mappedSOs || course.mapped_sos || [],
-        performanceIndicators: course.performanceIndicators || [],
-      }));
+      const transformed = response.data.map(normalizeCourse);
 
       setCourses(transformed);
     } catch (err) {
@@ -111,14 +114,7 @@ export function useCourses() {
         { headers: getAuthHeader() }
       );
 
-      const newCourse = {
-        ...response.data,
-        academicYear: response.data.academicYear || response.data.academic_year,
-        studentCount: response.data.studentCount || response.data.student_count || 0,
-        enrolledStudents: response.data.studentCount || response.data.student_count || 0,
-        mappedSOs: response.data.mappedSOs || response.data.mapped_sos || [],
-        performanceIndicators: response.data.performanceIndicators || [],
-      };
+      const newCourse = normalizeCourse(response.data);
 
       setCourses(prev => [...prev, newCourse]);
       return { success: true, course: newCourse };
@@ -158,14 +154,7 @@ export function useCourses() {
         { headers: getAuthHeader() }
       );
 
-      const updated = {
-        ...response.data,
-        academicYear: response.data.academicYear || response.data.academic_year,
-        studentCount: response.data.studentCount || response.data.student_count || 0,
-        enrolledStudents: response.data.studentCount || response.data.student_count || 0,
-        mappedSOs: response.data.mappedSOs || response.data.mapped_sos || [],
-        performanceIndicators: response.data.performanceIndicators || [],
-      };
+      const updated = normalizeCourse(response.data);
 
       setCourses(prev => prev.map(c => c.id === courseId ? updated : c));
       return { success: true, course: updated };
@@ -208,14 +197,7 @@ export function useCourses() {
         { headers: getAuthHeader() }
       );
 
-      const updated = {
-        ...response.data.courseMapping,
-        academicYear: response.data.courseMapping.academicYear || response.data.courseMapping.academic_year,
-        studentCount: response.data.courseMapping.studentCount || response.data.courseMapping.student_count || 0,
-        enrolledStudents: response.data.courseMapping.studentCount || response.data.courseMapping.student_count || 0,
-        mappedSOs: response.data.courseMapping.mappedSOs || response.data.courseMapping.mapped_sos || [],
-        performanceIndicators: response.data.courseMapping.performanceIndicators || [],
-      };
+      const updated = normalizeCourse(response.data.courseMapping);
 
       setCourses(prev => prev.map(c => c.id === courseId ? updated : c));
       return { success: true, message: response.data.message };
