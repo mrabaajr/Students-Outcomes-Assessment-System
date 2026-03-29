@@ -121,9 +121,7 @@ export const useStudentOutcomes = () => {
       );
       // Update local state with saved data (now has proper backend IDs)
       const savedOutcomes = (response.data.outcomes || []).map(transformFromBackend);
-      if (savedOutcomes.length > 0) {
-        setOutcomes(savedOutcomes);
-      }
+      setOutcomes(savedOutcomes);
       setHasUnsavedChanges(false);
       return { success: true };
     } catch (err) {
