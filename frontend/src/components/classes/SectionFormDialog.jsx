@@ -20,6 +20,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
   const [schoolYear, setSchoolYear] = useState("");
   const [schoolYears, setSchoolYears] = useState([]);
   const [facultyEmail, setFacultyEmail] = useState("");
+  const [isActive, setIsActive] = useState(true);
 
   const [backendCourses, setBackendCourses] = useState([]);
   const [loadingCourses, setLoadingCourses] = useState(false);
@@ -59,6 +60,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
       setSemester(initialData.semester || "");
       setSchoolYear(initialData.schoolYear || "");
       setFacultyEmail(initialData.facultyEmail || "");
+      setIsActive(initialData.isActive ?? true);
 
       const match = backendCourses.find(
         (course) => course.code === initialData.courseCode && course.name === initialData.courseName
@@ -71,6 +73,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
       setSemester("");
       setSchoolYear("");
       setFacultyEmail("");
+      setIsActive(true);
       setSelectedCourseId("");
     }
   }, [initialData, open, backendCourses]);
@@ -100,6 +103,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
       semester,
       schoolYear,
       facultyEmail,
+      isActive,
     });
     onClose();
   };
@@ -193,6 +197,22 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border border-input bg-background px-3 py-3">
+            <div>
+              <Label htmlFor="sectionActive">Active Section</Label>
+              <p className="text-xs text-muted-foreground">
+                Only active sections should be used for current assessments.
+              </p>
+            </div>
+            <input
+              id="sectionActive"
+              type="checkbox"
+              checked={isActive}
+              onChange={(event) => setIsActive(event.target.checked)}
+              className="h-4 w-4"
+            />
           </div>
 
           <DialogFooter>

@@ -26,6 +26,7 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [sectionSearch, setSectionSearch] = useState("");
   const [selectedCourse, setSelectedCourse] = useState("All Courses");
+  const [selectedSectionStatus, setSelectedSectionStatus] = useState("All Statuses");
   const [selectedSemester, setSelectedSemester] = useState("All Semesters");
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("All School Years");
   const [selectedFaculty, setSelectedFaculty] = useState("All Faculty");
@@ -131,6 +132,10 @@ const Index = () => {
         hasStudentMatch;
 
       const matchesCourse = selectedCourse === "All Courses" || section.courseCode === selectedCourse;
+      const matchesStatus =
+        selectedSectionStatus === "All Statuses" ||
+        (selectedSectionStatus === "Active" && section.isActive !== false) ||
+        (selectedSectionStatus === "Inactive" && section.isActive === false);
       const matchesSemester = selectedSemester === "All Semesters" || section.semester === selectedSemester;
       const matchesSchoolYear =
         selectedSchoolYear === "All School Years" || section.schoolYear === selectedSchoolYear;
@@ -143,13 +148,14 @@ const Index = () => {
       return (
         matchesSearch &&
         matchesCourse &&
+        matchesStatus &&
         matchesSemester &&
         matchesSchoolYear &&
         matchesFaculty &&
         matchesAssignmentStatus
       );
     });
-  }, [sectionsData, facultyData, sectionSearch, selectedCourse, selectedSemester, selectedSchoolYear, selectedFaculty, selectedAssignmentStatus]);
+  }, [sectionsData, facultyData, sectionSearch, selectedCourse, selectedSectionStatus, selectedSemester, selectedSchoolYear, selectedFaculty, selectedAssignmentStatus]);
 
   const filteredFaculty = useMemo(() => {
     return facultyData.filter((faculty) => {
@@ -176,6 +182,7 @@ const Index = () => {
   const resetSectionFilters = () => {
     setSectionSearch("");
     setSelectedCourse("All Courses");
+    setSelectedSectionStatus("All Statuses");
     setSelectedSemester("All Semesters");
     setSelectedSchoolYear("All School Years");
     setSelectedFaculty("All Faculty");
@@ -241,6 +248,7 @@ const Index = () => {
       ? {
           ...editingSection,
           ...data,
+          isActive: data.isActive,
           semester: data.semester,
           academicYear: data.schoolYear,
         }
@@ -249,6 +257,7 @@ const Index = () => {
           id: Date.now().toString(),
           students: [],
           studentOutcomes: [],
+          isActive: data.isActive,
           semester: data.semester,
           academicYear: data.schoolYear,
         };
@@ -712,7 +721,7 @@ const Index = () => {
                   </div>
 
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
-                    <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                    <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                       <div>
                         <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
                           <Filter className="h-3.5 w-3.5" />
@@ -728,6 +737,21 @@ const Index = () => {
                               {course}
                             </option>
                           ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          Status
+                        </label>
+                        <select
+                          value={selectedSectionStatus}
+                          onChange={(event) => setSelectedSectionStatus(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          <option value="All Statuses">All Statuses</option>
+                          <option value="Active">Active</option>
+                          <option value="Inactive">Inactive</option>
                         </select>
                       </div>
 

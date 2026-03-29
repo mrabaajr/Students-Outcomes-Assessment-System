@@ -332,6 +332,7 @@ class SectionViewSet(viewsets.ModelViewSet):
                     "courseName": sec.course.name,
                     "facultyName": build_faculty_name(sec.faculty),
                     "curriculum": sec.course.curriculum.year if sec.course.curriculum else "",
+                    "isActive": sec.is_active,
                     "semester": sec.semester or sec.course.semester or "",
                     "schoolYear": sec.academic_year or "",
                     "academicYear": sec.academic_year or "",
@@ -432,6 +433,7 @@ class SectionViewSet(viewsets.ModelViewSet):
                         semester=semester or "1st Semester",
                         defaults={
                             "faculty": section_faculty.get((sec["name"], course_code)),
+                            "is_active": sec.get("isActive", True),
                         },
                     )
                     saved_section_ids.add(section_obj.id)

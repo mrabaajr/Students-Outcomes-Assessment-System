@@ -153,16 +153,27 @@ class CourseSOMappingCreateUpdateSerializer(serializers.ModelSerializer):
         mapped_so_ids = validated_data.pop('mappedSOs', [])
         curriculum = self._resolve_curriculum(validated_data.pop('curriculum', None))
         course = self._resolve_course(validated_data, curriculum)
-        mapping = CourseSOMapping.objects.create(
+        mapping_defaults = {
+            'code': validated_data.get('code', course.code),
+            'name': validated_data.get('name', course.name),
+            'year_level': validated_data.get('year_level', course.year_level),
+            'credits': validated_data.get('credits', course.credits),
+            'description': validated_data.get('description', course.description),
+        }
+        mapping, _ = CourseSOMapping.objects.update_or_create(
             course=course,
             curriculum=curriculum,
-            **validated_data,
+            academic_year=validated_data['academic_year'],
+            semester=validated_data['semester'],
+            defaults=mapping_defaults,
         )
 
         if mapped_so_ids:
             so_ids = [int(so_id) for so_id in mapped_so_ids if so_id.isdigit()]
             sos = StudentOutcome.objects.filter(id__in=so_ids)
             mapping.mapped_sos.set(sos)
+        else:
+            mapping.mapped_sos.clear()
 
         return mapping
 
@@ -170,6 +181,22 @@ class CourseSOMappingCreateUpdateSerializer(serializers.ModelSerializer):
         mapped_so_ids = validated_data.pop('mappedSOs', None)
         curriculum = self._resolve_curriculum(validated_data.pop('curriculum', instance.curriculum_id))
         course = self._resolve_course(validated_data, curriculum, instance=instance)
+        next_academic_year = validated_data.get('academic_year', instance.academic_year)
+        next_semester = validated_data.get('semester', instance.semester)
+
+        conflicting_mapping = CourseSOMapping.objects.filter(
+            course=course,
+            curriculum=curriculum,
+            academic_year=next_academic_year,
+            semester=next_semester,
+        ).exclude(id=instance.id).first()
+
+        if conflicting_mapping:
+            raise serializers.ValidationError(
+                {
+                    'academic_year': 'A course SO mapping already exists for this course, school year, and semester.',
+                }
+            )
 
         instance.course = course
         instance.curriculum = curriculum

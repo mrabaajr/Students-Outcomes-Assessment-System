@@ -77,6 +77,7 @@ class SectionSerializer(serializers.ModelSerializer):
             "course_name",
             "faculty",
             "faculty_id",
+            "is_active",
             "semester",
             "academic_year",
             "student_count",

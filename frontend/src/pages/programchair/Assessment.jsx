@@ -173,15 +173,19 @@ export default function SOAssessment() {
       setStudentOutcomes(soData);
       // Don't auto-select first SO - let user choose from filters
 
-      const sections = (secRes.data.sections || []).map((section) => ({
-        ...section,
-        facultyName: section.facultyName || getFacultyForSection(section, secRes.data.faculty || []),
-      }));
+      const sections = (secRes.data.sections || [])
+        .filter((section) => section.isActive !== false)
+        .map((section) => ({
+          ...section,
+          facultyName: section.facultyName || getFacultyForSection(section, secRes.data.faculty || []),
+        }));
       const faculty = secRes.data.faculty || [];
       setSectionsData(sections);
       setFacultyData(faculty);
 
-      // Build course-SO mappings: courseCode -> [soIds]
+      // Build course-SO mappings: courseCode -> union of all mapped SO ids
+      // This prevents one academic-year mapping row from overwriting another
+      // when multiple course mappings share the same course code.
       const mappings = {};
       const courses = Array.isArray(mappingRes.data) ? mappingRes.data : mappingRes.data.results || [];
       courses.forEach(course => {
@@ -198,7 +202,8 @@ export default function SOAssessment() {
         );
         
         if (course.code && soIds.length > 0) {
-          mappings[course.code] = soIds;
+          const existingIds = mappings[course.code] || [];
+          mappings[course.code] = [...new Set([...existingIds, ...soIds])];
         }
       });
       setCourseMappings(mappings);

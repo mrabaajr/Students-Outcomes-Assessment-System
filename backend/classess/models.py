@@ -38,6 +38,7 @@ class Section(models.Model):
         blank=True,
         null=True,
     )
+    is_active = models.BooleanField(default=True, db_index=True)
     semester = models.CharField(max_length=20, blank=True, default="")
     academic_year = models.CharField(max_length=20, blank=True, default="")
 

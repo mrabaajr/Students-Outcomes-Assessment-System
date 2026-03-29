@@ -35,9 +35,20 @@ const SectionCard = ({
           </div>
 
           <div>
-            <h3 className="font-bold text-base text-[#231F20]">
-              {section.name}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-base text-[#231F20]">
+                {section.name}
+              </h3>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  section.isActive !== false
+                    ? "bg-green-100 text-green-700"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {section.isActive !== false ? "Active" : "Inactive"}
+              </span>
+            </div>
 
             <p className="text-sm text-[#6B6B6B] flex items-center gap-1">
               <BookOpen className="w-3.5 h-3.5" />

@@ -95,6 +95,12 @@ class CourseSOMapping(models.Model):
         ordering = ['code']
         verbose_name = "Course SO Mapping"
         verbose_name_plural = "Course SO Mappings"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['course', 'curriculum', 'academic_year', 'semester'],
+                name='unique_course_mapping_per_term',
+            )
+        ]
 
     def __str__(self):
         return f"{self.code}: {self.name} ({self.academic_year})"
