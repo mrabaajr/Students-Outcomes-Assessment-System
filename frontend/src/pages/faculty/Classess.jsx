@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Search, Users, Clock, MapPin, BookOpen, ChevronDown, ChevronUp, Download, Upload, AlertCircle, CheckCircle, X } from "lucide-react";
+import { useState, useRef, useMemo } from "react";
+import { Search, Users, Clock, MapPin, BookOpen, ChevronDown, ChevronUp, Download, Upload, AlertCircle, CheckCircle, X, Filter, RotateCcw } from "lucide-react";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
 
@@ -74,8 +74,11 @@ const sectionsData = [
 
 const FacultyClasses = () => {
   const [search, setSearch] = useState("");
-  const [selectedYear, setSelectedYear] = useState("2024-2025");
+  const [selectedYear, setSelectedYear] = useState("All School Years");
+  const [selectedCourse, setSelectedCourse] = useState("All Courses");
+  const [selectedSection, setSelectedSection] = useState("All Sections");
   const [expandedSection, setExpandedSection] = useState(null);
+  const [viewMode, setViewMode] = useState("card"); // "card" or "list"
   const [importModal, setImportModal] = useState({
     isOpen: false,
     sectionId: null,
@@ -86,13 +89,43 @@ const FacultyClasses = () => {
   });
   const fileInputRef = useRef(null);
 
-  const filtered = sectionsData.filter(
-    (s) =>
-      s.schoolYear === selectedYear &&
-      (s.code.toLowerCase().includes(search.toLowerCase()) ||
-        s.name.toLowerCase().includes(search.toLowerCase()) ||
-        s.section.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filterOptions = useMemo(() => {
+    const courses = ["All Courses", ...new Set(sectionsData.map((section) => section.code).filter(Boolean))];
+    const schoolYears = ["All School Years", ...new Set(sectionsData.map((section) => section.schoolYear).filter(Boolean))];
+    const sections = ["All Sections", ...new Set(sectionsData.map((section) => section.section).filter(Boolean))];
+    return { courses, schoolYears, sections };
+  }, []);
+
+  const filtered = useMemo(() => {
+    return sectionsData.filter(
+      (s) => {
+        const normalizedSearch = search.trim().toLowerCase();
+        const matchesSearch =
+          normalizedSearch === "" ||
+          s.code.toLowerCase().includes(normalizedSearch) ||
+          s.name.toLowerCase().includes(normalizedSearch) ||
+          s.section.toLowerCase().includes(normalizedSearch) ||
+          s.students.some(
+            (student) =>
+              student.name.toLowerCase().includes(normalizedSearch) ||
+              student.id.toLowerCase().includes(normalizedSearch)
+          );
+
+        const matchesCourse = selectedCourse === "All Courses" || s.code === selectedCourse;
+        const matchesYear = selectedYear === "All School Years" || s.schoolYear === selectedYear;
+        const matchesSection = selectedSection === "All Sections" || s.section === selectedSection;
+
+        return matchesSearch && matchesCourse && matchesYear && matchesSection;
+      }
+    );
+  }, [search, selectedCourse, selectedYear, selectedSection]);
+
+  const resetFilters = () => {
+    setSearch("");
+    setSelectedCourse("All Courses");
+    setSelectedYear("All School Years");
+    setSelectedSection("All Sections");
+  };
 
   const handleImportClick = (sectionId, sectionName) => {
     setImportModal({
@@ -201,118 +234,295 @@ const FacultyClasses = () => {
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
             <span className="text-white">My Classes</span>
           </h1>
-          <p className="text-sm sm:text-base text-[#A5A8AB] max-w-xl">
+          <p className="text-sm sm:text-base text-[#A5A8AB] max-w-xl mb-6">
             View your assigned sections, student rosters, and mapped outcomes.
           </p>
+
+          <div className="flex items-center bg-[#3A3A3A] rounded-lg p-1 w-fit">
+            <button
+              onClick={() => setViewMode("card")}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors ${
+                viewMode === "card"
+                  ? "bg-[#FFC20E] text-[#231F20]"
+                  : "text-[#A5A8AB] hover:text-white"
+              }`}
+            >
+              <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Card View</span>
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors ${
+                viewMode === "list"
+                  ? "bg-[#FFC20E] text-[#231F20]"
+                  : "text-[#A5A8AB] hover:text-white"
+              }`}
+            >
+              <Users className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">List View</span>
+            </button>
+          </div>
         </div>
       </section>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Filters */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A5A8AB]" />
-            <input
-              type="text"
-              placeholder="Search courses or sections..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-white text-[#231F20] text-sm rounded-lg pl-10 pr-4 py-2.5 border border-gray-200 focus:border-[#FFC20E] focus:outline-none placeholder:text-[#A5A8AB]"
-            />
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 sm:p-5 shadow-sm mb-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+            <div className="flex-1">
+              <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                <Search className="h-3.5 w-3.5" />
+                Search
+              </label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A5A8AB]" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Section, course, or student"
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white py-2.5 pl-10 pr-3 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                />
+              </div>
+            </div>
+
+            <div className="grid flex-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                  <Filter className="h-3.5 w-3.5" />
+                  Course
+                </label>
+                <select
+                  value={selectedCourse}
+                  onChange={(e) => setSelectedCourse(e.target.value)}
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                >
+                  {filterOptions.courses.map((course) => (
+                    <option key={course} value={course}>
+                      {course}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                  School Year
+                </label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                >
+                  {filterOptions.schoolYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                  Section
+                </label>
+                <select
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                >
+                  {filterOptions.sections.map((section) => (
+                    <option key={section} value={section}>
+                      {section}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={resetFilters}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB]"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset
+            </button>
           </div>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
-            className="bg-white text-[#231F20] text-sm rounded-lg px-4 py-2.5 border border-gray-200 focus:border-[#FFC20E] focus:outline-none"
-          >
-            <option value="2024-2025">2024-2025</option>
-            <option value="2023-2024">2023-2024</option>
-          </select>
+
+          <div className="mt-4 text-sm text-[#6B6B6B]">
+            Showing <span className="font-semibold text-[#231F20]">{filtered.length}</span> of{" "}
+            <span className="font-semibold text-[#231F20]">{sectionsData.length}</span> sections
+          </div>
         </div>
 
-        {/* Section Cards */}
-        <div className="space-y-4">
-          {filtered.map((sec) => {
-            const isExpanded = expandedSection === sec.section;
-            return (
-              <div key={sec.section} className="glass-card overflow-hidden hover:shadow-md transition-shadow">
-                <div className="p-5 sm:p-6">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded">{sec.code}</span>
-                        <h3 className="font-semibold text-[#231F20]">{sec.name}</h3>
+        {/* Section Cards Grid */}
+        <div className={viewMode === "card" ? "grid gap-4 md:grid-cols-2 lg:grid-cols-3" : "space-y-4"}>
+          {viewMode === "card" && (
+            <>
+              {filtered.map((sec) => {
+                const isExpanded = expandedSection === sec.section;
+                return (
+                  <div key={sec.section} className="flex flex-col glass-card overflow-hidden hover:shadow-lg transition-shadow">
+                    <div className="p-4 sm:p-5">
+                      {/* Header with Code and SOs */}
+                      <div className="mb-3">
+                        <div className="flex items-start gap-2 mb-2">
+                          <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded flex-shrink-0">{sec.code}</span>
+                          <div className="flex flex-wrap gap-1">
+                            {sec.mappedSOs.slice(0, 2).map((so) => (
+                              <span key={so} className="text-[9px] font-semibold bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                                {so}
+                              </span>
+                            ))}
+                            {sec.mappedSOs.length > 2 && (
+                              <span className="text-[9px] font-semibold bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                                +{sec.mappedSOs.length - 2}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <h3 className="font-semibold text-sm text-[#231F20] line-clamp-2">{sec.name}</h3>
+                        <p className="text-xs text-[#6B6B6B] mt-1">{sec.section}</p>
                       </div>
-                      <p className="text-sm text-[#6B6B6B]">{sec.section}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {sec.mappedSOs.map((so) => (
-                        <span key={so} className="text-[10px] font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded">
-                          {so}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
 
-                  <div className="flex flex-wrap gap-4 mt-4 text-xs text-[#6B6B6B]">
-                    <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />{sec.schedule}</span>
-                    <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{sec.room}</span>
-                    <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" />{sec.students.length} students</span>
-                    <span className="flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" />{sec.semester} Sem, {sec.schoolYear}</span>
-                  </div>
+                      {/* Info Grid */}
+                      <div className="grid grid-cols-2 gap-2 mb-4 text-xs">
+                        <div className="flex items-start gap-1.5">
+                          <Clock className="h-3 w-3 text-[#A5A8AB] flex-shrink-0 mt-0.5" />
+                          <span className="text-[#6B6B6B] line-clamp-2">{sec.schedule}</span>
+                        </div>
+                        <div className="flex items-start gap-1.5">
+                          <MapPin className="h-3 w-3 text-[#A5A8AB] flex-shrink-0 mt-0.5" />
+                          <span className="text-[#6B6B6B]">{sec.room}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Users className="h-3 w-3 text-[#A5A8AB]" />
+                          <span className="text-[#6B6B6B]">{sec.students.length} students</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <BookOpen className="h-3 w-3 text-[#A5A8AB]" />
+                          <span className="text-[#6B6B6B]">{sec.schoolYear}</span>
+                        </div>
+                      </div>
 
-                  <div className="flex flex-wrap gap-2 mt-4">
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleImportClick(sec.id, sec.section)}
+                          className="flex-1 flex items-center justify-center gap-1 text-xs font-medium text-white bg-primary hover:bg-primary/90 transition rounded px-2 py-1.5"
+                        >
+                          <Upload className="h-3 w-3" />
+                          Import
+                        </button>
+                        <button className="flex-1 flex items-center justify-center gap-1 text-xs font-medium text-[#6B6B6B] bg-gray-100 hover:bg-gray-200 transition rounded px-2 py-1.5">
+                          <Download className="h-3 w-3" />
+                          Export
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* View Students Button */}
                     <button
                       onClick={() => setExpandedSection(isExpanded ? null : sec.section)}
-                      className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition"
+                      className="border-t border-gray-200 py-2 px-4 text-xs font-medium text-primary hover:text-primary/80 transition flex items-center justify-center gap-1.5"
                     >
                       {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                       {isExpanded ? "Hide" : "View"} Students
                     </button>
-                    <button 
-                      onClick={() => handleImportClick(sec.id, sec.section)}
-                      className="flex items-center gap-1.5 text-xs font-medium text-[#6B6B6B] hover:text-[#231F20] transition"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      Import CSV
-                    </button>
-                    <button className="flex items-center gap-1.5 text-xs font-medium text-[#6B6B6B] hover:text-[#231F20] transition">
-                      <Download className="h-3.5 w-3.5" />
-                      Export Roster
-                    </button>
-                  </div>
-                </div>
 
-                {isExpanded && (
-                  <div className="border-t border-gray-200 px-5 sm:px-6 pb-5">
-                    <table className="w-full text-sm mt-3">
-                      <thead>
-                        <tr className="text-[11px] uppercase tracking-wider text-[#6B6B6B]">
-                          <th className="text-left py-2 font-semibold">Student ID</th>
-                          <th className="text-left py-2 font-semibold">Name</th>
-                          <th className="text-left py-2 font-semibold">Program</th>
-                          <th className="text-left py-2 font-semibold">Year</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sec.students.map((stu) => (
-                          <tr key={stu.id} className="border-t border-gray-100">
-                            <td className="py-2 text-primary font-mono text-xs">{stu.id}</td>
-                            <td className="py-2 text-[#231F20]">{stu.name}</td>
-                            <td className="py-2 text-[#6B6B6B]">{stu.program}</td>
-                            <td className="py-2 text-[#6B6B6B]">{stu.year}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    {/* Expanded Student List */}
+                    {isExpanded && (
+                      <div className="border-t border-gray-200 bg-[#F9FAFB] px-4 py-3">
+                        <div className="text-xs space-y-2 max-h-48 overflow-y-auto">
+                          {sec.students.map((stu) => (
+                            <div key={stu.id} className="border-b border-gray-100 pb-2 last:border-0">
+                              <div className="font-mono text-primary text-[10px] mb-0.5">{stu.id}</div>
+                              <div className="font-medium text-[#231F20] text-xs">{stu.name}</div>
+                              <div className="text-[#6B6B6B] text-[10px]">{stu.program} - Year {stu.year}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
+                );
+              })}
+            </>
+          )}
+
+          {viewMode === "list" && (
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
+                      <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Course Code</th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Course Name</th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Section</th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Schedule</th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Room</th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Students</th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">School Year</th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((sec) => (
+                      <tr key={sec.id} className="border-b border-[#E5E7EB] hover:bg-[#F9FAFB] transition">
+                        <td className="py-3 px-4">
+                          <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded">{sec.code}</span>
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-[#231F20]">{sec.name}</td>
+                        <td className="py-3 px-4 text-[#6B6B6B]">{sec.section}</td>
+                        <td className="py-3 px-4 text-[#6B6B6B] text-xs">{sec.schedule}</td>
+                        <td className="py-3 px-4 text-[#6B6B6B] text-xs">{sec.room}</td>
+                        <td className="py-3 px-4 text-[#6B6B6B]">
+                          <span className="inline-flex items-center gap-1.5">
+                            <Users className="h-3.5 w-3.5" />
+                            {sec.students.length}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-[#6B6B6B]">{sec.schoolYear}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => handleImportClick(sec.id, sec.section)}
+                              className="text-[10px] font-medium text-primary hover:text-primary/80 transition bg-primary/10 px-2 py-1 rounded"
+                            >
+                              Import
+                            </button>
+                            <button className="text-[10px] font-medium text-[#6B6B6B] hover:text-[#231F20] transition bg-gray-100 px-2 py-1 rounded">
+                              Export
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            );
-          })}
+            </div>
+          )}
 
           {filtered.length === 0 && (
-            <div className="text-center py-12 text-[#A5A8AB]">No sections found matching your criteria.</div>
+            <div className="text-center py-12 bg-white rounded-lg border border-[#E5E7EB]">
+              <Users className="w-12 h-12 text-[#A5A8AB] mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-[#231F20] mb-2">
+                {sectionsData.length === 0 ? "No Sections Yet" : "No Matching Sections"}
+              </h3>
+              <p className="text-sm text-[#6B6B6B] mb-4">
+                {sectionsData.length === 0
+                  ? "You don't have any classes assigned yet."
+                  : "Try adjusting or clearing your filters to see more results."}
+              </p>
+              {sectionsData.length > 0 && (
+                <button
+                  onClick={resetFilters}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#231F20] text-white rounded-lg text-sm font-medium hover:bg-[#3A3A3A]"
+                >
+                  <RotateCcw className="w-4 h-4" /> Reset Filters
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
