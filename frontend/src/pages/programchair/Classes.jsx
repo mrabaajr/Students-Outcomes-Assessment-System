@@ -26,6 +26,7 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [sectionSearch, setSectionSearch] = useState("");
   const [selectedCourse, setSelectedCourse] = useState("All Courses");
+  const [selectedSemester, setSelectedSemester] = useState("All Semesters");
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("All School Years");
   const [selectedFaculty, setSelectedFaculty] = useState("All Faculty");
   const [selectedAssignmentStatus, setSelectedAssignmentStatus] = useState("All Sections");
@@ -77,6 +78,7 @@ const Index = () => {
 
   const sectionFilterOptions = useMemo(() => {
     const courses = ["All Courses", ...new Set(sectionsData.map((section) => section.courseCode).filter(Boolean))];
+    const semesters = ["All Semesters", ...new Set(sectionsData.map((section) => section.semester).filter(Boolean))];
     const schoolYears = ["All School Years", ...new Set(sectionsData.map((section) => section.schoolYear).filter(Boolean))];
     const facultyNames = [
       "All Faculty",
@@ -94,7 +96,7 @@ const Index = () => {
       ),
     ];
 
-    return { courses, schoolYears, facultyNames };
+    return { courses, semesters, schoolYears, facultyNames };
   }, [sectionsData, facultyData]);
 
   const facultyCourseOptions = useMemo(() => {
@@ -129,6 +131,7 @@ const Index = () => {
         hasStudentMatch;
 
       const matchesCourse = selectedCourse === "All Courses" || section.courseCode === selectedCourse;
+      const matchesSemester = selectedSemester === "All Semesters" || section.semester === selectedSemester;
       const matchesSchoolYear =
         selectedSchoolYear === "All School Years" || section.schoolYear === selectedSchoolYear;
       const matchesFaculty = selectedFaculty === "All Faculty" || facultyName === selectedFaculty;
@@ -137,9 +140,16 @@ const Index = () => {
         (selectedAssignmentStatus === "Assigned" && facultyName) ||
         (selectedAssignmentStatus === "Unassigned" && !facultyName);
 
-      return matchesSearch && matchesCourse && matchesSchoolYear && matchesFaculty && matchesAssignmentStatus;
+      return (
+        matchesSearch &&
+        matchesCourse &&
+        matchesSemester &&
+        matchesSchoolYear &&
+        matchesFaculty &&
+        matchesAssignmentStatus
+      );
     });
-  }, [sectionsData, facultyData, sectionSearch, selectedCourse, selectedSchoolYear, selectedFaculty, selectedAssignmentStatus]);
+  }, [sectionsData, facultyData, sectionSearch, selectedCourse, selectedSemester, selectedSchoolYear, selectedFaculty, selectedAssignmentStatus]);
 
   const filteredFaculty = useMemo(() => {
     return facultyData.filter((faculty) => {
@@ -166,6 +176,7 @@ const Index = () => {
   const resetSectionFilters = () => {
     setSectionSearch("");
     setSelectedCourse("All Courses");
+    setSelectedSemester("All Semesters");
     setSelectedSchoolYear("All School Years");
     setSelectedFaculty("All Faculty");
     setSelectedAssignmentStatus("All Sections");
@@ -224,10 +235,13 @@ const Index = () => {
 
   // --- Section handlers ---
   const handleSaveSection = (data) => {
+    const previousSectionName = editingSection?.name || "";
+    const previousCourseCode = editingSection?.courseCode || "";
     const savedSection = editingSection
       ? {
           ...editingSection,
           ...data,
+          semester: data.semester,
           academicYear: data.schoolYear,
         }
       : {
@@ -235,6 +249,7 @@ const Index = () => {
           id: Date.now().toString(),
           students: [],
           studentOutcomes: [],
+          semester: data.semester,
           academicYear: data.schoolYear,
         };
 
@@ -252,7 +267,22 @@ const Index = () => {
         const updatedCourses = faculty.courses
           .map((course) => {
             const isSameCourse = course.code === savedSection.courseCode;
-            const filteredSections = course.sections.filter((sectionName) => sectionName !== savedSection.name);
+            const filteredSections = course.sections.filter((sectionName) => {
+              if (sectionName === savedSection.name) {
+                return false;
+              }
+
+              if (
+                previousSectionName &&
+                previousCourseCode &&
+                course.code === previousCourseCode &&
+                sectionName === previousSectionName
+              ) {
+                return false;
+              }
+
+              return true;
+            });
 
             if (normalizedFacultyEmail === targetFacultyEmail && isSameCourse) {
               return {
@@ -664,8 +694,8 @@ const Index = () => {
           {activeTab === "sections" && (
             <div className="space-y-4">
               <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 sm:p-5 shadow-sm">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-                  <div className="flex-1">
+                <div className="space-y-4">
+                  <div>
                     <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
                       <Search className="h-3.5 w-3.5" />
                       Search
@@ -681,82 +711,101 @@ const Index = () => {
                     </div>
                   </div>
 
-                  <div className="grid flex-1 gap-4 sm:grid-cols-4">
-                    <div>
-                      <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                        <Filter className="h-3.5 w-3.5" />
-                        Course
-                      </label>
-                      <select
-                        value={selectedCourse}
-                        onChange={(event) => setSelectedCourse(event.target.value)}
-                        className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                      >
-                        {sectionFilterOptions.courses.map((course) => (
-                          <option key={course} value={course}>
-                            {course}
-                          </option>
-                        ))}
-                      </select>
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
+                    <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                      <div>
+                        <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          <Filter className="h-3.5 w-3.5" />
+                          Course
+                        </label>
+                        <select
+                          value={selectedCourse}
+                          onChange={(event) => setSelectedCourse(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          {sectionFilterOptions.courses.map((course) => (
+                            <option key={course} value={course}>
+                              {course}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          Semester
+                        </label>
+                        <select
+                          value={selectedSemester}
+                          onChange={(event) => setSelectedSemester(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          {sectionFilterOptions.semesters.map((semester) => (
+                            <option key={semester} value={semester}>
+                              {semester}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          School Year
+                        </label>
+                        <select
+                          value={selectedSchoolYear}
+                          onChange={(event) => setSelectedSchoolYear(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          {sectionFilterOptions.schoolYears.map((schoolYear) => (
+                            <option key={schoolYear} value={schoolYear}>
+                              {schoolYear}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          Faculty
+                        </label>
+                        <select
+                          value={selectedFaculty}
+                          onChange={(event) => setSelectedFaculty(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          {sectionFilterOptions.facultyNames.map((facultyName) => (
+                            <option key={facultyName} value={facultyName}>
+                              {facultyName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          Assignment
+                        </label>
+                        <select
+                          value={selectedAssignmentStatus}
+                          onChange={(event) => setSelectedAssignmentStatus(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          <option value="All Sections">All Sections</option>
+                          <option value="Assigned">Assigned</option>
+                          <option value="Unassigned">Unassigned</option>
+                        </select>
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                        School Year
-                      </label>
-                      <select
-                        value={selectedSchoolYear}
-                        onChange={(event) => setSelectedSchoolYear(event.target.value)}
-                        className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                      >
-                        {sectionFilterOptions.schoolYears.map((schoolYear) => (
-                          <option key={schoolYear} value={schoolYear}>
-                            {schoolYear}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                        Faculty
-                      </label>
-                      <select
-                        value={selectedFaculty}
-                        onChange={(event) => setSelectedFaculty(event.target.value)}
-                        className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                      >
-                        {sectionFilterOptions.facultyNames.map((facultyName) => (
-                          <option key={facultyName} value={facultyName}>
-                            {facultyName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                        Assignment
-                      </label>
-                      <select
-                        value={selectedAssignmentStatus}
-                        onChange={(event) => setSelectedAssignmentStatus(event.target.value)}
-                        className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                      >
-                        <option value="All Sections">All Sections</option>
-                        <option value="Assigned">Assigned</option>
-                        <option value="Unassigned">Unassigned</option>
-                      </select>
-                    </div>
+                    <button
+                      onClick={resetSectionFilters}
+                      className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB] xl:self-auto"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Reset
+                    </button>
                   </div>
-
-                  <button
-                    onClick={resetSectionFilters}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB]"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    Reset
-                  </button>
                 </div>
 
                 <div className="mt-4 text-sm text-[#6B6B6B]">
@@ -888,7 +937,7 @@ const Index = () => {
                     </p>
                     {facultyData.length === 0 ? (
                       <button
-                        onClick={() => { setEditingFaculty(null); setFacultyDialog(true); }}
+                        onClick={() => setFacultyAccountModalOpen(true)}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-[#FFC20E] text-[#231F20] rounded-lg text-sm font-medium hover:bg-[#FFC20E]/90"
                       >
                         <Plus className="w-4 h-4" /> Add Faculty

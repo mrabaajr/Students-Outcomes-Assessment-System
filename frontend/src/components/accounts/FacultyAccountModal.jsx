@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = "/api";
 const DEFAULT_DEPARTMENT = "Computer Engineering";
 
 

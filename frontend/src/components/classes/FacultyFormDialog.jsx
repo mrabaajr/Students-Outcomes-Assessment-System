@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { AlertTriangle, Plus, Search, X } from "lucide-react";
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = "/api";
 const FIXED_DEPARTMENT = "Computer Engineering";
 
 const FacultyFormDialog = ({ open, onClose, onSave, initialData, availableSections = [], allFaculty = [] }) => {

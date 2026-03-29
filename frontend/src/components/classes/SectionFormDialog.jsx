@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = "/api";
+const SEMESTER_OPTIONS = ["1st Semester", "2nd Semester", "Summer"];
 
 
 const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions = [] }) => {
@@ -15,6 +16,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [courseCode, setCourseCode] = useState("");
   const [courseName, setCourseName] = useState("");
+  const [semester, setSemester] = useState("");
   const [schoolYear, setSchoolYear] = useState("");
   const [schoolYears, setSchoolYears] = useState([]);
   const [facultyEmail, setFacultyEmail] = useState("");
@@ -54,6 +56,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
       setName(initialData.name || "");
       setCourseCode(initialData.courseCode || "");
       setCourseName(initialData.courseName || "");
+      setSemester(initialData.semester || "");
       setSchoolYear(initialData.schoolYear || "");
       setFacultyEmail(initialData.facultyEmail || "");
 
@@ -65,6 +68,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
       setName("");
       setCourseCode("");
       setCourseName("");
+      setSemester("");
       setSchoolYear("");
       setFacultyEmail("");
       setSelectedCourseId("");
@@ -78,6 +82,9 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
     if (course) {
       setCourseCode(course.code);
       setCourseName(course.name);
+      if (!initialData) {
+        setSemester(course.semester || "");
+      }
     } else {
       setCourseCode("");
       setCourseName("");
@@ -90,6 +97,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
       name,
       courseCode,
       courseName,
+      semester,
       schoolYear,
       facultyEmail,
     });
@@ -146,6 +154,24 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
               {facultyOptions.map((faculty) => (
                 <option key={faculty.id} value={faculty.email}>
                   {faculty.name} ({faculty.email})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="semester">Semester</Label>
+            <select
+              id="semester"
+              value={semester}
+              onChange={(event) => setSemester(event.target.value)}
+              required
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">-- Select Semester --</option>
+              {SEMESTER_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
                 </option>
               ))}
             </select>

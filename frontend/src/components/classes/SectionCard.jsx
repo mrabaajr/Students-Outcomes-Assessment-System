@@ -69,6 +69,11 @@ const SectionCard = ({
 
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex flex-col items-end text-xs gap-1">
+            {section.semester && (
+              <span className="font-medium text-[#6B6B6B]">
+                {section.semester}
+              </span>
+            )}
             {section.schoolYear && (
               <span className="font-semibold text-[#231F20]">
                 SY {section.schoolYear}
