@@ -9,8 +9,7 @@ from rest_framework.routers import DefaultRouter
 
 from users.views import UserViewSet
 from so.views import StudentOutcomeViewSet, PerformanceIndicatorViewSet
-from courses.views import (CourseSOMappingViewSet,CurriculumViewSet,CourseViewSet,)
-from courses.views import AcademicYearViewSet
+from courses.views import (CourseSOMappingViewSet, CurriculumViewSet, CourseViewSet, SchoolYearViewSet)
 from classess.views import (StudentViewSet,SectionViewSet,EnrollmentViewSet,)
 from assessment.views import AssessmentViewSet
 from reports.views import ReportViewSet
@@ -37,7 +36,8 @@ router.register(r'performance-indicators', PerformanceIndicatorViewSet, basename
 router.register(r'course-so-mappings', CourseSOMappingViewSet, basename='course-so-mapping')
 router.register(r'curricula', CurriculumViewSet, basename='curriculum')
 router.register(r'courses', CourseViewSet, basename='course')
-router.register(r'academic-years', AcademicYearViewSet, basename='academic-year')
+router.register(r'school-years', SchoolYearViewSet, basename='school-year')
+router.register(r'academic-years', SchoolYearViewSet, basename='academic-year')
 
 router.register(r'students', StudentViewSet, basename='student')
 router.register(r'sections', SectionViewSet, basename='section')

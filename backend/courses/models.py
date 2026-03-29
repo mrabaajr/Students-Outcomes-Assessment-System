@@ -2,12 +2,19 @@ from django.db import models
 from so.models import StudentOutcome
 
 class Curriculum(models.Model):
-    CURRICULUM_CHOICES = [
-        ('2018', '2018'),
-        ('2023', '2023'),
-        ('2025', '2025'),
-    ]
-    year = models.CharField(max_length=4, choices=CURRICULUM_CHOICES, unique=True)
+    year = models.CharField(max_length=4, unique=True)
+
+    def __str__(self):
+        return self.year
+
+
+class SchoolYear(models.Model):
+    year = models.CharField(max_length=9, unique=True)
+
+    class Meta:
+        ordering = ['year']
+        verbose_name = "Academic Year"
+        verbose_name_plural = "Academic Years"
 
     def __str__(self):
         return self.year
@@ -53,12 +60,6 @@ class Course(models.Model):
 
 # New mapping model
 class CourseSOMapping(models.Model):
-    ACADEMIC_YEAR_CHOICES = [
-        ('2023-2024', '2023-2024'),
-        ('2024-2025', '2024-2025'),
-        ('2025-2026', '2025-2026'),
-    ]
-
     course = models.ForeignKey(
         Course,
         on_delete=models.CASCADE,
@@ -77,7 +78,6 @@ class CourseSOMapping(models.Model):
 
     academic_year = models.CharField(
         max_length=9,  # enough to hold "2023-2024"
-        choices=ACADEMIC_YEAR_CHOICES,
         default='2023-2024',
         help_text="Academic year for this mapping"
     )

@@ -19,7 +19,7 @@ from .serializers import (
     ClassesFacultySerializer,
 )
 from users.models import User
-from courses.models import Course, Curriculum
+from courses.models import Course, Curriculum, SchoolYear
 
 # ------------------------
 # STUDENT VIEWSET
@@ -106,6 +106,9 @@ class SectionViewSet(viewsets.ModelViewSet):
             'faculty'
         ).prefetch_related('enrollments')
 
+        if not getattr(user, 'is_authenticated', False):
+            return base_queryset
+
         # Admin sees all
         if user.role == 'admin':
             return base_queryset
@@ -137,6 +140,9 @@ class SectionViewSet(viewsets.ModelViewSet):
         obj = super().get_object()
         user = self.request.user
 
+        if not getattr(user, 'is_authenticated', False):
+            return obj
+
         # Staff cannot access sections not assigned to them
         if user.role == 'staff' and obj.faculty != user:
             raise PermissionDenied("You do not have access to this section.")
@@ -148,7 +154,7 @@ class SectionViewSet(viewsets.ModelViewSet):
     # and enroll them into the section.
     # Expected CSV columns: student_id, first_name, last_name, program, year_level
     # --------------------------------------------------
-    @action(detail=True, methods=['post'], url_path='import-csv')
+    @action(detail=True, methods=['post'], permission_classes=[AllowAny], url_path='import-csv')
     def import_csv_into_section(self, request, pk=None):
         """
         Import students from a CSV file into a section.
@@ -158,9 +164,11 @@ class SectionViewSet(viewsets.ModelViewSet):
         
         # Check authorization
         user = request.user
-        if user.role == 'staff' and section.faculty != user:
+        user_role = getattr(user, 'role', None)
+
+        if user_role == 'staff' and section.faculty != user:
             raise PermissionDenied("You do not have access to import students into this section.")
-        if user.role not in ['admin', 'staff']:
+        if user_role and user_role not in ['admin', 'staff']:
             raise PermissionDenied("Only admins or assigned faculty can import students.")
 
         file = request.FILES.get('file')
@@ -312,7 +320,8 @@ class SectionViewSet(viewsets.ModelViewSet):
             try:
                 mapping = CourseSOMapping.objects.filter(
                     course=sec.course,
-                    academic_year=sec.academic_year
+                    academic_year=sec.academic_year,
+                    semester=sec.semester or sec.course.semester
                 ).first()
                 
                 if mapping:
@@ -393,6 +402,7 @@ class SectionViewSet(viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 # ── 1. Faculty (dedicated Faculty model) ─────────────
+                valid_school_years = set(SchoolYear.objects.values_list('year', flat=True))
                 saved_faculty_ids = set()
                 faculty_email_map = {}     # email → Faculty instance
                 for fac in faculty_data:
@@ -456,6 +466,12 @@ class SectionViewSet(viewsets.ModelViewSet):
 
                     semester = sec.get('semester')
                     academic_year = sec.get('academicYear', sec.get('schoolYear', ''))
+
+                    if academic_year and academic_year not in valid_school_years:
+                        return Response(
+                            {'detail': f'Invalid school year: {academic_year}', 'success': False},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                     fac_obj = section_faculty.get(
                         (sec['name'], course_code)

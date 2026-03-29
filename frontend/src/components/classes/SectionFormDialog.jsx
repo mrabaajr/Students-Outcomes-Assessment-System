@@ -15,6 +15,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
   const [schedule, setSchedule] = useState("");
   const [room, setRoom] = useState("");
   const [schoolYear, setSchoolYear] = useState("");
+  const [schoolYears, setSchoolYears] = useState([]);
 
   // Backend courses list
   const [backendCourses, setBackendCourses] = useState([]);
@@ -32,6 +33,20 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
       })
       .catch((err) => console.error("Error fetching courses:", err))
       .finally(() => setLoadingCourses(false));
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    axios
+      .get(`${API_BASE_URL}/school-years/`)
+      .then((res) => {
+        const data = Array.isArray(res.data) ? res.data : res.data.results || [];
+        setSchoolYears(data.map((item) => item.year).filter(Boolean));
+      })
+      .catch((err) => {
+        console.error("Error fetching school years:", err);
+        setSchoolYears(["2023-2024", "2024-2025", "2025-2026", "2026-2027"]);
+      });
   }, [open]);
 
   useEffect(() => {
@@ -142,10 +157,11 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData }) => {
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">-- Select School Year --</option>
-              <option value="2023-2024">2023-2024</option>
-              <option value="2024-2025">2024-2025</option>
-              <option value="2025-2026">2025-2026</option>
-              <option value="2026-2027">2026-2027</option>
+              {schoolYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
             </select>
           </div>
           <DialogFooter>

@@ -3,6 +3,24 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
+const getErrorMessage = (err, fallback) => {
+  const detail = err.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (detail && typeof detail === 'object') {
+    return Object.entries(detail)
+      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+      .join(' | ');
+  }
+
+  if (err.response?.data && typeof err.response.data === 'object') {
+    return Object.entries(err.response.data)
+      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+      .join(' | ');
+  }
+
+  return fallback;
+};
+
 // Helper: Get auth header
 const getAuthHeader = () => {
   const token = localStorage.getItem('accessToken');
@@ -37,13 +55,17 @@ export function useCourses() {
 
       const transformed = response.data.map(course => ({
         id: course.id,
+        course: course.course,
         code: course.code,
         name: course.name,
         section: course.section || '',
         department: course.department,
         description: course.description || '',
         credits: course.credits || 3,
+        curriculum: course.curriculum_year || course.curriculum,
         semester: course.semester,
+        year_level: course.year_level || '',
+        academic_year: course.academic_year || '',
         academicYear: course.academicYear || course.academic_year,
         instructor: course.instructor || '',
         studentCount: course.studentCount || course.student_count || 0,
@@ -72,7 +94,7 @@ export function useCourses() {
     try {
       // Map frontend field names to backend expected fields
       const payload = {
-        course: courseData.selectedCourseId,
+        course: courseData.selectedCourseId ? parseInt(courseData.selectedCourseId, 10) : null,
         code: courseData.code,
         name: courseData.name,
         curriculum: courseData.curriculum,
@@ -104,7 +126,7 @@ export function useCourses() {
       console.error('Error adding course:', err);
       return {
         success: false,
-        message: err.response?.data?.detail || 'Failed to add course',
+        message: getErrorMessage(err, 'Failed to add course'),
       };
     }
   };
@@ -116,8 +138,8 @@ export function useCourses() {
       // Map frontend field names to backend expected fields
       // IMPORTANT: PUT requests require ALL fields including course and curriculum
       const payload = {
-        course: courseData.course || courseData.selectedCourseId, // Required ForeignKey
-        curriculum: courseData.curriculum, // Required ForeignKey
+        course: courseData.course || (courseData.selectedCourseId ? parseInt(courseData.selectedCourseId, 10) : null),
+        curriculum: courseData.curriculum,
         code: courseData.code,
         name: courseData.name,
         semester: courseData.semester,
@@ -152,7 +174,7 @@ export function useCourses() {
       console.error('Error response data:', err.response?.data);
       return {
         success: false,
-        message: err.response?.data?.detail || 'Failed to update course',
+        message: getErrorMessage(err, 'Failed to update course'),
       };
     }
   };
@@ -171,7 +193,7 @@ export function useCourses() {
       console.error('Error deleting course:', err);
       return {
         success: false,
-        message: err.response?.data?.detail || 'Failed to delete course',
+        message: getErrorMessage(err, 'Failed to delete course'),
       };
     }
   };
@@ -201,7 +223,7 @@ export function useCourses() {
       console.error('Error toggling SO mapping:', err);
       return {
         success: false,
-        message: err.response?.data?.detail || 'Failed to toggle mapping',
+        message: getErrorMessage(err, 'Failed to toggle mapping'),
       };
     }
   };

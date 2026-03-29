@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
@@ -27,6 +27,7 @@ const StudentOutcomes = () => {
   const [formOpen, setFormOpen] = useState(false);
   const [editingSO, setEditingSO] = useState(null);
   const [rubricSO, setRubricSO] = useState(null);
+  const [pendingAutoSave, setPendingAutoSave] = useState(false);
 
   // Transform backend format (performanceIndicators/performanceCriteria) to UI format (indicators/criteria)
   const transformToUIFormat = (outcome) => ({
@@ -64,28 +65,39 @@ const StudentOutcomes = () => {
     }
     
     setEditingSO(null);
-    // Trigger save after state updates are processed
-    setTimeout(() => {
-      saveToBackend();
-    }, 100);
+    setPendingAutoSave(true);
   };
 
   const handleDelete = (id) => {
     deleteOutcome(id);
-    setTimeout(() => {
-      saveToBackend();
-    }, 100);
+    setPendingAutoSave(true);
   };
 
   const handleSaveRubric = async (so) => {
     const backendSO = transformToBackendFormat(so);
     updateOutcome(backendSO.id, backendSO);
     setRubricSO(null);
-    // Trigger save after a short delay to allow state updates
-    setTimeout(() => {
-      saveToBackend();
-    }, 100);
+    setPendingAutoSave(true);
   };
+
+  useEffect(() => {
+    if (!pendingAutoSave || !hasUnsavedChanges) return;
+
+    let isCancelled = false;
+
+    const persistChanges = async () => {
+      const result = await saveToBackend();
+      if (!isCancelled && result.success) {
+        setPendingAutoSave(false);
+      }
+    };
+
+    persistChanges();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [pendingAutoSave, hasUnsavedChanges, outcomes, saveToBackend]);
 
   const usedNumbers = new Set(outcomes.map((s) => s.number));
   let nextNumber = 1;

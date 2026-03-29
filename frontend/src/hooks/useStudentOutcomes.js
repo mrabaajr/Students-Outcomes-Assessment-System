@@ -108,11 +108,11 @@ export const useStudentOutcomes = () => {
   }, [fetchOutcomes]);
 
   // Save all outcomes to backend via bulk_save endpoint
-  const saveToBackend = useCallback(async () => {
+  const saveToBackend = useCallback(async (outcomesOverride = outcomes) => {
     setError(null);
     try {
       const payload = {
-        outcomes: outcomes.map(transformToBackend),
+        outcomes: outcomesOverride.map(transformToBackend),
       };
       const response = await axios.post(
         `${API_BASE_URL}/student-outcomes/bulk_save/`,
