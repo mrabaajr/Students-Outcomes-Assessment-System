@@ -1,11 +1,14 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import {
   Search,
   Users,
+  Clock,
+  MapPin,
   BookOpen,
   ChevronDown,
   ChevronUp,
+  Download,
   Upload,
   AlertCircle,
   CheckCircle,
@@ -29,7 +32,8 @@ const normalizeSection = (section) => ({
   code: section.courseCode || "",
   name: section.courseName || "",
   section: section.name || "",
-  isActive: section.isActive !== false,
+  schedule: section.schedule || "Schedule not set",
+  room: section.room || "Room not set",
   schoolYear: section.schoolYear || section.academicYear || "",
   semester: section.semester || "",
   mappedSOs: Array.isArray(section.studentOutcomes)
@@ -53,7 +57,6 @@ const FacultyClasses = () => {
   const [selectedYear, setSelectedYear] = useState("All School Years");
   const [selectedCourse, setSelectedCourse] = useState("All Courses");
   const [selectedSection, setSelectedSection] = useState("All Sections");
-  const [selectedStatus, setSelectedStatus] = useState("Active");
   const [expandedSection, setExpandedSection] = useState(null);
   const [viewMode, setViewMode] = useState("card");
   const [importModal, setImportModal] = useState({
@@ -120,21 +123,16 @@ const FacultyClasses = () => {
       const matchesCourse = selectedCourse === "All Courses" || section.code === selectedCourse;
       const matchesYear = selectedYear === "All School Years" || section.schoolYear === selectedYear;
       const matchesSection = selectedSection === "All Sections" || section.section === selectedSection;
-      const matchesStatus =
-        selectedStatus === "All Statuses" ||
-        (selectedStatus === "Active" && section.isActive) ||
-        (selectedStatus === "Inactive" && !section.isActive);
 
-      return matchesSearch && matchesCourse && matchesYear && matchesSection && matchesStatus;
+      return matchesSearch && matchesCourse && matchesYear && matchesSection;
     });
-  }, [search, sectionsData, selectedCourse, selectedYear, selectedSection, selectedStatus]);
+  }, [search, sectionsData, selectedCourse, selectedYear, selectedSection]);
 
   const resetFilters = () => {
     setSearch("");
     setSelectedCourse("All Courses");
     setSelectedYear("All School Years");
     setSelectedSection("All Sections");
-    setSelectedStatus("Active");
   };
 
   const handleImportClick = (sectionId, sectionName) => {
@@ -223,10 +221,6 @@ const FacultyClasses = () => {
     });
   };
 
-  const toggleExpandedSection = (sectionId) => {
-    setExpandedSection((current) => (current === sectionId ? null : sectionId));
-  };
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
@@ -290,7 +284,7 @@ const FacultyClasses = () => {
                 </div>
               </div>
 
-              <div className="grid flex-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid flex-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
                     <Filter className="h-3.5 w-3.5" />
@@ -342,21 +336,6 @@ const FacultyClasses = () => {
                     ))}
                   </select>
                 </div>
-
-                <div>
-                  <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                    Status
-                  </label>
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                    <option value="All Statuses">All Statuses</option>
-                  </select>
-                </div>
               </div>
 
               <button
@@ -401,107 +380,99 @@ const FacultyClasses = () => {
           )}
 
           {!isLoading && !loadError && (
-            <div className={viewMode === "card" ? "grid items-start gap-4 md:grid-cols-2 lg:grid-cols-3" : "space-y-4"}>
+            <div className={viewMode === "card" ? "grid gap-4 md:grid-cols-2 lg:grid-cols-3" : "space-y-4"}>
               {viewMode === "card" && (
                 <>
                   {filtered.map((sec) => {
-                    const isExpanded = expandedSection === sec.id;
+                    const isExpanded = expandedSection === sec.section;
                     return (
-                      <div key={sec.id} className="flex h-fit flex-col self-start glass-card overflow-hidden hover:shadow-lg transition-shadow">
+                      <div key={sec.section} className="flex flex-col glass-card overflow-hidden hover:shadow-lg transition-shadow">
                         <div className="p-4 sm:p-5">
-                          <div className="mb-4">
-                            <div className="flex items-start justify-between gap-3 mb-3">
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6B6B6B]">
-                                  {sec.section}
-                                </p>
-                                <h3 className="font-semibold text-base text-[#231F20] mt-1 line-clamp-2">
-                                  {sec.name}
-                                </h3>
-                              </div>
-                              <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                                <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded">
-                                  {sec.code}
-                                </span>
-                                <span
-                                  className={`text-[10px] font-semibold px-2 py-1 rounded-full ${
-                                    sec.isActive
-                                      ? "bg-green-100 text-green-700"
-                                      : "bg-gray-200 text-[#6B6B6B]"
-                                  }`}
-                                >
-                                  {sec.isActive ? "Active" : "Inactive"}
-                                </span>
+                          <div className="mb-3">
+                            <div className="flex items-start gap-2 mb-2">
+                              <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded flex-shrink-0">
+                                {sec.code}
+                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                {sec.mappedSOs.slice(0, 2).map((so) => (
+                                  <span
+                                    key={so}
+                                    className="text-[9px] font-semibold bg-primary/10 text-primary px-1.5 py-0.5 rounded"
+                                  >
+                                    {so}
+                                  </span>
+                                ))}
+                                {sec.mappedSOs.length > 2 && (
+                                  <span className="text-[9px] font-semibold bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                                    +{sec.mappedSOs.length - 2}
+                                  </span>
+                                )}
                               </div>
                             </div>
+                            <h3 className="font-semibold text-sm text-[#231F20] line-clamp-2">{sec.name}</h3>
+                            <p className="text-xs text-[#6B6B6B] mt-1">{sec.section}</p>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
-                            <div className="rounded-lg bg-[#F9FAFB] px-3 py-2">
-                              <p className="text-[#6B6B6B] uppercase tracking-wider text-[10px]">Semester</p>
-                              <p className="text-[#231F20] font-medium mt-1">{sec.semester || "Not set"}</p>
+                          <div className="grid grid-cols-2 gap-2 mb-4 text-xs">
+                            <div className="flex items-start gap-1.5">
+                              <Clock className="h-3 w-3 text-[#A5A8AB] flex-shrink-0 mt-0.5" />
+                              <span className="text-[#6B6B6B] line-clamp-2">{sec.schedule}</span>
                             </div>
-                            <div className="rounded-lg bg-[#F9FAFB] px-3 py-2">
-                              <p className="text-[#6B6B6B] uppercase tracking-wider text-[10px]">School Year</p>
-                              <p className="text-[#231F20] font-medium mt-1">{sec.schoolYear || "Not set"}</p>
+                            <div className="flex items-start gap-1.5">
+                              <MapPin className="h-3 w-3 text-[#A5A8AB] flex-shrink-0 mt-0.5" />
+                              <span className="text-[#6B6B6B]">{sec.room}</span>
                             </div>
-                            <div className="rounded-lg bg-[#F9FAFB] px-3 py-2">
-                              <p className="text-[#6B6B6B] uppercase tracking-wider text-[10px]">Students</p>
-                              <p className="text-[#231F20] font-medium mt-1">{sec.students.length}</p>
+                            <div className="flex items-center gap-1.5">
+                              <Users className="h-3 w-3 text-[#A5A8AB]" />
+                              <span className="text-[#6B6B6B]">{sec.students.length} students</span>
                             </div>
-                            <div className="rounded-lg bg-[#F9FAFB] px-3 py-2">
-                              <p className="text-[#6B6B6B] uppercase tracking-wider text-[10px]">Mapped SOs</p>
-                              <p className="text-[#231F20] font-medium mt-1">{sec.mappedSOs.length}</p>
+                            <div className="flex items-center gap-1.5">
+                              <BookOpen className="h-3 w-3 text-[#A5A8AB]" />
+                              <span className="text-[#6B6B6B]">{sec.schoolYear || "Not set"}</span>
                             </div>
                           </div>
 
                           <div className="flex gap-2">
                             <button
-                              type="button"
-                              disabled={!sec.isActive}
                               onClick={() => handleImportClick(sec.id, sec.section)}
-                              className={`flex-1 flex items-center justify-center gap-1 text-xs font-medium rounded px-2 py-1.5 transition ${
-                                sec.isActive
-                                  ? "text-white bg-primary hover:bg-primary/90"
-                                  : "text-[#A5A8AB] bg-gray-100 cursor-not-allowed"
-                              }`}
+                              className="flex-1 flex items-center justify-center gap-1 text-xs font-medium text-white bg-primary hover:bg-primary/90 transition rounded px-2 py-1.5"
                             >
                               <Upload className="h-3 w-3" />
                               Import
                             </button>
                             <button
-                              onClick={() => toggleExpandedSection(sec.id)}
-                              className="flex-1 flex items-center justify-center gap-1 text-xs font-medium text-[#231F20] bg-gray-100 hover:bg-gray-200 transition rounded px-2 py-1.5"
+                              type="button"
+                              disabled
+                              className="flex-1 flex items-center justify-center gap-1 text-xs font-medium text-[#A5A8AB] bg-gray-100 rounded px-2 py-1.5 cursor-not-allowed"
                             >
-                              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                              {isExpanded ? "Hide Students" : "View Students"}
+                              <Download className="h-3 w-3" />
+                              Export
                             </button>
                           </div>
                         </div>
 
+                        <button
+                          onClick={() => setExpandedSection(isExpanded ? null : sec.section)}
+                          className="border-t border-gray-200 py-2 px-4 text-xs font-medium text-primary hover:text-primary/80 transition flex items-center justify-center gap-1.5"
+                        >
+                          {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                          {isExpanded ? "Hide" : "View"} Students
+                        </button>
+
                         {isExpanded && (
                           <div className="border-t border-gray-200 bg-[#F9FAFB] px-4 py-3">
-                            {sec.students.length > 0 ? (
-                              <div className="text-xs space-y-2 max-h-48 overflow-y-auto">
-                                {sec.students.map((stu) => (
-                                  <div key={stu.id} className="border-b border-gray-100 pb-2 last:border-0">
-                                    <div className="font-mono text-primary text-[10px] mb-0.5">{stu.id}</div>
-                                    <div className="font-medium text-[#231F20] text-xs">{stu.name}</div>
-                                    <div className="text-[#6B6B6B] text-[10px]">
-                                      {stu.program || "Program not set"}
-                                      {stu.year ? ` - Year ${stu.year}` : ""}
-                                    </div>
+                            <div className="text-xs space-y-2 max-h-48 overflow-y-auto">
+                              {sec.students.map((stu) => (
+                                <div key={stu.id} className="border-b border-gray-100 pb-2 last:border-0">
+                                  <div className="font-mono text-primary text-[10px] mb-0.5">{stu.id}</div>
+                                  <div className="font-medium text-[#231F20] text-xs">{stu.name}</div>
+                                  <div className="text-[#6B6B6B] text-[10px]">
+                                    {stu.program || "Program not set"}
+                                    {stu.year ? ` - Year ${stu.year}` : ""}
                                   </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-xs text-[#6B6B6B]">No students are enrolled in this section yet.</p>
-                            )}
-                            {!sec.isActive && (
-                              <p className="text-xs text-[#6B6B6B] mt-3">
-                                This section is inactive. It can be viewed, but actions are disabled.
-                              </p>
-                            )}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -519,98 +490,49 @@ const FacultyClasses = () => {
                           <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Course Code</th>
                           <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Course Name</th>
                           <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Section</th>
-                          <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Semester</th>
+                          <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Schedule</th>
+                          <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Room</th>
                           <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Students</th>
                           <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">School Year</th>
-                          <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Mapped SOs</th>
                           <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filtered.map((sec) => {
-                            const isExpanded = expandedSection === sec.id;
-
-                            return (
-                              <Fragment key={sec.id}>
-                                <tr key={`${sec.id}-row`} className="border-b border-[#E5E7EB] hover:bg-[#F9FAFB] transition">
-                                <td className="py-3 px-4">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded">{sec.code}</span>
-                                    <span
-                                      className={`text-[10px] font-semibold px-2 py-1 rounded-full ${
-                                        sec.isActive
-                                          ? "bg-green-100 text-green-700"
-                                          : "bg-gray-200 text-[#6B6B6B]"
-                                      }`}
-                                    >
-                                      {sec.isActive ? "Active" : "Inactive"}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="py-3 px-4 font-semibold text-[#231F20]">{sec.name}</td>
-                                <td className="py-3 px-4 text-[#6B6B6B]">{sec.section}</td>
-                                <td className="py-3 px-4 text-[#6B6B6B] text-xs">{sec.semester || "Not set"}</td>
-                                <td className="py-3 px-4 text-[#6B6B6B]">
-                                  <span className="inline-flex items-center gap-1.5">
-                                    <Users className="h-3.5 w-3.5" />
-                                    {sec.students.length}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-4 text-[#6B6B6B]">{sec.schoolYear || "Not set"}</td>
-                                <td className="py-3 px-4 text-[#6B6B6B]">{sec.mappedSOs.length}</td>
-                                <td className="py-3 px-4">
-                                  <div className="flex gap-2">
-                                    <button
-                                      type="button"
-                                      disabled={!sec.isActive}
-                                      onClick={() => handleImportClick(sec.id, sec.section)}
-                                      className={`text-[10px] font-medium px-2 py-1 rounded transition ${
-                                        sec.isActive
-                                          ? "text-primary hover:text-primary/80 bg-primary/10"
-                                          : "text-[#A5A8AB] bg-gray-100 cursor-not-allowed"
-                                      }`}
-                                    >
-                                      Import
-                                    </button>
-                                    <button
-                                      onClick={() => toggleExpandedSection(sec.id)}
-                                      className="text-[10px] font-medium text-[#231F20] hover:text-[#231F20] transition bg-gray-100 px-2 py-1 rounded"
-                                    >
-                                      {isExpanded ? "Hide Students" : "View Students"}
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                                {isExpanded && (
-                                  <tr key={`${sec.id}-students`} className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                                  <td colSpan="8" className="px-4 py-4">
-                                    {sec.students.length > 0 ? (
-                                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                        {sec.students.map((stu) => (
-                                          <div key={stu.id} className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2">
-                                            <div className="font-mono text-primary text-[10px] mb-1">{stu.id}</div>
-                                            <div className="font-medium text-[#231F20] text-sm">{stu.name}</div>
-                                            <div className="text-[#6B6B6B] text-xs mt-1">
-                                              {stu.program || "Program not set"}
-                                              {stu.year ? ` - Year ${stu.year}` : ""}
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-xs text-[#6B6B6B]">No students are enrolled in this section yet.</p>
-                                    )}
-                                    {!sec.isActive && (
-                                      <p className="text-xs text-[#6B6B6B] mt-3">
-                                        This section is inactive. It can be viewed, but actions are disabled.
-                                      </p>
-                                    )}
-                                  </td>
-                                </tr>
-                              )}
-                              </Fragment>
-                            );
-                          })}
+                        {filtered.map((sec) => (
+                          <tr key={sec.id} className="border-b border-[#E5E7EB] hover:bg-[#F9FAFB] transition">
+                            <td className="py-3 px-4">
+                              <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded">{sec.code}</span>
+                            </td>
+                            <td className="py-3 px-4 font-semibold text-[#231F20]">{sec.name}</td>
+                            <td className="py-3 px-4 text-[#6B6B6B]">{sec.section}</td>
+                            <td className="py-3 px-4 text-[#6B6B6B] text-xs">{sec.schedule}</td>
+                            <td className="py-3 px-4 text-[#6B6B6B] text-xs">{sec.room}</td>
+                            <td className="py-3 px-4 text-[#6B6B6B]">
+                              <span className="inline-flex items-center gap-1.5">
+                                <Users className="h-3.5 w-3.5" />
+                                {sec.students.length}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-[#6B6B6B]">{sec.schoolYear || "Not set"}</td>
+                            <td className="py-3 px-4">
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleImportClick(sec.id, sec.section)}
+                                  className="text-[10px] font-medium text-primary hover:text-primary/80 transition bg-primary/10 px-2 py-1 rounded"
+                                >
+                                  Import
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="text-[10px] font-medium text-[#A5A8AB] bg-gray-100 px-2 py-1 rounded cursor-not-allowed"
+                                >
+                                  Export
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
