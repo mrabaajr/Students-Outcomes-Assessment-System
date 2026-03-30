@@ -106,7 +106,7 @@ class SectionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_authenticators(self):
-        if getattr(self, "action", None) in ("bulk_save",):
+        if getattr(self, "action", None) in ("load_all", "bulk_save", "import_csv_into_section"):
             return []
         return super().get_authenticators()
 
@@ -151,7 +151,7 @@ class SectionViewSet(viewsets.ModelViewSet):
 
         return obj
 
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated], url_path="import-csv")
+    @action(detail=True, methods=["post"], permission_classes=[AllowAny], url_path="import-csv")
     def import_csv_into_section(self, request, pk=None):
         section = self.get_object()
         user = request.user
@@ -261,15 +261,15 @@ class SectionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated], url_path="load_all")
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny], url_path="load_all")
     def load_all(self, request):
         from courses.models import CourseSOMapping
         from courses.serializers import CourseSOMappingSerializer
 
         sections = (
-            self.get_queryset()
-            .select_related("course", "course__curriculum", "faculty")
+            Section.objects.select_related("course", "course__curriculum", "faculty")
             .prefetch_related("enrollments__student")
+            .all()
         )
 
         def _year_str(level):
@@ -341,15 +341,12 @@ class SectionViewSet(viewsets.ModelViewSet):
                 }
             )
 
-        faculty_queryset = (
+        faculty_payload = ClassesFacultySerializer(
             User.objects.filter(role="staff")
             .prefetch_related("assigned_sections__course")
-            .order_by("first_name", "last_name", "email")
-        )
-        if request.user.role == "staff":
-            faculty_queryset = faculty_queryset.filter(id=request.user.id)
-
-        faculty_payload = ClassesFacultySerializer(faculty_queryset, many=True).data
+            .order_by("first_name", "last_name", "email"),
+            many=True,
+        ).data
 
         return Response({"sections": sections_payload, "faculty": faculty_payload})
 
