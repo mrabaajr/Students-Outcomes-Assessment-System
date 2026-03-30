@@ -90,7 +90,6 @@ export function CourseSectionsModal({
               <div className="space-y-4">
                 {selectedCourse.sections.map((section) => {
                   const facultyName = getFacultyForSection(section, facultyData);
-                  const hasStudents = (section.students?.length || 0) > 0;
                   const sectionStatus =
                     (selectedSOId && sectionStatusMap?.[`${section.id}-${selectedSOId}`]) || "not-yet";
                   const lastAssessed =
@@ -149,10 +148,9 @@ export function CourseSectionsModal({
                           </div>
                           <button
                             onClick={() => onSelectSection(section)}
-                            disabled={!hasStudents}
-                            className="px-3 py-1.5 bg-[#FFC20E] text-[#231F20] rounded text-xs font-medium hover:bg-[#FFC20E]/90 transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:bg-[#E5E7EB] disabled:text-[#6B6B6B] disabled:hover:bg-[#E5E7EB]"
+                            className="px-3 py-1.5 bg-[#FFC20E] text-[#231F20] rounded text-xs font-medium hover:bg-[#FFC20E]/90 transition-colors whitespace-nowrap"
                           >
-                            {hasStudents ? "Assess Student" : "No Students Yet"}
+                            Assess Student
                           </button>
                         </div>
                       </div>
@@ -195,7 +193,7 @@ export function CourseSectionsModal({
 
                       {!section.students || section.students.length === 0 && (
                         <div className="px-5 py-6 text-center text-sm text-[#6B6B6B]">
-                          No students enrolled in this section yet. Add students in the Classes page before assessing it.
+                          No students enrolled in this section yet.
                         </div>
                       )}
                     </div>

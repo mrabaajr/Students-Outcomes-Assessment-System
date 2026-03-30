@@ -112,11 +112,7 @@ function TextInput({ value, onChange, type = "text", multiline = false }) {
   return <input type={type} className={className} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />;
 }
 
-function SOSummaryCard({ table, onSaveTable, schoolYearOptions = [] }) {
-  const uniqueSchoolYearOptions = useMemo(
-    () => [...new Set((schoolYearOptions || []).filter(Boolean))],
-    [schoolYearOptions]
-  );
+function SOSummaryCard({ table, onSaveTable }) {
   const normalized = useMemo(
     () => recalculateTable(table, table.formula || DEFAULT_FORMULA, table.variables?.length ? table.variables : DEFAULT_VARIABLES),
     [table]
@@ -200,18 +196,7 @@ function SOSummaryCard({ table, onSaveTable, schoolYearOptions = [] }) {
         </div>
         <div className="lg:col-span-3">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8A817C]">Time of Data Collection</p>
-          <select
-            value={draftTable.time_of_data_collection ?? ""}
-            onChange={(event) => updateDraft((current) => ({ ...current, time_of_data_collection: event.target.value }))}
-            className="w-full rounded-md border border-[#E5DED0] bg-white px-3 py-2 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-          >
-            <option value="">Select School Year</option>
-            {uniqueSchoolYearOptions.map((schoolYear) => (
-              <option key={schoolYear} value={schoolYear}>
-                {schoolYear}
-              </option>
-            ))}
-          </select>
+          <TextInput value={draftTable.time_of_data_collection} onChange={(value) => updateDraft((current) => ({ ...current, time_of_data_collection: value }))} />
         </div>
       </div>
 
@@ -341,7 +326,7 @@ function SOSummaryCard({ table, onSaveTable, schoolYearOptions = [] }) {
   );
 }
 
-export default function SOSummaryTables({ tables = [], onSaveTable, schoolYearOptions = [] }) {
+export default function SOSummaryTables({ tables = [], onSaveTable }) {
   if (tables.length === 0) {
     return <div className="glass-card p-6 text-center text-[#6B6B6B]">No SO summary tables available for the selected filters.</div>;
   }
@@ -349,7 +334,7 @@ export default function SOSummaryTables({ tables = [], onSaveTable, schoolYearOp
   return (
     <div className="space-y-6">
       {tables.map((table) => (
-        <SOSummaryCard key={`${table.so_id}-${table.report_config_id ?? "default"}`} table={table} onSaveTable={onSaveTable} schoolYearOptions={schoolYearOptions} />
+        <SOSummaryCard key={`${table.so_id}-${table.report_config_id ?? "default"}`} table={table} onSaveTable={onSaveTable} />
       ))}
     </div>
   );

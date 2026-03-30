@@ -23,12 +23,6 @@ DEFAULT_VARIABLES = [
 ]
 
 
-def faculty_display_name(faculty):
-    if not faculty:
-        return ""
-    return " ".join(part for part in [faculty.first_name, faculty.last_name] if part).strip() or faculty.email
-
-
 class ReportViewSet(ViewSet):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -53,6 +47,12 @@ class ReportViewSet(ViewSet):
 
         merged = dict(base_table)
         merged["program"] = saved_table.get("program", merged.get("program"))
+        merged["source_assessment"] = saved_table.get(
+            "source_assessment", merged.get("source_assessment")
+        )
+        merged["time_of_data_collection"] = saved_table.get(
+            "time_of_data_collection", merged.get("time_of_data_collection")
+        )
 
         merged_totals = dict(merged.get("totals", {}))
         saved_totals = saved_table.get("totals", {})
@@ -357,7 +357,7 @@ class ReportViewSet(ViewSet):
         assessments = Assessment.objects.select_related(
             "section__course",
             "student_outcome"
-        ).filter(section__is_active=True)
+        )
 
         if school_year:
             assessments = assessments.filter(school_year=school_year)
@@ -466,13 +466,12 @@ class ReportViewSet(ViewSet):
             pass_rate = round((passed_s / total_s) * 100, 1) if total_s > 0 else 0
 
             # Faculty names
-            faculty_names = sorted(
-                {
-                    faculty_display_name(section.faculty)
-                    for section in Section.objects.select_related("faculty")
-                    .filter(course_id=c_id, assessments__in=assessments)
-                    if section.faculty
-                }
+            faculty_names = list(
+                Section.objects
+                .filter(course_id=c_id, assessments__in=assessments)
+                .exclude(assigned_faculty__isnull=True)
+                .values_list("assigned_faculty__name", flat=True)
+                .distinct()
             )
 
             course_summary.append({
@@ -487,11 +486,9 @@ class ReportViewSet(ViewSet):
 
         # ── FILTER OPTIONS ──
         all_school_years = sorted(
-            {
-                school_year
-                for school_year in Section.objects.exclude(academic_year="").values_list("academic_year", flat=True)
-                if school_year
-            }
+            Section.objects.exclude(academic_year="")
+            .values_list("academic_year", flat=True)
+            .distinct()
         )
 
         all_courses = list(

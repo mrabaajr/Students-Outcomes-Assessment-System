@@ -1,24 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
 import { SOCard, SOFormDialog } from "@/components/StudentOutcomes/SOCard";
 import { RubricModal } from "@/components/StudentOutcomes/RubricModal";
 import { useStudentOutcomes } from "@/hooks/useStudentOutcomes";
-import { useToast } from "@/hooks/use-toast";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 const StudentOutcomes = () => {
-  const { toast } = useToast();
   const {
     outcomes: backendOutcomes,
     hasUnsavedChanges,
@@ -39,9 +27,6 @@ const StudentOutcomes = () => {
   const [formOpen, setFormOpen] = useState(false);
   const [editingSO, setEditingSO] = useState(null);
   const [rubricSO, setRubricSO] = useState(null);
-  const [pendingAutoSave, setPendingAutoSave] = useState(false);
-  const [pendingAction, setPendingAction] = useState(null);
-  const [deletingSO, setDeletingSO] = useState(null);
 
   // Transform backend format (performanceIndicators/performanceCriteria) to UI format (indicators/criteria)
   const transformToUIFormat = (outcome) => ({
@@ -58,7 +43,7 @@ const StudentOutcomes = () => {
     ...outcome,
     performanceIndicators: (outcome.indicators || []).map((pi) => ({
       ...pi,
-      name: pi.description || pi.name || "",
+      name: pi.name || pi.description || "",
       performanceCriteria: pi.criteria || [],
     })),
   });
@@ -71,95 +56,36 @@ const StudentOutcomes = () => {
     if (backendSO.id && typeof backendSO.id === "number") {
       // Editing existing outcome
       updateOutcome(backendSO.id, backendSO);
-      setPendingAction({
-        title: "Student Outcome Updated",
-        description: `${so.title} was saved successfully.`,
-      });
     } else {
       // Adding new outcome - need to add it first
       const newOutcome = addOutcome();
       // Update the newly added outcome with the form data
-      updateOutcome(newOutcome.id, { ...backendSO, id: newOutcome.id });
-      setPendingAction({
-        title: "Student Outcome Added",
-        description: `${so.title} was added successfully.`,
-      });
+      updateOutcome(newOutcome.id, backendSO);
     }
     
     setEditingSO(null);
-    setPendingAutoSave(true);
+    // Trigger save after state updates are processed
+    setTimeout(() => {
+      saveToBackend();
+    }, 100);
   };
 
-  const handleDeleteConfirm = () => {
-    if (!deletingSO) return;
-
-    deleteOutcome(deletingSO.id);
-    setPendingAction({
-      title: "Student Outcome Deleted",
-      description: `${deletingSO.title} was deleted successfully.`,
-    });
-    setDeletingSO(null);
-    setPendingAutoSave(true);
+  const handleDelete = (id) => {
+    deleteOutcome(id);
+    setTimeout(() => {
+      saveToBackend();
+    }, 100);
   };
 
   const handleSaveRubric = async (so) => {
     const backendSO = transformToBackendFormat(so);
-    updateOutcome(so.id, { ...backendSO, id: so.id });
+    updateOutcome(backendSO.id, backendSO);
     setRubricSO(null);
-    setPendingAction({
-      title: "Rubric Updated",
-      description: `${so.title} rubric changes were saved successfully.`,
-    });
-    setPendingAutoSave(true);
+    // Trigger save after a short delay to allow state updates
+    setTimeout(() => {
+      saveToBackend();
+    }, 100);
   };
-
-  const handleManualSave = async () => {
-    const result = await saveToBackend();
-    if (result.success) {
-      toast({
-        title: "Changes Saved",
-        description: "Student outcomes were saved successfully.",
-      });
-    } else {
-      toast({
-        title: "Save Failed",
-        description: result.message || "Failed to save student outcomes.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  useEffect(() => {
-    if (!pendingAutoSave || !hasUnsavedChanges) return;
-
-    let isCancelled = false;
-
-    const persistChanges = async () => {
-      const result = await saveToBackend();
-      if (!isCancelled && result.success) {
-        if (pendingAction) {
-          toast({
-            title: pendingAction.title,
-            description: pendingAction.description,
-          });
-        }
-        setPendingAction(null);
-        setPendingAutoSave(false);
-      } else if (!isCancelled && !result.success) {
-        toast({
-          title: "Save Failed",
-          description: result.message || "Failed to save student outcomes.",
-          variant: "destructive",
-        });
-      }
-    };
-
-    persistChanges();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [pendingAutoSave, hasUnsavedChanges, outcomes, pendingAction, saveToBackend, toast]);
 
   const usedNumbers = new Set(outcomes.map((s) => s.number));
   let nextNumber = 1;
@@ -196,7 +122,7 @@ const StudentOutcomes = () => {
               </button>
               {hasUnsavedChanges && (
                 <button
-                  onClick={handleManualSave}
+                  onClick={saveToBackend}
                   className="px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg text-sm sm:text-base font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={isLoading}
                 >
@@ -234,12 +160,7 @@ const StudentOutcomes = () => {
                   key={so.id}
                   so={so}
                   onEdit={(s) => { setEditingSO(s); setFormOpen(true); }}
-                  onDelete={(id) => {
-                    const soToDelete = outcomes.find((item) => item.id === id);
-                    if (soToDelete) {
-                      setDeletingSO(soToDelete);
-                    }
-                  }}
+                  onDelete={handleDelete}
                   onOpenRubric={setRubricSO}
                 />
               ))}
@@ -273,27 +194,6 @@ const StudentOutcomes = () => {
           onSave={handleSaveRubric}
         />
       )}
-      <AlertDialog open={!!deletingSO} onOpenChange={(open) => !open && setDeletingSO(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Student Outcome?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deletingSO
-                ? `This will permanently remove ${deletingSO.title} and its rubric details.`
-                : "This action cannot be undone."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-red-600 text-white hover:bg-red-700"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

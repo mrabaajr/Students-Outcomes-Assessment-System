@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Grid, TableIcon, Filter, Search, GraduationCap, CalendarRange } from 'lucide-react';
+import { Plus, Grid, TableIcon, Filter, Search, GraduationCap } from 'lucide-react';
 import axios from 'axios';
 import Navbar from '../../components/dashboard/Navbar';
 import Footer from '../../components/dashboard/Footer';
@@ -7,14 +7,13 @@ import CourseStats from '../../components/courses/CourseStats';
 import CourseCard from '../../components/courses/CourseCard';
 import AddCourseModal from '../../components/courses/AddCourseModal';
 import AddCurriculumModal from '../../components/courses/AddCurriculumModal';
-import AddSchoolYearModal from '../../components/courses/AddSchoolYearModal';
 import DeleteConfirmModal from '../../components/courses/DeleteConfirmModal';
 import ViewCourseModal from '../../components/courses/ViewCourseModal';
 import SOMappingMatrix from '../../components/courses/SOMappingMatrix';
 import { useToast } from '../../hooks/use-toast';
 import { useCourses } from '../../hooks/useCourses';
 import { useStudentOutcomes } from '../../hooks/useStudentOutcomes';
-import { academicYears as fallbackAcademicYears, semesters } from '../../data/mockCoursesData';
+import { academicYears, semesters } from '../../data/mockCoursesData';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -42,7 +41,6 @@ const Courses = () => {
   /* Curriculum list from backend */
   const [curriculums, setCurriculums] = useState(['All Curriculums']);
   const [currriculumsLoading, setCurriculumsLoading] = useState(true);
-  const [schoolYears, setSchoolYears] = useState(fallbackAcademicYears);
 
   /* Fetch curriculums from backend */
   useEffect(() => {
@@ -51,7 +49,8 @@ const Courses = () => {
         const response = await axios.get(`${API_BASE_URL}/curricula/`);
         const curriculumList = response.data?.results || response.data;
         if (Array.isArray(curriculumList)) {
-          const curriculumNames = curriculumList.map(c => c.year || c.name || c.id).filter(Boolean);
+          // Extract curriculum years/names
+          const curriculumNames = curriculumList.map(c => c.year || c.name || c.id);
           setCurriculums(['All Curriculums', ...curriculumNames]);
         }
       } catch (err) {
@@ -66,37 +65,15 @@ const Courses = () => {
     fetchCurriculums();
   }, []);
 
-  useEffect(() => {
-    const fetchSchoolYears = async () => {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/school-years/`);
-        const schoolYearList = response.data?.results || response.data;
-        if (Array.isArray(schoolYearList)) {
-          const years = schoolYearList.map(item => item.year).filter(Boolean);
-          if (years.length > 0) {
-            setSchoolYears(years);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching school years:', err);
-        setSchoolYears(fallbackAcademicYears);
-      }
-    };
-
-    fetchSchoolYears();
-  }, []);
-
   /* Modals */
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isAddCurriculumModalOpen, setIsAddCurriculumModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isAddSchoolYearModalOpen, setIsAddSchoolYearModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingCurriculum, setIsSavingCurriculum] = useState(false);
-  const [isSavingSchoolYear, setIsSavingSchoolYear] = useState(false);
 
   /* Filtering Logic */
   const filteredCourses = courses.filter(course => {
@@ -132,10 +109,6 @@ const Courses = () => {
 
   const handleAddCurriculum = () => {
     setIsAddCurriculumModalOpen(true);
-  };
-
-  const handleAddSchoolYear = () => {
-    setIsAddSchoolYearModalOpen(true);
   };
 
   const handleViewCourse = (course) => {
@@ -213,38 +186,26 @@ const Courses = () => {
 
   const handleSaveCurriculum = async (curriculumData) => {
     setIsSavingCurriculum(true);
-    try {
-      const response = await axios.post(`${API_BASE_URL}/curricula/`, {
-        year: curriculumData.name,
-      });
-      const newCurriculum = response.data?.year || curriculumData.name;
 
-      setCurriculums(prev => {
-        const nextValues = [...prev, newCurriculum];
-        const uniqueValues = [...new Set(nextValues)];
+    const newCurriculum = curriculumData.name;
+    setCurriculums(prev => {
+      const nextValues = [...prev, newCurriculum];
+      const uniqueValues = [...new Set(nextValues)];
 
-        return [
-          'All Curriculums',
-          ...uniqueValues.filter(curriculum => curriculum !== 'All Curriculums').sort(),
-        ];
-      });
+      return [
+        'All Curriculums',
+        ...uniqueValues.filter(curriculum => curriculum !== 'All Curriculums').sort(),
+      ];
+    });
 
-      setSelectedCurriculum(newCurriculum);
-      setIsAddCurriculumModalOpen(false);
+    setSelectedCurriculum(newCurriculum);
+    setIsAddCurriculumModalOpen(false);
+    setIsSavingCurriculum(false);
 
-      toast({
-        title: 'Curriculum Added',
-        description: `${newCurriculum} is now available in filters and course creation.`,
-      });
-    } catch (err) {
-      toast({
-        title: 'Error',
-        description: err.response?.data?.year?.[0] || err.response?.data?.detail || 'Failed to add curriculum.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSavingCurriculum(false);
-    }
+    toast({
+      title: 'Curriculum Added',
+      description: `${newCurriculum} is now available in filters and course creation.`,
+    });
   };
 
   const handleToggleMapping = async (courseId, soId, shouldMap) => {
@@ -262,33 +223,6 @@ const Courses = () => {
         description: result.message,
         variant: 'destructive',
       });
-    }
-  };
-
-  const handleSaveSchoolYear = async (schoolYearData) => {
-    setIsSavingSchoolYear(true);
-    try {
-      const response = await axios.post(`${API_BASE_URL}/school-years/`, {
-        year: schoolYearData.year,
-      });
-      const newSchoolYear = response.data?.year || schoolYearData.year;
-
-      setSchoolYears(prev => [...new Set([...prev, newSchoolYear])].sort());
-      setSelectedYear(newSchoolYear);
-      setIsAddSchoolYearModalOpen(false);
-
-      toast({
-        title: 'School Year Added',
-        description: `${newSchoolYear} is now available in course and section forms.`,
-      });
-    } catch (err) {
-      toast({
-        title: 'Error',
-        description: err.response?.data?.year?.[0] || err.response?.data?.detail || 'Failed to add school year.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSavingSchoolYear(false);
     }
   };
 
@@ -334,14 +268,6 @@ const Courses = () => {
                 className="relative z-10 flex cursor-pointer items-center gap-2 px-6 py-3 bg-white text-[#231F20] rounded-lg font-medium hover:bg-gray-100"
               >
                 <GraduationCap className="w-5 h-5" /> ADD CURRICULUM
-              </button>
-
-              <button
-                type="button"
-                onClick={handleAddSchoolYear}
-                className="relative z-10 flex cursor-pointer items-center gap-2 px-6 py-3 bg-white text-[#231F20] rounded-lg font-medium hover:bg-gray-100"
-              >
-                <CalendarRange className="w-5 h-5" /> ADD SCHOOL YEAR
               </button>
 
               {/* VIEW TOGGLE */}
@@ -441,7 +367,7 @@ const Courses = () => {
                   className="w-full p-2 text-sm bg-white border border-[#E5E7EB] rounded-md"
                 >
                   <option value="All Years">All Years</option>
-                  {schoolYears.map(year => (
+                  {academicYears.map(year => (
                     <option key={year} value={year}>{year}</option>
                   ))}
                 </select>
@@ -526,14 +452,6 @@ const Courses = () => {
         onSave={handleSaveCurriculum}
         isSaving={isSavingCurriculum}
         existingCurriculums={curriculums.filter(curriculum => curriculum !== 'All Curriculums')}
-      />
-
-      <AddSchoolYearModal
-        isOpen={isAddSchoolYearModalOpen}
-        onClose={() => setIsAddSchoolYearModalOpen(false)}
-        onSave={handleSaveSchoolYear}
-        isSaving={isSavingSchoolYear}
-        existingSchoolYears={schoolYears}
       />
 
       <DeleteConfirmModal

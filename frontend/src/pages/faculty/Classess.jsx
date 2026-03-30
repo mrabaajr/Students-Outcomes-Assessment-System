@@ -1,173 +1,104 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  AlertCircle,
-  BookOpen,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Filter,
-  RotateCcw,
-  Search,
-  Upload,
-  Users,
-  X,
-} from "lucide-react";
+import { useState, useRef } from "react";
+import { Search, Users, Clock, MapPin, BookOpen, ChevronDown, ChevronUp, Download, Upload, AlertCircle, CheckCircle, X } from "lucide-react";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const sectionsData = [
+  {
+    code: "CPE 401",
+    name: "Computer Networks",
+    section: "CPE41S1",
+    schedule: "MWF 8:00 - 9:30 AM",
+    room: "Room 301",
+    schoolYear: "2024-2025",
+    semester: "1st",
+    mappedSOs: ["SO 1", "SO 3", "SO 5"],
+    id: "1",
+    students: [
+      { id: "2021-00101", name: "Juan Dela Cruz", program: "CPE", year: 4 },
+      { id: "2021-00102", name: "Maria Santos", program: "CPE", year: 4 },
+      { id: "2021-00103", name: "Pedro Reyes", program: "CPE", year: 4 },
+      { id: "2021-00104", name: "Ana Garcia", program: "CPE", year: 4 },
+      { id: "2021-00105", name: "Carlos Ramos", program: "CPE", year: 4 },
+    ],
+  },
+  {
+    code: "CPE 312",
+    name: "Digital Systems",
+    section: "CPE31S2",
+    schedule: "TTh 10:00 - 11:30 AM",
+    room: "Room 205",
+    schoolYear: "2024-2025",
+    semester: "1st",
+    mappedSOs: ["SO 2", "SO 4"],
+    id: "2",
+    students: [
+      { id: "2022-00201", name: "Liza Fernandez", program: "CPE", year: 3 },
+      { id: "2022-00202", name: "Mark Villanueva", program: "CPE", year: 3 },
+      { id: "2022-00203", name: "Sofia Cruz", program: "CPE", year: 3 },
+    ],
+  },
+  {
+    code: "CPE 203",
+    name: "Data Structures",
+    section: "CPE20S1",
+    schedule: "MWF 1:00 - 2:30 PM",
+    room: "Room 102",
+    schoolYear: "2024-2025",
+    semester: "1st",
+    mappedSOs: ["SO 1", "SO 2", "SO 6"],
+    id: "3",
+    students: [
+      { id: "2023-00301", name: "James Mendoza", program: "CPE", year: 2 },
+      { id: "2023-00302", name: "Emma Tan", program: "CPE", year: 2 },
+      { id: "2023-00303", name: "Luis Aquino", program: "CPE", year: 2 },
+      { id: "2023-00304", name: "Grace Lim", program: "CPE", year: 2 },
+    ],
+  },
+  {
+    code: "CPE 105",
+    name: "Introduction to Computing",
+    section: "CPE10S3",
+    schedule: "TTh 3:00 - 4:30 PM",
+    room: "Room 101",
+    schoolYear: "2024-2025",
+    semester: "1st",
+    mappedSOs: ["SO 1"],
+    id: "4",
+    students: [
+      { id: "2024-00401", name: "Mia Rivera", program: "CPE", year: 1 },
+      { id: "2024-00402", name: "John Bautista", program: "CPE", year: 1 },
+    ],
+  },
+];
 
-const DEFAULT_IMPORT_MODAL = {
-  isOpen: false,
-  sectionId: null,
-  sectionName: null,
-  loading: false,
-  result: null,
-  error: null,
-};
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem("accessToken");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
-const formatStudentName = (student) => {
-  const fullName = [student.first_name, student.last_name].filter(Boolean).join(" ").trim();
-  return fullName || student.name || "Unnamed student";
-};
-
-const transformSection = (section) => ({
-  id: section.id,
-  courseCode: section.course_code || "No Course Code",
-  courseName: section.course_name || "Untitled Course",
-  sectionName: section.name || "Unnamed Section",
-  academicYear: section.academic_year || "Not set",
-  semester: section.semester || "Not set",
-  isActive: Boolean(section.is_active),
-  studentCount: section.student_count ?? 0,
-});
-
-const transformStudent = (student) => ({
-  id: student.id,
-  studentId: student.student_id || student.studentId || student.id,
-  name: formatStudentName(student),
-  program: student.program || "",
-  yearLevel: student.year_level || student.yearLevel || "",
-});
-
-export default function FacultyClasses() {
+const FacultyClasses = () => {
   const [search, setSearch] = useState("");
-  const [selectedYear, setSelectedYear] = useState("All School Years");
-  const [selectedCourse, setSelectedCourse] = useState("All Courses");
-  const [selectedSection, setSelectedSection] = useState("All Sections");
-  const [statusFilter, setStatusFilter] = useState("active");
-  const [expandedSectionId, setExpandedSectionId] = useState(null);
-  const [viewMode, setViewMode] = useState("card");
-  const [sections, setSections] = useState([]);
-  const [sectionsLoading, setSectionsLoading] = useState(true);
-  const [sectionsError, setSectionsError] = useState("");
-  const [sectionDetails, setSectionDetails] = useState({});
-  const [rosterLoadingId, setRosterLoadingId] = useState(null);
-  const [rosterErrorById, setRosterErrorById] = useState({});
-  const [importModal, setImportModal] = useState(DEFAULT_IMPORT_MODAL);
+  const [selectedYear, setSelectedYear] = useState("2024-2025");
+  const [expandedSection, setExpandedSection] = useState(null);
+  const [importModal, setImportModal] = useState({
+    isOpen: false,
+    sectionId: null,
+    sectionName: null,
+    loading: false,
+    result: null,
+    error: null,
+  });
   const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    const loadSections = async () => {
-      setSectionsLoading(true);
-      setSectionsError("");
-
-      try {
-        const response = await fetch(`${API_BASE_URL}/sections/`, {
-          headers: getAuthHeaders(),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to load assigned classes.");
-        }
-
-        const data = await response.json();
-        const normalizedSections = Array.isArray(data) ? data.map(transformSection) : [];
-        setSections(normalizedSections);
-      } catch (error) {
-        setSectionsError(error.message || "Failed to load assigned classes.");
-      } finally {
-        setSectionsLoading(false);
-      }
-    };
-
-    loadSections();
-  }, []);
-
-  const filterOptions = useMemo(() => {
-    const courses = ["All Courses", ...new Set(sections.map((section) => section.courseCode).filter(Boolean))];
-    const schoolYears = [
-      "All School Years",
-      ...new Set(sections.map((section) => section.academicYear).filter(Boolean)),
-    ];
-    const sectionNames = [
-      "All Sections",
-      ...new Set(sections.map((section) => section.sectionName).filter(Boolean)),
-    ];
-
-    return { courses, schoolYears, sectionNames };
-  }, [sections]);
-
-  const filteredSections = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-
-    return sections.filter((section) => {
-      const roster = sectionDetails[section.id]?.students || [];
-      const matchesSearch =
-        normalizedSearch === "" ||
-        section.courseCode.toLowerCase().includes(normalizedSearch) ||
-        section.courseName.toLowerCase().includes(normalizedSearch) ||
-        section.sectionName.toLowerCase().includes(normalizedSearch) ||
-        section.academicYear.toLowerCase().includes(normalizedSearch) ||
-        roster.some(
-          (student) =>
-            student.name.toLowerCase().includes(normalizedSearch) ||
-            String(student.studentId).toLowerCase().includes(normalizedSearch)
-        );
-
-      const matchesCourse = selectedCourse === "All Courses" || section.courseCode === selectedCourse;
-      const matchesYear = selectedYear === "All School Years" || section.academicYear === selectedYear;
-      const matchesSection =
-        selectedSection === "All Sections" || section.sectionName === selectedSection;
-      const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "active" && section.isActive) ||
-        (statusFilter === "inactive" && !section.isActive);
-
-      return matchesSearch && matchesCourse && matchesYear && matchesSection && matchesStatus;
-    });
-  }, [search, sections, sectionDetails, selectedCourse, selectedSection, selectedYear, statusFilter]);
-
-  const activeCount = useMemo(
-    () => sections.filter((section) => section.isActive).length,
-    [sections]
+  const filtered = sectionsData.filter(
+    (s) =>
+      s.schoolYear === selectedYear &&
+      (s.code.toLowerCase().includes(search.toLowerCase()) ||
+        s.name.toLowerCase().includes(search.toLowerCase()) ||
+        s.section.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const inactiveCount = sections.length - activeCount;
-
-  const resetFilters = () => {
-    setSearch("");
-    setSelectedCourse("All Courses");
-    setSelectedYear("All School Years");
-    setSelectedSection("All Sections");
-    setStatusFilter("active");
-  };
-
-  const handleImportClick = (section) => {
-    if (!section.isActive) {
-      return;
-    }
-
+  const handleImportClick = (sectionId, sectionName) => {
     setImportModal({
       isOpen: true,
-      sectionId: section.id,
-      sectionName: section.sectionName,
+      sectionId,
+      sectionName,
       loading: false,
       result: null,
       error: null,
@@ -178,58 +109,15 @@ export default function FacultyClasses() {
     fileInputRef.current?.click();
   };
 
-  const fetchSectionDetails = async (sectionId, { force = false } = {}) => {
-    if (!force && sectionDetails[sectionId]) {
-      return;
-    }
-
-    setRosterLoadingId(sectionId);
-    setRosterErrorById((prev) => ({ ...prev, [sectionId]: "" }));
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/sections/${sectionId}/`, {
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to load class roster.");
-      }
-
-      const data = await response.json();
-      setSectionDetails((prev) => ({
-        ...prev,
-        [sectionId]: {
-          students: Array.isArray(data.students) ? data.students.map(transformStudent) : [],
-        },
-      }));
-    } catch (error) {
-      setRosterErrorById((prev) => ({
-        ...prev,
-        [sectionId]: error.message || "Failed to load class roster.",
-      }));
-    } finally {
-      setRosterLoadingId((prev) => (prev === sectionId ? null : prev));
-    }
-  };
-
-  const handleToggleRoster = async (sectionId) => {
-    if (expandedSectionId === sectionId) {
-      setExpandedSectionId(null);
-      return;
-    }
-
-    setExpandedSectionId(sectionId);
-    await fetchSectionDetails(sectionId);
-  };
-
   const handleFileSelect = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith(".csv")) {
+    // Validate file type
+    if (!file.name.endsWith('.csv')) {
       setImportModal((prev) => ({
         ...prev,
-        error: "Please select a CSV file.",
+        error: "Please select a CSV file",
       }));
       return;
     }
@@ -242,13 +130,12 @@ export default function FacultyClasses() {
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append('file', file);
 
       const response = await fetch(
-        `${API_BASE_URL}/sections/${importModal.sectionId}/import-csv/`,
+        `http://localhost:8000/api/sections/${importModal.sectionId}/import-csv/`,
         {
-          method: "POST",
-          headers: getAuthHeaders(),
+          method: 'POST',
           body: formData,
         }
       );
@@ -259,7 +146,7 @@ export default function FacultyClasses() {
         setImportModal((prev) => ({
           ...prev,
           loading: false,
-          error: data.error || "Failed to import CSV.",
+          error: data.error || "Failed to import CSV",
         }));
         return;
       }
@@ -275,42 +162,35 @@ export default function FacultyClasses() {
           errors: data.errors || [],
         },
       }));
-
-      setSections((prev) =>
-        prev.map((section) =>
-          section.id === importModal.sectionId
-            ? {
-                ...section,
-                studentCount: section.studentCount + (data.created || 0),
-              }
-            : section
-        )
-      );
-
-      if (importModal.sectionId) {
-        await fetchSectionDetails(importModal.sectionId, { force: true });
-      }
-    } catch (error) {
+    } catch (err) {
       setImportModal((prev) => ({
         ...prev,
         loading: false,
-        error: `Error: ${error.message}`,
+        error: `Error: ${err.message}`,
       }));
     }
 
+    // Reset file input
     if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      fileInputRef.current.value = '';
     }
   };
 
   const closeImportModal = () => {
-    setImportModal(DEFAULT_IMPORT_MODAL);
+    setImportModal({
+      isOpen: false,
+      sectionId: null,
+      sectionName: null,
+      loading: false,
+      result: null,
+      error: null,
+    });
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
-
+      
       <main className="flex-1">
         <section className="bg-[#231F20] border-b border-[#A5A8AB] pt-16">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-12 sm:pb-16">
@@ -619,153 +499,49 @@ export default function FacultyClasses() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                          <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">
-                            Course
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">
-                            Section
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">
-                            Semester
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">
-                            School Year
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">
-                            Students
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-[#6B6B6B] text-xs uppercase tracking-wider">
-                            Action
-                          </th>
+                        <tr className="text-[11px] uppercase tracking-wider text-[#6B6B6B]">
+                          <th className="text-left py-2 font-semibold">Student ID</th>
+                          <th className="text-left py-2 font-semibold">Name</th>
+                          <th className="text-left py-2 font-semibold">Program</th>
+                          <th className="text-left py-2 font-semibold">Year</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredSections.map((section) => (
-                          <tr
-                            key={section.id}
-                            className="border-b border-[#E5E7EB] hover:bg-[#F9FAFB] transition"
-                          >
-                            <td className="py-3 px-4">
-                              <div className="flex flex-col gap-1">
-                                <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded w-fit">
-                                  {section.courseCode}
-                                </span>
-                                <span className="font-semibold text-[#231F20]">{section.courseName}</span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-[#6B6B6B]">{section.sectionName}</td>
-                            <td className="py-3 px-4 text-[#6B6B6B]">{section.semester}</td>
-                            <td className="py-3 px-4 text-[#6B6B6B]">{section.academicYear}</td>
-                            <td className="py-3 px-4 text-[#6B6B6B]">
-                              <span className="inline-flex items-center gap-1.5">
-                                <Users className="h-3.5 w-3.5" />
-                                {section.studentCount}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <span
-                                className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                                  section.isActive
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-gray-200 text-gray-600"
-                                }`}
-                              >
-                                {section.isActive ? "Active" : "Inactive"}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <button
-                                onClick={() => handleToggleRoster(section.id)}
-                                className="text-[10px] font-medium text-primary hover:text-primary/80 transition bg-primary/10 px-2 py-1 rounded"
-                              >
-                                {expandedSectionId === section.id ? "Hide Students" : "View Students"}
-                              </button>
-                            </td>
+                        {sec.students.map((stu) => (
+                          <tr key={stu.id} className="border-t border-gray-100">
+                            <td className="py-2 text-primary font-mono text-xs">{stu.id}</td>
+                            <td className="py-2 text-[#231F20]">{stu.name}</td>
+                            <td className="py-2 text-[#6B6B6B]">{stu.program}</td>
+                            <td className="py-2 text-[#6B6B6B]">{stu.year}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+                )}
+              </div>
+            );
+          })}
 
-                  {expandedSectionId && (
-                    <div className="border-t border-[#E5E7EB] bg-[#F9FAFB] px-4 py-4">
-                      {rosterLoadingId === expandedSectionId && (
-                        <div className="text-sm text-[#6B6B6B]">Loading students...</div>
-                      )}
-
-                      {rosterLoadingId !== expandedSectionId && rosterErrorById[expandedSectionId] && (
-                        <div className="text-sm text-red-600">{rosterErrorById[expandedSectionId]}</div>
-                      )}
-
-                      {rosterLoadingId !== expandedSectionId &&
-                        !rosterErrorById[expandedSectionId] &&
-                        (sectionDetails[expandedSectionId]?.students || []).length === 0 && (
-                          <div className="text-sm text-[#6B6B6B]">No students enrolled yet.</div>
-                        )}
-
-                      {rosterLoadingId !== expandedSectionId &&
-                        !rosterErrorById[expandedSectionId] &&
-                        (sectionDetails[expandedSectionId]?.students || []).length > 0 && (
-                          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                            {sectionDetails[expandedSectionId].students.map((student) => (
-                              <div key={student.studentId} className="rounded-lg border border-[#E5E7EB] bg-white p-3">
-                                <div className="font-mono text-[11px] text-primary">{student.studentId}</div>
-                                <div className="mt-1 font-medium text-[#231F20]">{student.name}</div>
-                                <div className="mt-1 text-xs text-[#6B6B6B]">
-                                  {[student.program, student.yearLevel ? `Year ${student.yearLevel}` : ""]
-                                    .filter(Boolean)
-                                    .join(" | ")}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {filteredSections.length === 0 && (
-                <div className="text-center py-12 bg-white rounded-lg border border-[#E5E7EB]">
-                  <Users className="w-12 h-12 text-[#A5A8AB] mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-[#231F20] mb-2">
-                    {sections.length === 0 ? "No Assigned Classes Yet" : "No Matching Classes"}
-                  </h3>
-                  <p className="text-sm text-[#6B6B6B] mb-4">
-                    {sections.length === 0
-                      ? "You do not have any assigned classes right now."
-                      : "Try adjusting or clearing your filters to see more results."}
-                  </p>
-                  {sections.length > 0 && (
-                    <button
-                      onClick={resetFilters}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-[#231F20] text-white rounded-lg text-sm font-medium hover:bg-[#3A3A3A]"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      Reset Filters
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+          {filtered.length === 0 && (
+            <div className="text-center py-12 text-[#A5A8AB]">No sections found matching your criteria.</div>
           )}
         </div>
+      </div>
       </main>
 
       <Footer />
 
+      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
         accept=".csv"
-        style={{ display: "none" }}
+        style={{ display: 'none' }}
         onChange={handleFileSelect}
       />
 
+      {/* Import Modal */}
       {importModal.isOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full max-h-[80vh] overflow-y-auto">
@@ -774,7 +550,10 @@ export default function FacultyClasses() {
                 <h2 className="text-lg font-semibold text-[#231F20]">
                   Import Students to {importModal.sectionName}
                 </h2>
-                <button onClick={closeImportModal} className="text-[#6B6B6B] hover:text-[#231F20]">
+                <button
+                  onClick={closeImportModal}
+                  className="text-[#6B6B6B] hover:text-[#231F20]"
+                >
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -806,10 +585,10 @@ export default function FacultyClasses() {
                       <div>
                         <p className="text-green-800 font-semibold">{importModal.result.message}</p>
                         <div className="text-green-700 text-sm mt-2 space-y-1">
-                          <p>Created: {importModal.result.created} students</p>
-                          <p>Updated: {importModal.result.updated} students</p>
+                          <p>✓ Created: {importModal.result.created} students</p>
+                          <p>✓ Updated: {importModal.result.updated} students</p>
                           {importModal.result.skipped > 0 && (
-                            <p>Skipped: {importModal.result.skipped} rows</p>
+                            <p>⊝ Skipped: {importModal.result.skipped} rows</p>
                           )}
                         </div>
                       </div>
@@ -820,11 +599,11 @@ export default function FacultyClasses() {
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                       <p className="text-yellow-800 font-semibold text-sm mb-2">Issues encountered:</p>
                       <ul className="text-yellow-700 text-xs space-y-1">
-                        {importModal.result.errors.slice(0, 5).map((error, index) => (
-                          <li key={index}>- {error}</li>
+                        {importModal.result.errors.slice(0, 5).map((error, idx) => (
+                          <li key={idx}>• {error}</li>
                         ))}
                         {importModal.result.errors.length > 5 && (
-                          <li>- ... and {importModal.result.errors.length - 5} more</li>
+                          <li>• ... and {importModal.result.errors.length - 5} more</li>
                         )}
                       </ul>
                     </div>
@@ -874,4 +653,6 @@ export default function FacultyClasses() {
       )}
     </div>
   );
-}
+};
+
+export default FacultyClasses;
