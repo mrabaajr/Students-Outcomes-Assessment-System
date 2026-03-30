@@ -1,0 +1,557 @@
+import { useState, useEffect } from 'react';
+import { Plus, Grid, TableIcon, Filter, Search, GraduationCap, CalendarRange } from 'lucide-react';
+import axios from 'axios';
+import Navbar from '../../components/dashboard/Navbar';
+import Footer from '../../components/dashboard/Footer';
+import CourseStats from '../../components/courses/CourseStats';
+import CourseCard from '../../components/courses/CourseCard';
+import AddCourseModal from '../../components/courses/AddCourseModal';
+import AddCurriculumModal from '../../components/courses/AddCurriculumModal';
+import AddSchoolYearModal from '../../components/courses/AddSchoolYearModal';
+import DeleteConfirmModal from '../../components/courses/DeleteConfirmModal';
+import ViewCourseModal from '../../components/courses/ViewCourseModal';
+import SOMappingMatrix from '../../components/courses/SOMappingMatrix';
+import { useToast } from '../../hooks/use-toast';
+import { useCourses } from '../../hooks/useCourses';
+import { useStudentOutcomes } from '../../hooks/useStudentOutcomes';
+import { academicYears as fallbackAcademicYears, semesters } from '../../data/mockCoursesData';
+
+const API_BASE_URL = 'http://localhost:8000/api';
+
+const Courses = () => {
+  const { toast } = useToast();
+
+  const {
+    courses,
+    addCourse,
+    updateCourse,
+    deleteCourse,
+    toggleSOMapping,
+  } = useCourses();
+
+  const { outcomes: studentOutcomes } = useStudentOutcomes();
+
+  const [viewMode, setViewMode] = useState('grid');
+
+  /* Filters */
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedYear, setSelectedYear] = useState('All Years');
+  const [selectedSemester, setSelectedSemester] = useState('All Semesters');
+  const [selectedCurriculum, setSelectedCurriculum] = useState('All Curriculums');
+
+  /* Curriculum list from backend */
+  const [curriculums, setCurriculums] = useState(['All Curriculums']);
+  const [currriculumsLoading, setCurriculumsLoading] = useState(true);
+  const [schoolYears, setSchoolYears] = useState(fallbackAcademicYears);
+
+  /* Fetch curriculums from backend */
+  useEffect(() => {
+    const fetchCurriculums = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/curricula/`);
+        const curriculumList = response.data?.results || response.data;
+        if (Array.isArray(curriculumList)) {
+          const curriculumNames = curriculumList.map(c => c.year || c.name || c.id).filter(Boolean);
+          setCurriculums(['All Curriculums', ...curriculumNames]);
+        }
+      } catch (err) {
+        console.error('Error fetching curriculums:', err);
+        // Fallback to default curriculums if fetch fails
+        setCurriculums(['All Curriculums', '2018', '2023', '2025']);
+      } finally {
+        setCurriculumsLoading(false);
+      }
+    };
+    
+    fetchCurriculums();
+  }, []);
+
+  useEffect(() => {
+    const fetchSchoolYears = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/school-years/`);
+        const schoolYearList = response.data?.results || response.data;
+        if (Array.isArray(schoolYearList)) {
+          const years = schoolYearList.map(item => item.year).filter(Boolean);
+          if (years.length > 0) {
+            setSchoolYears(years);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching school years:', err);
+        setSchoolYears(fallbackAcademicYears);
+      }
+    };
+
+    fetchSchoolYears();
+  }, []);
+
+  /* Modals */
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddCurriculumModalOpen, setIsAddCurriculumModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isAddSchoolYearModalOpen, setIsAddSchoolYearModalOpen] = useState(false);
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingCurriculum, setIsSavingCurriculum] = useState(false);
+  const [isSavingSchoolYear, setIsSavingSchoolYear] = useState(false);
+
+  /* Filtering Logic */
+  const filteredCourses = courses.filter(course => {
+
+    const matchesSearch =
+      course.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      course.name.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesYear =
+      selectedYear === 'All Years' ||
+      (course.academic_year || course.academicYear) === selectedYear;
+
+    const matchesSemester =
+      selectedSemester === 'All Semesters' || course.semester === selectedSemester;
+
+    const matchesCurriculum =
+      selectedCurriculum === 'All Curriculums' ||
+      course.curriculum === selectedCurriculum;
+
+    return matchesSearch && matchesYear && matchesSemester && matchesCurriculum;
+
+  });
+
+  const handleAddCourse = () => {
+    setEditingCourse(null);
+    setIsAddModalOpen(true);
+  };
+
+  const handleEditCourse = (course) => {
+    setEditingCourse(course);
+    setIsAddModalOpen(true);
+  };
+
+  const handleAddCurriculum = () => {
+    setIsAddCurriculumModalOpen(true);
+  };
+
+  const handleAddSchoolYear = () => {
+    setIsAddSchoolYearModalOpen(true);
+  };
+
+  const handleViewCourse = (course) => {
+    setSelectedCourse(course);
+    setIsViewModalOpen(true);
+  };
+
+  const handleDeleteClick = (course) => {
+    setSelectedCourse(course);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleSaveCourse = async (courseData) => {
+    setIsSaving(true);
+    let result;
+
+    if (editingCourse) {
+      result = await updateCourse(editingCourse.id, courseData);
+      if (result.success) {
+        toast({
+          title: 'Course Updated',
+          description: `${courseData.code} updated successfully.`,
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message,
+          variant: 'destructive',
+        });
+      }
+    } else {
+      result = await addCourse(courseData);
+      if (result.success) {
+        toast({
+          title: 'Course Added',
+          description: `${courseData.code} added successfully.`,
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message,
+          variant: 'destructive',
+        });
+      }
+    }
+
+    setIsSaving(false);
+
+    if (result.success) setIsAddModalOpen(false);
+  };
+
+  const handleDeleteConfirm = async () => {
+
+    if (!selectedCourse) return;
+
+    const result = await deleteCourse(selectedCourse.id);
+
+    if (result.success) {
+      toast({
+        title: 'Course Deleted',
+        description: `${selectedCourse.code} deleted.`,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Error',
+        description: result.message,
+        variant: 'destructive',
+      });
+    }
+
+    setIsDeleteModalOpen(false);
+    setSelectedCourse(null);
+  };
+
+  const handleSaveCurriculum = async (curriculumData) => {
+    setIsSavingCurriculum(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/curricula/`, {
+        year: curriculumData.name,
+      });
+      const newCurriculum = response.data?.year || curriculumData.name;
+
+      setCurriculums(prev => {
+        const nextValues = [...prev, newCurriculum];
+        const uniqueValues = [...new Set(nextValues)];
+
+        return [
+          'All Curriculums',
+          ...uniqueValues.filter(curriculum => curriculum !== 'All Curriculums').sort(),
+        ];
+      });
+
+      setSelectedCurriculum(newCurriculum);
+      setIsAddCurriculumModalOpen(false);
+
+      toast({
+        title: 'Curriculum Added',
+        description: `${newCurriculum} is now available in filters and course creation.`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.year?.[0] || err.response?.data?.detail || 'Failed to add curriculum.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingCurriculum(false);
+    }
+  };
+
+  const handleToggleMapping = async (courseId, soId, shouldMap) => {
+
+    const result = await toggleSOMapping(courseId, soId, shouldMap);
+
+    if (result.success) {
+      toast({
+        title: shouldMap ? 'Mapping Added' : 'Mapping Removed',
+        description: `SO mapping ${shouldMap ? 'added' : 'removed'}.`,
+      });
+    } else {
+      toast({
+        title: 'Error',
+        description: result.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSaveSchoolYear = async (schoolYearData) => {
+    setIsSavingSchoolYear(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/school-years/`, {
+        year: schoolYearData.year,
+      });
+      const newSchoolYear = response.data?.year || schoolYearData.year;
+
+      setSchoolYears(prev => [...new Set([...prev, newSchoolYear])].sort());
+      setSelectedYear(newSchoolYear);
+      setIsAddSchoolYearModalOpen(false);
+
+      toast({
+        title: 'School Year Added',
+        description: `${newSchoolYear} is now available in course and section forms.`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.year?.[0] || err.response?.data?.detail || 'Failed to add school year.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingSchoolYear(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+
+      <Navbar />
+
+      <main className="flex-1">
+
+        {/* HERO SECTION */}
+        <section className="relative isolate bg-[#231F20] border-b border-[#A5A8AB] pt-16">
+
+          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-16">
+
+            <div className="inline-block px-3 py-1 bg-[#3A3A3A] rounded-full text-xs text-[#A5A8AB] mb-4">
+              COURSE MANAGEMENT
+            </div>
+
+            <h1 className="text-4xl font-bold mb-4 text-white">
+              Course & SO <span className="text-[#FFC20E]">Mapping System</span>
+            </h1>
+
+            <p className="text-[#A5A8AB] max-w-xl mb-8">
+              Manage courses and Student Outcome mappings.
+            </p>
+
+            <div className="relative z-10 flex flex-wrap gap-4">
+
+              {/* ADD COURSE */}
+              <button
+                type="button"
+                onClick={handleAddCourse}
+                className="relative z-10 flex cursor-pointer items-center gap-2 px-6 py-3 bg-[#FFC20E] text-[#231F20] rounded-lg font-medium hover:bg-[#FFC20E]/90"
+              >
+                <Plus className="w-5 h-5" /> ADD COURSE
+              </button>
+
+              {/* ADD CURRICULUM */}
+              <button
+                type="button"
+                onClick={handleAddCurriculum}
+                className="relative z-10 flex cursor-pointer items-center gap-2 px-6 py-3 bg-white text-[#231F20] rounded-lg font-medium hover:bg-gray-100"
+              >
+                <GraduationCap className="w-5 h-5" /> ADD CURRICULUM
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAddSchoolYear}
+                className="relative z-10 flex cursor-pointer items-center gap-2 px-6 py-3 bg-white text-[#231F20] rounded-lg font-medium hover:bg-gray-100"
+              >
+                <CalendarRange className="w-5 h-5" /> ADD SCHOOL YEAR
+              </button>
+
+              {/* VIEW TOGGLE */}
+              <div className="flex items-center bg-[#3A3A3A] rounded-lg p-1">
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm ${
+                    viewMode === 'grid'
+                      ? 'bg-[#FFC20E] text-[#231F20]'
+                      : 'text-[#A5A8AB]'
+                  }`}
+                >
+                  <Grid className="h-4 w-4" /> Grid
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode('matrix')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm ${
+                    viewMode === 'matrix'
+                      ? 'bg-[#FFC20E] text-[#231F20]'
+                      : 'text-[#A5A8AB]'
+                  }`}
+                >
+                  <TableIcon className="h-4 w-4" /> Matrix
+                </button>
+
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+        {/* CONTENT */}
+        <div className="max-w-7xl mx-auto px-4 py-8">
+
+          {/* FILTERS */}
+          <div className="glass-card p-6 mb-6">
+
+            <div className="flex items-center gap-2 mb-4">
+              <Filter className="w-5 h-5 text-primary" />
+              <h3 className="font-semibold text-[#231F20]">Filters</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+              {/* SEARCH */}
+              <div>
+                <label className="text-xs font-medium text-[#6B6B6B] mb-2 block">
+                  Search Courses
+                </label>
+
+                <div className="relative">
+
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#6B6B6B]" />
+
+                  <input
+                    type="text"
+                    placeholder="Search by code or name..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-[#E5E7EB] rounded-md"
+                  />
+
+                </div>
+              </div>
+
+              {/* CURRICULUM FILTER */}
+              <div>
+                <label className="text-xs font-medium text-[#6B6B6B] mb-2 block">
+                  Curriculum
+                </label>
+
+                <select
+                  value={selectedCurriculum}
+                  onChange={(e) => setSelectedCurriculum(e.target.value)}
+                  className="w-full p-2 text-sm bg-white border border-[#E5E7EB] rounded-md"
+                >
+                  {curriculums.map(curr => (
+                    <option key={curr} value={curr}>{curr}</option>
+                  ))}
+                </select>
+
+              </div>
+
+              {/* ACADEMIC YEAR FILTER */}
+              <div>
+                <label className="text-xs font-medium text-[#6B6B6B] mb-2 block">
+                  Academic Year
+                </label>
+
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="w-full p-2 text-sm bg-white border border-[#E5E7EB] rounded-md"
+                >
+                  <option value="All Years">All Years</option>
+                  {schoolYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+
+              </div>
+
+              {/* SEMESTER FILTER */}
+              <div>
+                <label className="text-xs font-medium text-[#6B6B6B] mb-2 block">
+                  Semester
+                </label>
+
+                <select
+                  value={selectedSemester}
+                  onChange={(e) => setSelectedSemester(e.target.value)}
+                  className="w-full p-2 text-sm bg-white border border-[#E5E7EB] rounded-md"
+                >
+                  <option value="All Semesters">All Semesters</option>
+                  {semesters.map(semester => (
+                    <option key={semester} value={semester}>{semester}</option>
+                  ))}
+                </select>
+
+              </div>
+
+            </div>
+          </div>
+
+          <CourseStats courses={courses} studentOutcomes={studentOutcomes} />
+
+          <div className="mt-6">
+
+            {viewMode === 'grid' ? (
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+                {filteredCourses.map(course => (
+
+                  <CourseCard
+                    key={course.id}
+                    course={course}
+                    onView={handleViewCourse}
+                    onEdit={handleEditCourse}
+                    onDelete={handleDeleteClick}
+                    studentOutcomes={studentOutcomes}
+                  />
+
+                ))}
+
+              </div>
+
+            ) : (
+
+              <SOMappingMatrix
+                courses={filteredCourses}
+                studentOutcomes={studentOutcomes}
+                onToggleMapping={handleToggleMapping}
+              />
+
+            )}
+
+          </div>
+        </div>
+
+      </main>
+
+      <Footer />
+
+      <AddCourseModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSave={handleSaveCourse}
+        editingCourse={editingCourse}
+        studentOutcomes={studentOutcomes}
+        isSaving={isSaving}
+        curriculumOptions={curriculums.filter(curriculum => curriculum !== 'All Curriculums')}
+      />
+
+      <AddCurriculumModal
+        isOpen={isAddCurriculumModalOpen}
+        onClose={() => setIsAddCurriculumModalOpen(false)}
+        onSave={handleSaveCurriculum}
+        isSaving={isSavingCurriculum}
+        existingCurriculums={curriculums.filter(curriculum => curriculum !== 'All Curriculums')}
+      />
+
+      <AddSchoolYearModal
+        isOpen={isAddSchoolYearModalOpen}
+        onClose={() => setIsAddSchoolYearModalOpen(false)}
+        onSave={handleSaveSchoolYear}
+        isSaving={isSavingSchoolYear}
+        existingSchoolYears={schoolYears}
+      />
+
+      <DeleteConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        course={selectedCourse}
+      />
+
+      <ViewCourseModal
+        isOpen={isViewModalOpen}
+        onClose={() => setIsViewModalOpen(false)}
+        course={selectedCourse}
+        studentOutcomes={studentOutcomes}
+      />
+
+    </div>
+  );
+};
+
+export default Courses;

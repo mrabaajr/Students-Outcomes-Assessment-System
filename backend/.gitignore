@@ -1,0 +1,17 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment files
+.env
+
+# Virtual environment folders
+venv/
+env/
+.venv/
+
+# Django logs / media / static builds
+*.log
+staticfiles/
+media/

@@ -1,0 +1,7 @@
+{
+  "css.lint.unknownAtRules": "ignore",
+  "css.lint.compatibleVendorPrefixes": "warning",
+  "css.validate": true,
+  "postcss.validate": true,
+  "css.customData": [".vscode/css_custom_data.json"]
+}
