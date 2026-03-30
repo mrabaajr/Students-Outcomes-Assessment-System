@@ -14,10 +14,7 @@ const soIconList = [Lightbulb, PenTool, MessageSquare, Scale, UsersRound, FlaskC
 const getSOIcon = (index) => soIconList[(index >= 0 ? index : 0) % soIconList.length];
 
 export default function ReportsFilter({ filters, setFilters, filterOptions }) {
-  const schoolYears = useMemo(
-    () => [...new Set((filterOptions?.school_years || []).filter(Boolean))],
-    [filterOptions?.school_years]
-  );
+  const schoolYears = filterOptions?.school_years || [];
   const courses = filterOptions?.courses || [];
   const sections = filterOptions?.sections || [];
   const studentOutcomes = filterOptions?.student_outcomes || [];

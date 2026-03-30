@@ -53,6 +53,12 @@ class ReportViewSet(ViewSet):
 
         merged = dict(base_table)
         merged["program"] = saved_table.get("program", merged.get("program"))
+        merged["source_assessment"] = saved_table.get(
+            "source_assessment", merged.get("source_assessment")
+        )
+        merged["time_of_data_collection"] = saved_table.get(
+            "time_of_data_collection", merged.get("time_of_data_collection")
+        )
 
         merged_totals = dict(merged.get("totals", {}))
         saved_totals = saved_table.get("totals", {})
@@ -357,7 +363,7 @@ class ReportViewSet(ViewSet):
         assessments = Assessment.objects.select_related(
             "section__course",
             "student_outcome"
-        ).filter(section__is_active=True)
+        )
 
         if school_year:
             assessments = assessments.filter(school_year=school_year)
@@ -487,11 +493,9 @@ class ReportViewSet(ViewSet):
 
         # ── FILTER OPTIONS ──
         all_school_years = sorted(
-            {
-                school_year
-                for school_year in Section.objects.exclude(academic_year="").values_list("academic_year", flat=True)
-                if school_year
-            }
+            Section.objects.exclude(academic_year="")
+            .values_list("academic_year", flat=True)
+            .distinct()
         )
 
         all_courses = list(
