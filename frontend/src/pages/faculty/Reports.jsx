@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from "recharts";
-import { Download, FileText, Users, TrendingUp, Target, BookOpen, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
+import { Download, FileText, Users, TrendingUp, Target, BookOpen, Calendar, CheckCircle2, AlertCircle, History } from "lucide-react";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
 
@@ -62,6 +63,7 @@ const assessedCourseSummaries = [
 const schoolYearOptions = ["2024-2025", "2023-2024"];
 
 const FacultyReports = () => {
+  const navigate = useNavigate();
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("2024-2025");
 
   const filteredCourses = useMemo(() => {
@@ -136,6 +138,13 @@ const FacultyReports = () => {
           </select>
 
           <div className="ml-auto flex gap-2">
+            <button 
+              onClick={() => navigate("/faculty/past-reports")}
+              className="flex items-center gap-2 bg-white text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-gray-50 transition-colors border border-gray-200"
+            >
+              <History className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">VIEW PAST REPORTS</span>
+            </button>
             <button className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors">
               <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
               <span className="hidden sm:inline">EXPORT SUMMARY PDF</span>

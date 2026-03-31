@@ -13,6 +13,7 @@ import FacultyDashboard from './pages/faculty/Dashboard'
 import FacultyClasses from './pages/faculty/Classess'
 import FacultyAssessments from './pages/faculty/Assessments'
 import FacultyReports from './pages/faculty/Reports'
+import FacultyPastReports from './pages/faculty/PastReports'
 import ProtectedRoute from './components/ProtectedRoute'
 
 
@@ -122,6 +123,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <FacultyReports />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/faculty/past-reports" 
+          element={
+            <ProtectedRoute>
+              <FacultyPastReports />
             </ProtectedRoute>
           } 
         />
