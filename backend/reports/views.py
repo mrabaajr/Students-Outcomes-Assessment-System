@@ -3,7 +3,7 @@ from rest_framework.viewsets import ViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Max
 from django.db.utils import OperationalError, ProgrammingError
 from collections import defaultdict
 
@@ -31,7 +31,6 @@ def faculty_display_name(faculty):
 
 class ReportViewSet(ViewSet):
     permission_classes = [AllowAny]
-    authentication_classes = []
 
     def _report_scope_filters(self, school_year="", course_id=None, section_id=None):
         return {
@@ -353,18 +352,27 @@ class ReportViewSet(ViewSet):
         section_id = request.query_params.get("section")
         course_id = request.query_params.get("course")
         so_id = request.query_params.get("so")
+        user = request.user
 
         assessments = Assessment.objects.select_related(
             "section__course",
             "student_outcome"
         ).filter(section__is_active=True)
+        scoped_sections = Section.objects.select_related("course", "faculty").filter(is_active=True)
+
+        if getattr(user, "is_authenticated", False) and getattr(user, "role", "") == "staff":
+            assessments = assessments.filter(section__faculty=user)
+            scoped_sections = scoped_sections.filter(faculty=user)
 
         if school_year:
             assessments = assessments.filter(school_year=school_year)
+            scoped_sections = scoped_sections.filter(academic_year=school_year)
         if section_id:
             assessments = assessments.filter(section_id=section_id)
+            scoped_sections = scoped_sections.filter(id=section_id)
         if course_id:
             assessments = assessments.filter(section__course_id=course_id)
+            scoped_sections = scoped_sections.filter(course_id=course_id)
         if so_id:
             assessments = assessments.filter(student_outcome_id=so_id)
 
@@ -444,6 +452,7 @@ class ReportViewSet(ViewSet):
             c_id = row["assessment__section__course__id"]
             avg_raw = row["avg_score"] or 0
             avg_pct = round((avg_raw / 6) * 100, 1)
+            target = 80
 
             # Linked SOs
             linked_sos = list(
@@ -465,6 +474,33 @@ class ReportViewSet(ViewSet):
             passed_s = student_avgs.filter(student_avg__gte=5).count()
             pass_rate = round((passed_s / total_s) * 100, 1) if total_s > 0 else 0
 
+            per_so_rows = list(
+                grades
+                .filter(assessment__section__course_id=c_id)
+                .values("assessment__student_outcome__id")
+                .annotate(avg_score=Avg("score"))
+            )
+            so_total = len({so_row["assessment__student_outcome__id"] for so_row in per_so_rows})
+            so_attained = sum(
+                1 for so_row in per_so_rows
+                if round(((so_row["avg_score"] or 0) / 6) * 100, 1) >= target
+            )
+
+            sections_total = scoped_sections.filter(course_id=c_id).values("id").distinct().count()
+            sections_assessed = (
+                assessments
+                .filter(section__course_id=c_id, grades__isnull=False)
+                .values("section_id")
+                .distinct()
+                .count()
+            )
+            last_assessed = (
+                assessments
+                .filter(section__course_id=c_id, grades__isnull=False)
+                .aggregate(last=Max("updated_at"))
+                .get("last")
+            )
+
             # Faculty names
             faculty_names = sorted(
                 {
@@ -483,19 +519,28 @@ class ReportViewSet(ViewSet):
                 "students": row["total_students"],
                 "avg": avg_pct,
                 "pass_rate": pass_rate,
+                "sections_assessed": sections_assessed,
+                "sections_total": sections_total,
+                "students_assessed": row["total_students"],
+                "so_attained": so_attained,
+                "so_total": so_total,
+                "attainment_rate": avg_pct,
+                "target": target,
+                "last_assessed": last_assessed.isoformat() if last_assessed else None,
             })
 
         # ── FILTER OPTIONS ──
         all_school_years = sorted(
             {
                 school_year
-                for school_year in Section.objects.exclude(academic_year="").values_list("academic_year", flat=True)
+                for school_year in scoped_sections.exclude(academic_year="").values_list("academic_year", flat=True)
                 if school_year
             }
         )
 
+        course_ids = scoped_sections.values_list("course_id", flat=True).distinct()
         all_courses = list(
-            Course.objects.values("id", "code", "name").order_by("code")
+            Course.objects.filter(id__in=course_ids).values("id", "code", "name").order_by("code")
         )
 
         all_sections = [
@@ -506,11 +551,12 @@ class ReportViewSet(ViewSet):
                 "course__code": section.course.code,
                 "school_year": section.academic_year,
             }
-            for section in Section.objects.select_related("course").order_by("name")
+            for section in scoped_sections.order_by("name")
         ]
 
+        so_ids = assessments.values_list("student_outcome_id", flat=True).distinct()
         all_sos = list(
-            StudentOutcome.objects.values("id", "number", "title").order_by("number")
+            StudentOutcome.objects.filter(id__in=so_ids).values("id", "number", "title").order_by("number")
         )
 
         so_summary_tables = self._apply_saved_templates(
