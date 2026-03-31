@@ -6,6 +6,7 @@ import StudentOutcomes from './pages/programchair/StudentOutcomes'
 import Courses from './pages/programchair/Courses'
 import Assessment from './pages/programchair/Assessment'
 import Reports from './pages/programchair/Reports'
+import ProgramChairPastReports from './pages/programchair/PastReports'
 import Classes from './pages/programchair/Classes'
 import FacultyHome from './pages/faculty/Home'
 import FacultyLogin from './pages/faculty/Login'
@@ -72,6 +73,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Reports />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/programchair/past-reports" 
+          element={
+            <ProtectedRoute>
+              <ProgramChairPastReports />
             </ProtectedRoute>
           } 
         />

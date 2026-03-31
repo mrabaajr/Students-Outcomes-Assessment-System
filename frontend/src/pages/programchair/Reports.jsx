@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
 import StatCards from "@/components/reports/StatCards.jsx";
@@ -8,11 +9,12 @@ import CourseSummary from "@/components/reports/CourseSummary.jsx";
 import SOSummaryTables from "@/components/reports/SOSummaryTables.jsx";
 import ReportsFilter from "@/components/reports/ReportsFilter.jsx";
 import { useToast } from "@/hooks/use-toast";
-import { BookOpen, FileDown, Loader2, Tag } from "lucide-react";
+import { BookOpen, FileDown, History, Loader2, Tag } from "lucide-react";
 
 const API_BASE_URL = "http://localhost:8000/api";
 
 export default function Reports() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const reportContentRef = useRef(null);
   const [reportMode, setReportMode] = useState("so");
@@ -252,6 +254,14 @@ export default function Reports() {
             </p>
 
             <div className="flex flex-wrap items-center gap-4">
+              <button
+                onClick={() => navigate("/programchair/past-reports")}
+                className="flex items-center gap-2 bg-white text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-gray-50 transition-colors border border-gray-200"
+              >
+                <History className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>VIEW PAST REPORTS</span>
+              </button>
+
               <button
                 onClick={handleExportReport}
                 disabled={!data || isLoading}
