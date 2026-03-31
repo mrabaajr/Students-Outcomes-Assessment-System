@@ -1,7 +1,8 @@
 from rest_framework import serializers
-from .models import Student, Section, Enrollment, Faculty, FacultyCourseAssignment
+
 from users.models import User
-from courses.models import Course
+
+from .models import Enrollment, Section, Student
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -10,86 +11,99 @@ class StudentSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class FacultyCourseAssignmentSerializer(serializers.ModelSerializer):
-    sections = serializers.SerializerMethodField()
-
-    class Meta:
-        model = FacultyCourseAssignment
-        fields = ['id', 'course_code', 'course_name', 'sections']
-
-    def get_sections(self, obj):
-        return obj.get_sections_list()
+class FacultyCourseAssignmentSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    name = serializers.CharField()
+    sections = serializers.ListField(child=serializers.CharField())
 
 
 class ClassesFacultySerializer(serializers.ModelSerializer):
-    courses = FacultyCourseAssignmentSerializer(
-        source='course_assignments', many=True, read_only=True
-    )
+    name = serializers.SerializerMethodField()
+    courses = serializers.SerializerMethodField()
 
     class Meta:
-        model = Faculty
-        fields = ['id', 'name', 'department', 'email', 'courses']
+        model = User
+        fields = ["id", "name", "department", "email", "courses"]
+
+    def get_name(self, obj):
+        return " ".join(part for part in [obj.first_name, obj.last_name] if part).strip() or obj.email
+
+    def get_courses(self, obj):
+        assignments = {}
+        sections = (
+            obj.assigned_sections.select_related("course")
+            .order_by("course__code", "name")
+        )
+        for section in sections:
+            course_entry = assignments.setdefault(
+                section.course.code,
+                {
+                    "code": section.course.code,
+                    "name": section.course.name,
+                    "sections": [],
+                },
+            )
+            course_entry["sections"].append(section.name)
+
+        return list(assignments.values())
 
 
-# Keep old FacultySerializer for SectionSerializer compatibility
 class FacultySerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email', 'department']
+        fields = ["id", "first_name", "last_name", "email", "department"]
 
 
 class SectionSerializer(serializers.ModelSerializer):
     faculty = FacultySerializer(read_only=True)
     faculty_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(role='staff'),
-        source='faculty',
+        queryset=User.objects.filter(role="staff"),
+        source="faculty",
         write_only=True,
         required=False,
         allow_null=True,
     )
-
-    course_name = serializers.CharField(source='course.name', read_only=True)
-    course_code = serializers.CharField(source='course.code', read_only=True)
+    course_name = serializers.CharField(source="course.name", read_only=True)
+    course_code = serializers.CharField(source="course.code", read_only=True)
     student_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Section
         fields = [
-            'id',
-            'name',
-            'course',
-            'course_code',
-            'course_name',
-            'faculty',
-            'faculty_id',
-            'semester',
-            'academic_year',
-            'student_count',
+            "id",
+            "name",
+            "course",
+            "course_code",
+            "course_name",
+            "faculty",
+            "faculty_id",
+            "is_active",
+            "semester",
+            "academic_year",
+            "student_count",
         ]
 
     def get_student_count(self, obj):
         return obj.enrollments.count()
-    
+
+
 class SectionDetailSerializer(SectionSerializer):
     students = serializers.SerializerMethodField()
 
     class Meta(SectionSerializer.Meta):
-        fields = SectionSerializer.Meta.fields + ['students']
+        fields = SectionSerializer.Meta.fields + ["students"]
 
     def get_students(self, obj):
-        enrollments = obj.enrollments.select_related('student')
-        return StudentSerializer(
-            [e.student for e in enrollments],
-            many=True
-        ).data
-    
+        enrollments = obj.enrollments.select_related("student")
+        return StudentSerializer([e.student for e in enrollments], many=True).data
+
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Enrollment
-        fields = ['id', 'student', 'section']
+        fields = ["id", "student", "section"]
 
     def create(self, validated_data):
-        section = validated_data['section']
-        validated_data['course'] = section.course
+        section = validated_data["section"]
+        validated_data["course"] = section.course
         return super().create(validated_data)
