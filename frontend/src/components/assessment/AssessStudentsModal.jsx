@@ -35,6 +35,30 @@ const getFacultyForSection = (section, facultyData) => {
   return match?.name || "No faculty assigned";
 };
 
+const SATISFACTORY_THRESHOLD = 5;
+
+const buildAssessmentBases = (studentOutcome) => {
+  if (!studentOutcome?.performanceIndicators) {
+    return [];
+  }
+
+  return studentOutcome.performanceIndicators.flatMap((pi) => {
+    if (pi.performanceCriteria && pi.performanceCriteria.length > 0) {
+      return pi.performanceCriteria.map((pc) => ({
+        key: `criterion:${pc.id}`,
+        label: pc.name || pi.name || "Unnamed criterion",
+      }));
+    }
+
+    return [
+      {
+        key: `indicator:${pi.id}`,
+        label: pi.name || "Unnamed performance indicator",
+      },
+    ];
+  });
+};
+
 export function AssessStudentsModal({
   isOpen,
   selectedSection,
@@ -52,6 +76,7 @@ export function AssessStudentsModal({
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingAssessment, setIsLoadingAssessment] = useState(false);
   const [selectedAssessmentSO, setSelectedAssessmentSO] = useState(null);
+  const [missingGradeMap, setMissingGradeMap] = useState({});
   const [modalWidth, setModalWidth] = useState(85); // in vw
   const [modalHeight, setModalHeight] = useState(90); // in vh
 
@@ -63,6 +88,7 @@ export function AssessStudentsModal({
         ...student,
         grades: {},
       }));
+      setMissingGradeMap({});
       
       // Load any previously saved grades
       const courseSOs = courseMappings[selectedSection.courseCode] || [];
@@ -88,6 +114,7 @@ export function AssessStudentsModal({
         ...student,
         grades: {},
       }));
+      setMissingGradeMap({});
       loadGrades(selectedSection.id, selectedSOIds[0], selectedSection.schoolYear, initializedStudents, selectedSection.courseCode);
     }
   }, [selectedSOIds, selectedSection?.id, isOpen]);
@@ -282,6 +309,17 @@ export function AssessStudentsModal({
   };
 
   const handleGradeChange = (studentId, criterionKey, value) => {
+    const missingKey = `${studentId}::${criterionKey}`;
+    setMissingGradeMap((prev) => {
+      if (!prev[missingKey]) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[missingKey];
+      return next;
+    });
+
     setStudents(students.map(student =>
       student.id === studentId
         ? {
@@ -334,22 +372,48 @@ export function AssessStudentsModal({
       return;
     }
 
-    // Transform grades into backend basis keys.
-    const gradesPayload = {};
+    const assessmentBases = buildAssessmentBases(selectedAssessmentSO);
+    const validBases = new Set(assessmentBases.map((basis) => basis.key));
+    console.log("Valid assessment bases for SO ", selectedAssessmentSO.id, ":", [...validBases]);
 
-    const validBases = new Set();
-    if (selectedAssessmentSO) {
-      selectedAssessmentSO.performanceIndicators?.forEach(pi => {
-        if (pi.performanceCriteria && pi.performanceCriteria.length > 0) {
-          pi.performanceCriteria.forEach(pc => {
-            validBases.add(`criterion:${pc.id}`);
+    const nextMissingGradeMap = {};
+    const missingEntries = [];
+
+    students.forEach((student) => {
+      assessmentBases.forEach((basis) => {
+        const score = student.grades?.[basis.key];
+        if (score === null || score === undefined || score === "") {
+          const missingKey = `${student.id}::${basis.key}`;
+          nextMissingGradeMap[missingKey] = true;
+          missingEntries.push({
+            studentName: student.name,
+            basisLabel: basis.label,
           });
-        } else {
-          validBases.add(`indicator:${pi.id}`);
         }
       });
+    });
+
+    if (missingEntries.length > 0) {
+      setMissingGradeMap(nextMissingGradeMap);
+
+      const preview = missingEntries
+        .slice(0, 3)
+        .map((entry) => `${entry.studentName}: ${entry.basisLabel}`)
+        .join(" | ");
+
+      toast({
+        title: "Incomplete assessment",
+        description: `Fill in all missing ratings before saving. ${missingEntries.length} field${missingEntries.length > 1 ? "s are" : " is"} still blank.${preview ? ` Missing: ${preview}` : ""}`,
+        variant: "destructive",
+        duration: 4000,
+      });
+      return;
     }
-    console.log("Valid assessment bases for SO ", selectedAssessmentSO.id, ":", [...validBases]);
+
+    setMissingGradeMap({});
+
+    // Transform grades into backend basis keys.
+    const gradesPayload = {};
     
     students.forEach(student => {
       gradesPayload[student.id] = {};
@@ -435,6 +499,29 @@ export function AssessStudentsModal({
   const indicatorsWithoutCriteria = displayIndicators.filter(
     (pi) => !pi.performanceCriteria || pi.performanceCriteria.length === 0
   ).length;
+  const displayBases = buildAssessmentBases(selectedAssessmentSO);
+  const hasMissingGrades = Object.keys(missingGradeMap).length > 0;
+  const footerSummary = displayBases.map((basis) => {
+    const answeredCount = students.filter((student) => {
+      const score = student.grades?.[basis.key];
+      return score !== null && score !== undefined && score !== "";
+    }).length;
+
+    const satisfactoryCount = students.filter((student) => {
+      const score = student.grades?.[basis.key];
+      return score !== null && score !== undefined && score !== "" && Number(score) >= SATISFACTORY_THRESHOLD;
+    }).length;
+
+    return {
+      ...basis,
+      answeredCount,
+      satisfactoryCount,
+    };
+  });
+  const averageSatisfactoryCount =
+    footerSummary.length > 0
+      ? (footerSummary.reduce((sum, basis) => sum + basis.satisfactoryCount, 0) / footerSummary.length).toFixed(0)
+      : "0";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -615,6 +702,11 @@ export function AssessStudentsModal({
                             {indicatorsWithoutCriteria} performance indicator{indicatorsWithoutCriteria > 1 ? "s use" : " uses"} the performance indicator itself as the grading basis because no criteria are defined yet.
                           </div>
                         )}
+                        {hasMissingGrades && (
+                          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                            Some ratings are still blank. Highlighted cells must be filled before you can save this assessment.
+                          </div>
+                        )}
                       </div>
 
                       <div
@@ -726,7 +818,12 @@ export function AssessStudentsModal({
                                           name={`grade-${student.id}-${pi.id}-indicator`}
                                           value={students.find(s => s.id === student.id)?.grades?.[`indicator:${pi.id}`] ?? ""}
                                           onChange={(e) => handleGradeChange(student.id, `indicator:${pi.id}`, e.target.value ? parseInt(e.target.value) : null)}
-                                          className="w-full px-2 py-1.5 rounded border border-[#D1D5DB] text-sm font-semibold text-[#231F20] focus:border-[#FFC20E] focus:ring-2 focus:ring-[#FFC20E]/30 bg-white cursor-pointer transition-all hover:border-[#FFC20E]"
+                                          className={cn(
+                                            "w-full px-2 py-1.5 rounded border text-sm font-semibold text-[#231F20] focus:ring-2 bg-white cursor-pointer transition-all",
+                                            missingGradeMap[`${student.id}::indicator:${pi.id}`]
+                                              ? "border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-200"
+                                              : "border-[#D1D5DB] hover:border-[#FFC20E] focus:border-[#FFC20E] focus:ring-[#FFC20E]/30"
+                                          )}
                                         >
                                           <option value="">-</option>
                                           <option value="1">1</option>
@@ -750,7 +847,12 @@ export function AssessStudentsModal({
                                         name={`grade-${student.id}-${pi.id}-${pc.id}`}
                                         value={students.find(s => s.id === student.id)?.grades?.[`criterion:${pc.id}`] ?? ""}
                                         onChange={(e) => handleGradeChange(student.id, `criterion:${pc.id}`, e.target.value ? parseInt(e.target.value) : null)}
-                                        className="w-full px-2 py-1.5 rounded border border-[#D1D5DB] text-sm font-semibold text-[#231F20] focus:border-[#FFC20E] focus:ring-2 focus:ring-[#FFC20E]/30 bg-white cursor-pointer transition-all hover:border-[#FFC20E]"
+                                        className={cn(
+                                          "w-full px-2 py-1.5 rounded border text-sm font-semibold text-[#231F20] focus:ring-2 bg-white cursor-pointer transition-all",
+                                          missingGradeMap[`${student.id}::criterion:${pc.id}`]
+                                            ? "border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-200"
+                                            : "border-[#D1D5DB] hover:border-[#FFC20E] focus:border-[#FFC20E] focus:ring-[#FFC20E]/30"
+                                        )}
                                         >
                                           <option value="">-</option>
                                           <option value="1">1</option>
@@ -765,6 +867,60 @@ export function AssessStudentsModal({
                                 })}
                               </tr>
                             ))}
+
+                            {footerSummary.length > 0 && (
+                              <>
+                                <tr className="border-t-2 border-[#231F20] bg-[#FFF8DB]">
+                                  <td
+                                    colSpan={2}
+                                    className="border-r border-[#D1D5DB] px-4 py-2 text-left text-xs font-semibold text-[#231F20] bg-[#FFF8DB]"
+                                    style={{ position: "sticky", left: 0, zIndex: 15 }}
+                                  >
+                                    No. of Students Answered per criterion / indicator
+                                  </td>
+                                  {footerSummary.map((basis) => (
+                                    <td
+                                      key={`answered-summary-${basis.key}`}
+                                      className="border-r border-[#E5E7EB] px-2 py-2 text-center text-sm font-semibold text-[#231F20] bg-[#FFF8DB] last:border-r-0"
+                                    >
+                                      {basis.answeredCount}
+                                    </td>
+                                  ))}
+                                </tr>
+                                <tr className="bg-white">
+                                  <td
+                                    colSpan={2}
+                                    className="border-r border-[#D1D5DB] px-4 py-2 text-left text-xs font-semibold text-[#231F20] bg-white"
+                                    style={{ position: "sticky", left: 0, zIndex: 15 }}
+                                  >
+                                    Actual no. of students who got satisfactory rating
+                                  </td>
+                                  {footerSummary.map((basis) => (
+                                    <td
+                                      key={`satisfactory-summary-${basis.key}`}
+                                      className="border-r border-[#E5E7EB] px-2 py-2 text-center text-sm font-semibold text-[#231F20] bg-white last:border-r-0"
+                                    >
+                                      {basis.satisfactoryCount}
+                                    </td>
+                                  ))}
+                                </tr>
+                                <tr className="bg-[#FFF8DB]">
+                                  <td
+                                    colSpan={2}
+                                    className="border-r border-[#D1D5DB] px-4 py-2 text-left text-xs font-semibold text-[#231F20] bg-[#FFF8DB]"
+                                    style={{ position: "sticky", left: 0, zIndex: 15 }}
+                                  >
+                                    Average no. of students who got satisfactory rating
+                                  </td>
+                                  <td
+                                    colSpan={footerSummary.length}
+                                    className="px-2 py-2 text-center text-sm font-semibold text-[#231F20] bg-[#FFF8DB]"
+                                  >
+                                    {averageSatisfactoryCount}
+                                  </td>
+                                </tr>
+                              </>
+                            )}
                           </tbody>
                         </table>
                       </div>

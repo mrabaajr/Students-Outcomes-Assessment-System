@@ -1,8 +1,6 @@
 import { useState } from "react";
 import {
   Users,
-  Clock,
-  MapPin,
   BookOpen,
   ChevronDown,
   ChevronUp,
@@ -37,9 +35,20 @@ const SectionCard = ({
           </div>
 
           <div>
-            <h3 className="font-bold text-base text-[#231F20]">
-              {section.name}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-base text-[#231F20]">
+                {section.name}
+              </h3>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  section.isActive !== false
+                    ? "bg-green-100 text-green-700"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {section.isActive !== false ? "Active" : "Inactive"}
+              </span>
+            </div>
 
             <p className="text-sm text-[#6B6B6B] flex items-center gap-1">
               <BookOpen className="w-3.5 h-3.5" />
@@ -70,17 +79,14 @@ const SectionCard = ({
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="hidden sm:flex flex-col items-end text-xs text-[#6B6B6B] gap-0.5">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {section.schedule}
-            </span>
-            <span className="flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              {section.room}
-            </span>
+          <div className="hidden sm:flex flex-col items-end text-xs gap-1">
+            {section.semester && (
+              <span className="font-medium text-[#6B6B6B]">
+                {section.semester}
+              </span>
+            )}
             {section.schoolYear && (
-              <span className="flex items-center gap-1 font-semibold text-[#231F20]">
+              <span className="font-semibold text-[#231F20]">
                 SY {section.schoolYear}
               </span>
             )}
