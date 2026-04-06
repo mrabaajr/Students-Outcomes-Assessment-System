@@ -6,9 +6,14 @@ import FacultyClassesScreen from "../screens/FacultyClassesScreen";
 import FacultyDashboardScreen from "../screens/FacultyDashboardScreen";
 import LoginScreen from "../screens/LoginScreen";
 import PlaceholderScreen from "../screens/PlaceholderScreen";
+import ProgramChairAssessmentsScreen, {
+  ProgramChairAssessmentEntryScreen,
+} from "../screens/ProgramChairAssessmentsScreen";
 import ProgramChairClassesScreen from "../screens/ProgramChairClassesScreen";
 import ProgramChairCoursesScreen from "../screens/ProgramChairCoursesScreen";
 import ProgramChairDashboardScreen from "../screens/ProgramChairDashboardScreen";
+import ProgramChairReportsScreen from "../screens/ProgramChairReportsScreen";
+import SettingsScreen from "../screens/SettingsScreen";
 import ProgramChairStudentOutcomesScreen, {
   ProgramChairOutcomeRubricScreen,
 } from "../screens/ProgramChairStudentOutcomesScreen";
@@ -78,35 +83,22 @@ export default function RootNavigator() {
           />
           <Stack.Screen
             name="ProgramChairAssessments"
-            component={PlaceholderScreen}
-            initialParams={{
-              eyebrow: "Program Chair",
-              title: "Assessments",
-              subtitle: "This screen will host assessment overviews and grading workflows.",
-              icon: "assignment",
-            }}
+            component={ProgramChairAssessmentsScreen}
             options={{ title: "Assessments" }}
           />
           <Stack.Screen
+            name="ProgramChairAssessmentEntry"
+            component={ProgramChairAssessmentEntryScreen}
+            options={{ title: "Assessment Entry" }}
+          />
+          <Stack.Screen
             name="ProgramChairReports"
-            component={PlaceholderScreen}
-            initialParams={{
-              eyebrow: "Program Chair",
-              title: "Reports",
-              subtitle: "This screen will carry the mobile reports and performance summaries.",
-              icon: "description",
-            }}
+            component={ProgramChairReportsScreen}
             options={{ title: "Reports" }}
           />
           <Stack.Screen
             name="ProgramChairSettings"
-            component={PlaceholderScreen}
-            initialParams={{
-              eyebrow: "Program Chair",
-              title: "Settings",
-              subtitle: "This screen will hold account and app settings for program chairs.",
-              icon: "settings",
-            }}
+            component={SettingsScreen}
             options={{ title: "Settings" }}
           />
         </>
@@ -146,13 +138,7 @@ export default function RootNavigator() {
           />
           <Stack.Screen
             name="FacultySettings"
-            component={PlaceholderScreen}
-            initialParams={{
-              eyebrow: "Faculty",
-              title: "Settings",
-              subtitle: "This screen will hold account and app settings for faculty.",
-              icon: "settings",
-            }}
+            component={SettingsScreen}
             options={{ title: "Settings" }}
           />
         </>
