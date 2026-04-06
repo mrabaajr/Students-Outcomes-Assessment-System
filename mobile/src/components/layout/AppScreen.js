@@ -1,5 +1,8 @@
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { useMemo, useState } from "react";
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import AppSidebar from "../navigation/AppSidebar";
 import { useAuth } from "../../context/AuthContext";
 import { colors } from "../../theme/colors";
 
@@ -10,12 +13,58 @@ export default function AppScreen({
   children,
   footer,
 }) {
-  const { user } = useAuth();
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { session, signOut, user } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isProgramChair = session.userRole === "admin";
+
+  const sidebarItems = useMemo(() => {
+    if (isProgramChair) {
+      return [
+        { label: "Dashboard", route: "ProgramChairDashboard", icon: "dashboard" },
+        { label: "Student Outcomes", route: "ProgramChairStudentOutcomes", icon: "analytics" },
+        { label: "Courses", route: "ProgramChairCourses", icon: "menu-book" },
+        { label: "Assessments", route: "ProgramChairAssessments", icon: "assignment" },
+        { label: "Reports", route: "ProgramChairReports", icon: "description" },
+        { label: "Classes", route: "ProgramChairClasses", icon: "groups" },
+        { label: "Settings", route: "ProgramChairSettings", icon: "settings" },
+      ];
+    }
+
+    return [
+      { label: "Dashboard", route: "FacultyDashboard", icon: "dashboard" },
+      { label: "Classes", route: "FacultyClasses", icon: "groups" },
+      { label: "Assessments", route: "FacultyAssessments", icon: "assignment" },
+      { label: "Reports", route: "FacultyReports", icon: "description" },
+      { label: "Settings", route: "FacultySettings", icon: "settings" },
+    ];
+  }, [isProgramChair]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {sidebarOpen ? (
+        <AppSidebar
+          email={user?.email}
+          items={sidebarItems.map((item) => ({ ...item, active: route.name === item.route }))}
+          onClose={() => setSidebarOpen(false)}
+          onLogout={async () => {
+            setSidebarOpen(false);
+            await signOut();
+          }}
+          onNavigate={(targetRoute) => {
+            setSidebarOpen(false);
+            if (route.name !== targetRoute) {
+              navigation.navigate(targetRoute);
+            }
+          }}
+        />
+      ) : null}
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.hero}>
+          <Pressable onPress={() => setSidebarOpen(true)} style={styles.menuButton}>
+            <Text style={styles.menuIcon}>≡</Text>
+          </Pressable>
           {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -65,6 +114,15 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: "800",
     lineHeight: 36,
+  },
+  menuButton: {
+    alignSelf: "flex-start",
+    marginBottom: 14,
+  },
+  menuIcon: {
+    color: colors.yellow,
+    fontSize: 28,
+    fontWeight: "700",
   },
   subtitle: {
     color: colors.gray,
