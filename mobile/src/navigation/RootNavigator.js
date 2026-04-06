@@ -9,6 +9,9 @@ import PlaceholderScreen from "../screens/PlaceholderScreen";
 import ProgramChairClassesScreen from "../screens/ProgramChairClassesScreen";
 import ProgramChairCoursesScreen from "../screens/ProgramChairCoursesScreen";
 import ProgramChairDashboardScreen from "../screens/ProgramChairDashboardScreen";
+import ProgramChairStudentOutcomesScreen, {
+  ProgramChairOutcomeRubricScreen,
+} from "../screens/ProgramChairStudentOutcomesScreen";
 import { colors } from "../theme/colors";
 
 const Stack = createNativeStackNavigator();
@@ -65,14 +68,13 @@ export default function RootNavigator() {
           />
           <Stack.Screen
             name="ProgramChairStudentOutcomes"
-            component={PlaceholderScreen}
-            initialParams={{
-              eyebrow: "Program Chair",
-              title: "Student Outcomes",
-              subtitle: "This screen will become the mobile home for outcomes, indicators, and rubrics.",
-              icon: "analytics",
-            }}
+            component={ProgramChairStudentOutcomesScreen}
             options={{ title: "Student Outcomes" }}
+          />
+          <Stack.Screen
+            name="ProgramChairOutcomeRubric"
+            component={ProgramChairOutcomeRubricScreen}
+            options={{ title: "Rubric" }}
           />
           <Stack.Screen
             name="ProgramChairAssessments"
