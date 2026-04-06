@@ -2,8 +2,12 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../context/AuthContext";
-import DashboardScreen from "../screens/DashboardScreen";
+import FacultyClassesScreen from "../screens/FacultyClassesScreen";
+import FacultyDashboardScreen from "../screens/FacultyDashboardScreen";
 import LoginScreen from "../screens/LoginScreen";
+import ProgramChairClassesScreen from "../screens/ProgramChairClassesScreen";
+import ProgramChairCoursesScreen from "../screens/ProgramChairCoursesScreen";
+import ProgramChairDashboardScreen from "../screens/ProgramChairDashboardScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -16,18 +20,61 @@ function SplashScreen() {
 }
 
 export default function RootNavigator() {
-  const { isAuthenticated, isBootstrapping } = useAuth();
+  const { isAuthenticated, isBootstrapping, session } = useAuth();
 
   if (isBootstrapping) {
     return <SplashScreen />;
   }
 
+  const isProgramChair = session.userRole === "admin";
+
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isAuthenticated ? (
-        <Stack.Screen name="Dashboard" component={DashboardScreen} />
+    <Stack.Navigator
+      screenOptions={{
+        headerBackTitleVisible: false,
+        headerShadowVisible: false,
+        headerTintColor: "#10211d",
+        headerStyle: { backgroundColor: "#f4f8f7" },
+        headerTitleStyle: { fontWeight: "700" },
+      }}
+    >
+      {!isAuthenticated ? (
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={{ headerShown: false }}
+        />
+      ) : isProgramChair ? (
+        <>
+          <Stack.Screen
+            name="ProgramChairDashboard"
+            component={ProgramChairDashboardScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ProgramChairCourses"
+            component={ProgramChairCoursesScreen}
+            options={{ title: "Courses" }}
+          />
+          <Stack.Screen
+            name="ProgramChairClasses"
+            component={ProgramChairClassesScreen}
+            options={{ title: "Classes" }}
+          />
+        </>
       ) : (
-        <Stack.Screen name="Login" component={LoginScreen} />
+        <>
+          <Stack.Screen
+            name="FacultyDashboard"
+            component={FacultyDashboardScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="FacultyClasses"
+            component={FacultyClassesScreen}
+            options={{ title: "My Classes" }}
+          />
+        </>
       )}
     </Stack.Navigator>
   );
