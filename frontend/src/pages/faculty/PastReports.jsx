@@ -3,107 +3,25 @@ import { useNavigate } from "react-router-dom";
 import { Download, FileText, Eye, Calendar, Filter, Search, CheckCircle2, Clock, ArrowLeft } from "lucide-react";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
-
-// Sample past reports data
-const pastReportsData = [
-  {
-    id: 1,
-    title: "Course-Level Summary Report",
-    schoolYear: "2024-2025",
-    semester: "Fall 2024",
-    dateSubmitted: "2026-03-24",
-    reportType: "Course Summary",
-    status: "Completed",
-    coursesAssessed: 4,
-    studentsAssessed: 14,
-    avgScore: 73.75,
-    fileFormat: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: 2,
-    title: "Spring 2025 Assessment Summary",
-    schoolYear: "2024-2025",
-    semester: "Spring 2025",
-    dateSubmitted: "2026-03-20",
-    reportType: "Course Summary",
-    status: "Completed",
-    coursesAssessed: 3,
-    studentsAssessed: 12,
-    avgScore: 72.5,
-    fileFormat: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: 3,
-    title: "CPE 401 Detailed Report",
-    schoolYear: "2024-2025",
-    semester: "Spring 2025",
-    dateSubmitted: "2026-03-18",
-    reportType: "Course Detailed",
-    status: "Completed",
-    coursesAssessed: 1,
-    studentsAssessed: 5,
-    avgScore: 77.0,
-    fileFormat: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: 4,
-    title: "Fall 2024 Assessment Summary",
-    schoolYear: "2024-2025",
-    semester: "Fall 2024",
-    dateSubmitted: "2026-01-10",
-    reportType: "Course Summary",
-    status: "Completed",
-    coursesAssessed: 4,
-    studentsAssessed: 18,
-    avgScore: 71.25,
-    fileFormat: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: 5,
-    title: "Academic Year 2023-2024 Final Report",
-    schoolYear: "2023-2024",
-    semester: "Full Year",
-    dateSubmitted: "2024-05-15",
-    reportType: "Annual Report",
-    status: "Completed",
-    coursesAssessed: 6,
-    studentsAssessed: 32,
-    avgScore: 74.0,
-    fileFormat: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: 6,
-    title: "Spring 2024 Midterm Assessment",
-    schoolYear: "2023-2024",
-    semester: "Spring 2024",
-    dateSubmitted: "2024-03-25",
-    reportType: "Course Summary",
-    status: "Completed",
-    coursesAssessed: 3,
-    studentsAssessed: 15,
-    avgScore: 73.33,
-    fileFormat: "PDF",
-    downloadUrl: "#",
-  },
-];
-
-const schoolYearOptions = ["All Years", "2024-2025", "2023-2024"];
-const reportTypeOptions = ["All Types", "Course Summary", "Course Detailed", "Annual Report"];
+import {
+  buildPastReportFilterOptions,
+  downloadSamplePastReport,
+  facultyPastReports,
+} from "../../data/pastReportsData";
 
 const PastReports = () => {
   const navigate = useNavigate();
+  const filterOptions = useMemo(
+    () => buildPastReportFilterOptions(facultyPastReports),
+    []
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("All Years");
   const [selectedReportType, setSelectedReportType] = useState("All Types");
   const [viewDetailsId, setViewDetailsId] = useState(null);
 
   const filteredReports = useMemo(() => {
-    return pastReportsData.filter((report) => {
+    return facultyPastReports.filter((report) => {
       const matchesSearch =
         report.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         report.semester.toLowerCase().includes(searchQuery.toLowerCase());
@@ -121,8 +39,7 @@ const PastReports = () => {
   };
 
   const handleDownload = (report) => {
-    console.log(`Downloading report: ${report.title}`);
-    // Implement actual download functionality
+    downloadSamplePastReport(report, "Faculty");
   };
 
   return (
@@ -181,7 +98,7 @@ const PastReports = () => {
                 onChange={(e) => setSelectedSchoolYear(e.target.value)}
                 className="bg-white text-[#231F20] text-sm rounded-lg px-4 py-2 border border-gray-200 focus:border-[#FFC20E] focus:outline-none"
               >
-                {schoolYearOptions.map((year) => (
+                {filterOptions.schoolYears.map((year) => (
                   <option key={year} value={year}>
                     {year}
                   </option>
@@ -193,7 +110,7 @@ const PastReports = () => {
                 onChange={(e) => setSelectedReportType(e.target.value)}
                 className="bg-white text-[#231F20] text-sm rounded-lg px-4 py-2 border border-gray-200 focus:border-[#FFC20E] focus:outline-none"
               >
-                {reportTypeOptions.map((type) => (
+                {filterOptions.reportTypes.map((type) => (
                   <option key={type} value={type}>
                     {type}
                   </option>
@@ -292,6 +209,10 @@ const PastReports = () => {
                         <div>
                           <p className="text-xs text-[#A5A8AB] font-semibold uppercase mb-1">Format</p>
                           <p className="text-sm font-medium text-[#231F20]">{report.fileFormat}</p>
+                        </div>
+                        <div className="sm:col-span-2 lg:col-span-4">
+                          <p className="text-xs text-[#A5A8AB] font-semibold uppercase mb-1">Summary</p>
+                          <p className="text-sm text-[#231F20]">{report.summary}</p>
                         </div>
                       </div>
                     </div>

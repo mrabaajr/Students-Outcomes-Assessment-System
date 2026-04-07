@@ -77,7 +77,6 @@ export default function SOAssessment() {
   const [selectedSectionName, setSelectedSectionName] = useState(() => searchParams.get("section") || "");
   const [selectedSemester, setSelectedSemester] = useState(() => searchParams.get("semester") || "");
   const [selectedFaculty, setSelectedFaculty] = useState(() => searchParams.get("faculty") || "");
-  const [selectedSchoolYear, setSelectedSchoolYear] = useState(() => searchParams.get("year") || "");
 
   // ── Grade state ──────────────────────────────────────
   const [students, setStudents] = useState([]);
@@ -96,7 +95,6 @@ export default function SOAssessment() {
     setSelectedSectionName("");
     setSelectedSemester("");
     setSelectedFaculty("");
-    setSelectedSchoolYear("");
   }, []);
 
   useEffect(() => {
@@ -117,9 +115,6 @@ export default function SOAssessment() {
     if (selectedFaculty) {
       nextParams.set("faculty", selectedFaculty);
     }
-    if (selectedSchoolYear) {
-      nextParams.set("year", selectedSchoolYear);
-    }
 
     const nextString = nextParams.toString();
     const currentString = searchParams.toString();
@@ -133,7 +128,6 @@ export default function SOAssessment() {
     selectedSectionName,
     selectedSemester,
     selectedFaculty,
-    selectedSchoolYear,
     setSearchParams,
   ]);
 
@@ -275,41 +269,6 @@ export default function SOAssessment() {
     }
   }, [sectionOptions, selectedCourseCode]);
 
-  // School years for selected course + section + SO (or all if not selected)
-  const schoolYearOptions = useMemo(() => {
-    let filtered = sectionsData;
-    
-    // Filter by SO if selected
-    if (selectedSOIds.length > 0) {
-      filtered = filtered.filter(sec => {
-        const mappedSOs = courseMappings[sec.courseCode] || [];
-        return selectedSOIds.some(selectedId =>
-          mappedSOs.some(soId => parseInt(soId) === parseInt(selectedId))
-        );
-      });
-    }
-    
-    // Filter by course if selected
-    if (selectedCourseCode) {
-      filtered = filtered.filter(sec => sec.courseCode === selectedCourseCode);
-    }
-
-    if (selectedSemester) {
-      filtered = filtered.filter(sec => sec.semester === selectedSemester);
-    }
-
-    if (selectedFaculty) {
-      filtered = filtered.filter(sec => (sec.facultyName || "No faculty assigned") === selectedFaculty);
-    }
-    
-    // Filter by section if selected
-    if (selectedSectionName) {
-      filtered = filtered.filter(sec => sec.name === selectedSectionName);
-    }
-    
-    return [...new Set(filtered.map(sec => sec.schoolYear).filter(Boolean))];
-  }, [sectionsData, selectedCourseCode, selectedSectionName, selectedSOIds, selectedSemester, selectedFaculty, courseMappings]);
-
   const semesterOptions = useMemo(() => {
     let filtered = sectionsData;
 
@@ -364,19 +323,6 @@ export default function SOAssessment() {
     return [...new Set(filtered.map(sec => sec.facultyName || "No faculty assigned").filter(Boolean))];
   }, [sectionsData, selectedSOIds, selectedCourseCode, selectedSemester, selectedSectionName, courseMappings]);
 
-  // Auto-select school year (only if section is selected)
-  useEffect(() => {
-    if (selectedSectionName) {
-      if (schoolYearOptions.length === 1) {
-        setSelectedSchoolYear(schoolYearOptions[0]);
-      } else if (schoolYearOptions.length > 0 && !schoolYearOptions.includes(selectedSchoolYear)) {
-        setSelectedSchoolYear(schoolYearOptions[0]);
-      } else if (schoolYearOptions.length === 0) {
-        setSelectedSchoolYear("");
-      }
-    }
-  }, [schoolYearOptions, selectedSectionName]);
-
   // The actual section object  
   const activeSection = useMemo(() => {
     return sectionsData.find(
@@ -384,9 +330,8 @@ export default function SOAssessment() {
           && sec.name === selectedSectionName
           && (selectedSemester ? sec.semester === selectedSemester : true)
           && (selectedFaculty ? (sec.facultyName || "No faculty assigned") === selectedFaculty : true)
-          && (selectedSchoolYear ? sec.schoolYear === selectedSchoolYear : true)
     );
-  }, [sectionsData, selectedCourseCode, selectedSectionName, selectedSemester, selectedFaculty, selectedSchoolYear]);
+  }, [sectionsData, selectedCourseCode, selectedSectionName, selectedSemester, selectedFaculty]);
 
   // Current SO (primary is first selected)
   const so = useMemo(() => {
@@ -420,11 +365,11 @@ export default function SOAssessment() {
 
     // Try to load saved grades from backend
     const sectionId = section?.id;
-    const schoolYear = selectedSectionForAssessment?.schoolYear || selectedSchoolYear;
+    const schoolYear = selectedSectionForAssessment?.schoolYear || section?.schoolYear || "";
     if (so && sectionId) {
       loadGrades(sectionId, so.id, schoolYear);
     }
-  }, [selectedSectionForAssessment?.id ?? activeSection?.id, so?.id, selectedSchoolYear]);
+  }, [selectedSectionForAssessment?.id ?? activeSection?.id, so?.id]);
 
   const loadGrades = async (sectionId, soId, schoolYear) => {
     try {
@@ -641,8 +586,8 @@ export default function SOAssessment() {
     fetchAssessmentStatus();
   }, [coursesData, fetchAssessmentSummaries, refreshCounter]);
 
-  // ── Filtered courses for grid (by SO, course, section, and school year) ──
-  // Filters by selected SOs, course, section, and school year
+  // ── Filtered courses for grid ──
+  // Filters by selected SOs, course, section, semester, and faculty
   const coursesForGrid = useMemo(() => {
     let filtered = coursesData;
     
@@ -683,26 +628,33 @@ export default function SOAssessment() {
       );
     }
     
-    // Filter by school year
-    if (selectedSchoolYear) {
-      filtered = filtered.filter(course => 
-        course.sections.some(sec => sec.schoolYear === selectedSchoolYear)
-      );
-    }
-    
     // Enrich courses with assessment status
-    return filtered.map(course => ({
-      ...course,
-      lastAssessed:
-        courseLastAssessed[
-          `${course.courseCode}-${getRelevantSOIdForCourse(course.courseCode)}`
-        ] || null,
-      assessmentStatus:
-        courseAssessmentStatus[
-          `${course.courseCode}-${getRelevantSOIdForCourse(course.courseCode)}`
-        ] || "not-yet",
-    }));
-  }, [courseAssessmentStatus, courseLastAssessed, coursesData, getRelevantSOIdForCourse, selectedSOIds, selectedCourseCode, selectedSectionName, selectedSemester, selectedFaculty, selectedSchoolYear, courseMappings]);
+    return filtered.map(course => {
+      const visibleSections = course.sections.filter((section) => {
+        if (selectedSectionName && section.name !== selectedSectionName) return false;
+        if (selectedSemester && section.semester !== selectedSemester) return false;
+        if (selectedFaculty && (section.facultyName || "No faculty assigned") !== selectedFaculty) return false;
+        return true;
+      });
+
+      return {
+        ...course,
+        sections: visibleSections,
+        studentCount: visibleSections.reduce(
+          (total, section) => total + (section.students?.length || 0),
+          0
+        ),
+        lastAssessed:
+          courseLastAssessed[
+            `${course.courseCode}-${getRelevantSOIdForCourse(course.courseCode)}`
+          ] || null,
+        assessmentStatus:
+          courseAssessmentStatus[
+            `${course.courseCode}-${getRelevantSOIdForCourse(course.courseCode)}`
+          ] || "not-yet",
+      };
+    });
+  }, [courseAssessmentStatus, courseLastAssessed, coursesData, getRelevantSOIdForCourse, selectedSOIds, selectedCourseCode, selectedSectionName, selectedSemester, selectedFaculty, courseMappings]);
 
   // ── Stats computation ────────────────────────────────
   const stats = useMemo(() => {
@@ -794,7 +746,6 @@ export default function SOAssessment() {
       if (selectedSectionName && section.name !== selectedSectionName) return false;
       if (selectedSemester && section.semester !== selectedSemester) return false;
       if (selectedFaculty && (section.facultyName || "No faculty assigned") !== selectedFaculty) return false;
-      if (selectedSchoolYear && section.schoolYear !== selectedSchoolYear) return false;
       return true;
     });
 
@@ -817,7 +768,6 @@ export default function SOAssessment() {
     selectedCourseForExport,
     selectedFaculty,
     selectedSOIds,
-    selectedSchoolYear,
     selectedSectionName,
     selectedSemester,
   ]);
@@ -867,14 +817,6 @@ export default function SOAssessment() {
       });
     }
 
-    if (selectedSchoolYear) {
-      chips.push({
-        key: "year",
-        label: `School Year: ${selectedSchoolYear}`,
-        onRemove: () => setSelectedSchoolYear(""),
-      });
-    }
-
     return chips;
   }, [
     selectedSOIds,
@@ -883,7 +825,6 @@ export default function SOAssessment() {
     selectedSectionName,
     selectedSemester,
     selectedFaculty,
-    selectedSchoolYear,
   ]);
 
   const handleExport = async () => {
@@ -1222,7 +1163,7 @@ export default function SOAssessment() {
             <div className="glass-card p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base sm:text-lg font-semibold text-[#231F20]">Filters</h3>
-                {(selectedSOIds.length > 0 || selectedCourseCode || selectedSectionName || selectedSemester || selectedFaculty || selectedSchoolYear) && (
+                {(selectedSOIds.length > 0 || selectedCourseCode || selectedSectionName || selectedSemester || selectedFaculty) && (
                   <button
                     onClick={clearAllFilters}
                     className="px-3 py-1.5 bg-[#FFC20E] hover:bg-[#FFC20E]/90 text-[#231F20] font-semibold rounded-md transition-colors flex items-center gap-2 text-xs"
@@ -1387,40 +1328,6 @@ export default function SOAssessment() {
                   </div>
                 </div>
 
-                {/* School Year filter */}
-                <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-[#6B6B6B]" />
-                  <span className="text-sm font-medium text-[#6B6B6B]">School Year:</span>
-                  <div className="flex items-center gap-2">
-                    {schoolYearOptions.length > 1 ? (
-                      <Select value={selectedSchoolYear} onValueChange={setSelectedSchoolYear}>
-                        <SelectTrigger className="w-[160px] border-[#A5A8AB]">
-                          <SelectValue placeholder="Select year" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {schoolYearOptions.map(sy => (
-                            <SelectItem key={sy} value={sy}>
-                              {sy}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <span className="font-semibold text-[#231F20] text-sm">
-                        {selectedSchoolYear || "N/A"}
-                      </span>
-                    )}
-                    {selectedSchoolYear && schoolYearOptions.length > 1 && (
-                      <button
-                        onClick={() => setSelectedSchoolYear("")}
-                        className="p-1.5 rounded hover:bg-red-50 transition-colors"
-                        title="Clear school year filter"
-                      >
-                        <X className="w-4 h-4 text-red-600" />
-                      </button>
-                    )}
-                  </div>
-                </div>
               </div>
 
               <div className="mt-5 pt-5 border-t border-[#8A817C]/20">
@@ -1579,7 +1486,6 @@ export default function SOAssessment() {
             setSelectedSectionName(section.name);
             setSelectedSemester(section.semester || "");
             setSelectedFaculty(section.facultyName || "No faculty assigned");
-            setSelectedSchoolYear(section.schoolYear);
             setSelectedSectionForAssessment(section);
           }}
         />
@@ -1597,10 +1503,9 @@ export default function SOAssessment() {
             setSelectedSectionForAssessment(null);
             setSelectedCourseForModal(null);
           }}
-          onCourseFiltersChange={(courseCode, sectionName, schoolYear) => {
+          onCourseFiltersChange={(courseCode, sectionName) => {
             setSelectedCourseCode(courseCode);
             setSelectedSectionName(sectionName);
-            setSelectedSchoolYear(schoolYear);
           }}
           onSaveSuccess={triggerStatusRefresh}
         />
