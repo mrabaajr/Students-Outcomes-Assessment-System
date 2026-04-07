@@ -1,12 +1,9 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from classess.models import Enrollment, Section, Student
+from classess.models import Enrollment, Faculty, FacultyCourseAssignment, Section, Student
 from courses.models import Course
-from users.models import User
 
-
-DEFAULT_SAMPLE_PASSWORD = "Faculty123!"
 
 SAMPLE_FACULTY = [
     {
@@ -176,36 +173,23 @@ SAMPLE_SECTIONS = [
 ]
 
 
-def split_name(full_name):
-    parts = full_name.split()
-    if len(parts) == 1:
-        return parts[0], ""
-    return " ".join(parts[:-1]), parts[-1]
-
-
 class Command(BaseCommand):
-    help = "Seed sample sections, staff faculty accounts, and students for the Classes page."
+    help = "Seed sample sections, faculty, and students for the Classes page."
 
     @transaction.atomic
     def handle(self, *args, **options):
         faculty_by_email = {}
         for faculty_data in SAMPLE_FACULTY:
-            first_name, last_name = split_name(faculty_data["name"])
-            faculty, created = User.objects.update_or_create(
+            faculty, _ = Faculty.objects.update_or_create(
                 email=faculty_data["email"],
                 defaults={
-                    "username": faculty_data["email"],
-                    "first_name": first_name,
-                    "last_name": last_name,
+                    "name": faculty_data["name"],
                     "department": faculty_data["department"],
-                    "role": "staff",
                 },
             )
-            if created or not faculty.has_usable_password():
-                faculty.set_password(DEFAULT_SAMPLE_PASSWORD)
-                faculty.save(update_fields=["password"])
             faculty_by_email[faculty.email] = faculty
 
+        assignment_map = {}
         kept_section_ids = set()
 
         for section_data in SAMPLE_SECTIONS:
@@ -224,9 +208,23 @@ class Command(BaseCommand):
                 course=course,
                 academic_year=section_data["academic_year"],
                 semester=section_data["semester"],
-                defaults={"faculty": assigned_faculty},
+                defaults={
+                    "assigned_faculty": assigned_faculty,
+                },
             )
             kept_section_ids.add(section.id)
+
+            assignment_key = (assigned_faculty.id, course.code)
+            assignment_entry = assignment_map.setdefault(
+                assignment_key,
+                {
+                    "faculty": assigned_faculty,
+                    "course_code": course.code,
+                    "course_name": course.name,
+                    "sections": set(),
+                },
+            )
+            assignment_entry["sections"].add(section.name)
 
             kept_enrollment_ids = set()
             for student_id, first_name, last_name, program, year_level in section_data["students"]:
@@ -249,13 +247,23 @@ class Command(BaseCommand):
 
             Enrollment.objects.filter(section=section).exclude(id__in=kept_enrollment_ids).delete()
 
+        kept_assignment_ids = set()
+        for assignment_data in assignment_map.values():
+            assignment, _ = FacultyCourseAssignment.objects.update_or_create(
+                faculty=assignment_data["faculty"],
+                course_code=assignment_data["course_code"],
+                defaults={"course_name": assignment_data["course_name"]},
+            )
+            assignment.set_sections_list(sorted(assignment_data["sections"]))
+            assignment.save()
+            kept_assignment_ids.add(assignment.id)
+
+        FacultyCourseAssignment.objects.filter(
+            faculty__email__in=[faculty["email"] for faculty in SAMPLE_FACULTY]
+        ).exclude(id__in=kept_assignment_ids).delete()
+
         self.stdout.write(
             self.style.SUCCESS(
-                "Seeded 10 sample sections, 2 sample staff faculty accounts, and 5 students per section."
-            )
-        )
-        self.stdout.write(
-            self.style.WARNING(
-                f"Sample faculty login password for seeded accounts: {DEFAULT_SAMPLE_PASSWORD}"
+                "Seeded 10 sample sections, 2 sample faculty members, and 5 students per section."
             )
         )

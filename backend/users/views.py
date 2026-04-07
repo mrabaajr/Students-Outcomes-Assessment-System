@@ -2,7 +2,6 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
-from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import authenticate
 from .models import User
 from .serializers import UserSerializer, UserDetailSerializer, UserCreateSerializer
@@ -17,13 +16,6 @@ class UserViewSet(viewsets.ModelViewSet):
         if self.action == 'retrieve':
             return UserDetailSerializer
         return UserSerializer
-
-    def perform_destroy(self, instance):
-        if self.request.user.role != 'admin':
-            raise PermissionDenied("Only admins can delete user accounts.")
-        if instance.role == 'admin':
-            raise PermissionDenied("Admin accounts cannot be deleted here.")
-        instance.delete()
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):
@@ -63,23 +55,16 @@ class UserViewSet(viewsets.ModelViewSet):
         password = request.data.get('password')
         first_name = request.data.get('first_name', '')
         last_name = request.data.get('last_name', '')
-        role = request.data.get('role', 'staff')
-        department = request.data.get('department', '')
         
         if User.objects.filter(email=email).exists():
             return Response({'detail': 'Email already registered'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if role not in ['admin', 'staff']:
-            return Response({'detail': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
         
         user = User.objects.create_user(
             email=email,
             password=password,
             first_name=first_name,
             last_name=last_name,
-            username=email,
-            role=role,
-            department=department,
+            username=email
         )
         
         serializer = UserSerializer(user)

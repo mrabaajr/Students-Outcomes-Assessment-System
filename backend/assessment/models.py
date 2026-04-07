@@ -1,7 +1,6 @@
 from django.db import models
-from django.db.models import Q
 from classess.models import Student, Section
-from so.models import StudentOutcome, PerformanceCriterion, PerformanceIndicator
+from so.models import StudentOutcome, PerformanceCriterion
 
 
 class Assessment(models.Model):
@@ -25,11 +24,10 @@ class Assessment(models.Model):
     school_year = models.CharField(max_length=20)
 
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ("section", "student_outcome", "school_year")
-        ordering = ["-updated_at", "-created_at"]
+        ordering = ["-created_at"]
 
     def __str__(self):
         return f"{self.section} - SO{self.student_outcome.number} ({self.school_year})"
@@ -37,8 +35,8 @@ class Assessment(models.Model):
 
 class Grade(models.Model):
     """
-    Grade per student per Performance Criterion or
-    Performance Indicator within an Assessment.
+    Grade per student per Performance Criterion
+    within an Assessment.
     """
 
     assessment = models.ForeignKey(
@@ -56,35 +54,13 @@ class Grade(models.Model):
     criterion = models.ForeignKey(
         PerformanceCriterion,
         on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name="grades"
-    )
-
-    performance_indicator = models.ForeignKey(
-        PerformanceIndicator,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
         related_name="grades"
     )
 
     score = models.PositiveIntegerField()
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["assessment", "student", "criterion"],
-                condition=Q(criterion__isnull=False),
-                name="unique_grade_per_criterion",
-            ),
-            models.UniqueConstraint(
-                fields=["assessment", "student", "performance_indicator"],
-                condition=Q(performance_indicator__isnull=False),
-                name="unique_grade_per_indicator",
-            ),
-        ]
+        unique_together = ("assessment", "student", "criterion")
 
     def __str__(self):
-        basis = self.criterion.name if self.criterion else self.performance_indicator.description
-        return f"{self.student} - {basis}: {self.score}"
+        return f"{self.student} - {self.criterion.name}: {self.score}"

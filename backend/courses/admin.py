@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Course, Curriculum, CourseSOMapping, SchoolYear
+from .models import Course, Curriculum, CourseSOMapping
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
@@ -11,12 +11,6 @@ class CourseAdmin(admin.ModelAdmin):
 class CurriculumAdmin(admin.ModelAdmin):
     list_display = ('year',)
     search_fields = ('year',)
-
-@admin.register(SchoolYear)
-class SchoolYearAdmin(admin.ModelAdmin):
-    list_display = ('year',)
-    search_fields = ('year',)
-    ordering = ('year',)
 
 @admin.register(CourseSOMapping)
 class CourseSOMappingAdmin(admin.ModelAdmin):

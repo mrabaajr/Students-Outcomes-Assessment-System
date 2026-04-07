@@ -7,10 +7,6 @@ import { Eye, EyeOff, Mail, Lock, ArrowRight, User, Users } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 
 const API_BASE_URL = "http://localhost:8000/api";
-const ROLE_ROUTE_MAP = {
-  admin: "/programchair/dashboard",
-  staff: "/faculty/dashboard",
-};
 
 const Login = () => {
   const navigate = useNavigate();
@@ -52,33 +48,18 @@ const Login = () => {
       });
 
       console.log("User response:", userResponse.data);
-      const userRole = String(userResponse.data.role || "").toLowerCase();
+      const userRole = userResponse.data.role;
       console.log("User role:", userRole);
 
-      if (!ROLE_ROUTE_MAP[userRole]) {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("userRole");
-        setError("Unknown role. Please contact administrator.");
-        setLoading(false);
-        return;
-      }
-
-      if (selectedRole !== userRole) {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("userRole");
-        setError(
-          `This account is ${userRole === "admin" ? "Program Chair" : "Faculty"}. Please select the correct role.`
-        );
-        setLoading(false);
-        return;
-      }
-
-      localStorage.setItem("userRole", userRole);
-
       // Route based on role
-      navigate(ROLE_ROUTE_MAP[userRole]);
+      if (userRole === "admin") {
+        navigate("/programchair/dashboard");
+      } else if (userRole === "staff") {
+        navigate("/faculty/dashboard");
+      } else {
+        setError("Unknown role. Please contact administrator.");
+        navigate("/");
+      }
     } catch (err) {
       console.error("Login error:", err);
       const errorMessage = err.response?.data?.detail || err.message || "Login failed. Please check your credentials.";
@@ -176,7 +157,7 @@ const Login = () => {
               >
                 <Users className={`w-6 h-6 sm:w-8 sm:h-8 mb-2 sm:mb-3 ${selectedRole === "staff" ? "text-yellow-400" : "text-gray"}`} />
                 <span className={`text-xs sm:text-sm font-semibold ${selectedRole === "staff" ? "text-dark-gray" : "text-gray"}`}>
-                  Faculty
+                  Staff
                 </span>
               </button>
             </div>

@@ -173,19 +173,15 @@ export default function SOAssessment() {
       setStudentOutcomes(soData);
       // Don't auto-select first SO - let user choose from filters
 
-      const sections = (secRes.data.sections || [])
-        .filter((section) => section.isActive !== false)
-        .map((section) => ({
-          ...section,
-          facultyName: section.facultyName || getFacultyForSection(section, secRes.data.faculty || []),
-        }));
+      const sections = (secRes.data.sections || []).map((section) => ({
+        ...section,
+        facultyName: section.facultyName || getFacultyForSection(section, secRes.data.faculty || []),
+      }));
       const faculty = secRes.data.faculty || [];
       setSectionsData(sections);
       setFacultyData(faculty);
 
-      // Build course-SO mappings: courseCode -> union of all mapped SO ids
-      // This prevents one academic-year mapping row from overwriting another
-      // when multiple course mappings share the same course code.
+      // Build course-SO mappings: courseCode -> [soIds]
       const mappings = {};
       const courses = Array.isArray(mappingRes.data) ? mappingRes.data : mappingRes.data.results || [];
       courses.forEach(course => {
@@ -202,8 +198,7 @@ export default function SOAssessment() {
         );
         
         if (course.code && soIds.length > 0) {
-          const existingIds = mappings[course.code] || [];
-          mappings[course.code] = [...new Set([...existingIds, ...soIds])];
+          mappings[course.code] = soIds;
         }
       });
       setCourseMappings(mappings);
@@ -1513,8 +1508,89 @@ export default function SOAssessment() {
                 getSOIcon={getSOIcon}
               />
             </div>
-            {so?.performanceIndicators?.length > 0 && (
-              <div className="glass-card p-4 sm:p-6 space-y-5">
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Total Students */}
+              <div className="glass-card hover-lift p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Users className="w-6 h-6 text-primary" />
+                  </div>
+                </div>
+                <p className="text-sm text-[#6B6B6B] mb-1">Total Students</p>
+                <p className="text-3xl font-bold text-[#231F20]">{stats.totalStudents}</p>
+                <p className="text-xs text-[#6B6B6B] mt-1">
+                  {selectedSectionName} • {selectedCourseCode}
+                </p>
+              </div>
+
+              {/* Satisfactory */}
+              <div className="glass-card hover-lift p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  </div>
+                </div>
+                <p className="text-sm text-[#6B6B6B] mb-1">Satisfactory</p>
+                <p className="text-3xl font-bold text-[#231F20]">{stats.satisfactoryCount}</p>
+                <p className="text-xs text-[#6B6B6B] mt-1">
+                  Avg: {stats.avgSatisfactoryPct}% rating
+                </p>
+              </div>
+
+              {/* Needs Improvement */}
+              <div className="glass-card hover-lift p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center">
+                    <XCircle className="w-6 h-6 text-red-600" />
+                  </div>
+                </div>
+                <p className="text-sm text-[#6B6B6B] mb-1">Needs Improvement</p>
+                <p className="text-3xl font-bold text-[#231F20]">{stats.unsatisfactoryCount}</p>
+                <p className="text-xs text-[#6B6B6B] mt-1">
+                  Avg rating: {stats.avgUnsatisfactoryRating}
+                </p>
+              </div>
+
+              {/* Attainment Rate */}
+              <div className="glass-card hover-lift p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Calculator className="w-6 h-6 text-primary" />
+                  </div>
+                </div>
+                <p className="text-sm text-[#6B6B6B] mb-1">Attainment Rate</p>
+                <p className="text-3xl font-bold text-[#231F20]">{stats.totalAveragePercent}%</p>
+                <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold tracking-wider ${
+                  parseFloat(stats.totalAveragePercent) >= 80
+                    ? 'bg-green-100 text-green-700 border border-green-300'
+                    : 'bg-red-100 text-red-600 border border-red-300'
+                }`}>
+                  {parseFloat(stats.totalAveragePercent) >= 80 ? "Target Attained" : "Below Target"}
+                </span>
+              </div>
+            </div>
+
+            {/* Assessment Summary */}
+            <div className="glass-card p-4 sm:p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-[#8A817C] bg-white px-5 py-4">
+                <div>
+                  <h3 className="font-semibold text-[#231F20] text-base mb-1">Assessment Summary</h3>
+                  <p className="text-sm text-[#6B6B6B]">
+                    The class has an overall average of <span className="font-semibold text-[#231F20]">{stats.totalAveragePercent}%</span> with{" "}
+                    <span className="font-semibold text-[#231F20]">{stats.satisfactoryCount}</span> satisfactory and{" "}
+                    <span className="font-semibold text-[#231F20]">{stats.unsatisfactoryCount}</span> needing improvement out of{" "}
+                    <span className="font-semibold text-[#231F20]">{stats.totalStudents}</span> students. Thus, the level of attainment is{" "}
+                    {parseFloat(stats.totalAveragePercent) >= 80 ? "at or above" : "lower than"} the target level of 80%.
+                  </p>
+                </div>
+                <span className={`shrink-0 px-5 py-2 rounded-lg text-xs font-bold tracking-wider ${parseFloat(stats.totalAveragePercent) >= 80 ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-50 text-red-600 border border-red-300'}`}>
+                  {parseFloat(stats.totalAveragePercent) >= 80 ? "TARGET ATTAINED" : "BELOW TARGET"}
+                </span>
+              </div>
+
+              {so?.performanceIndicators?.length > 0 && (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-max border-collapse bg-white text-sm text-[#231F20]">
                     <tbody>
@@ -1552,8 +1628,8 @@ export default function SOAssessment() {
                     </tbody>
                   </table>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
@@ -1567,14 +1643,6 @@ export default function SOAssessment() {
           sectionLastAssessedMap={sectionLastAssessed}
           onClose={() => setSelectedCourseForModal(null)}
           onSelectSection={(section) => {
-            if (!section.students || section.students.length === 0) {
-              toast({
-                title: "Section has no students",
-                description: "Add students to this section in the Classes page before assessing it.",
-                variant: "destructive",
-              });
-              return;
-            }
             setSelectedCourseCode(section.courseCode);
             setSelectedSectionName(section.name);
             setSelectedSemester(section.semester || "");
@@ -1610,4 +1678,3 @@ export default function SOAssessment() {
     </div>
   );
 }
-

@@ -9,14 +9,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const DeleteConfirmDialog = ({ open, onClose, onConfirm, title, description, children }) => (
+const DeleteConfirmDialog = ({ open, onClose, onConfirm, title, description }) => (
   <AlertDialog open={open} onOpenChange={onClose}>
     <AlertDialogContent>
       <AlertDialogHeader>
         <AlertDialogTitle>{title}</AlertDialogTitle>
         <AlertDialogDescription>{description}</AlertDialogDescription>
       </AlertDialogHeader>
-      {children}
       <AlertDialogFooter>
         <AlertDialogCancel>Cancel</AlertDialogCancel>
         <AlertDialogAction onClick={onConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">

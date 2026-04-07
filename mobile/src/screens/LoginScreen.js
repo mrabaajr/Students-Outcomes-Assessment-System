@@ -1,169 +1,90 @@
-import { useState } from "react";
+import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  SafeAreaView,
   StyleSheet,
+  View,
   Text,
   TextInput,
-  View,
-} from "react-native";
+  TouchableOpacity,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Alert
+} from 'react-native';
 
-import { API_BASE_URL } from "../config/api";
-import { useAuth } from "../context/AuthContext";
-
-export default function LoginScreen() {
-  const { signIn } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  async function handleLogin() {
-    if (!email || !password) {
-      setError("Enter your email and password.");
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      setError("");
-      await signIn(email.trim(), password);
-    } catch (err) {
-      setError(
-        err.response?.data?.detail || "Unable to sign in. Check your API URL and credentials."
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+const LoginScreen = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [selectedRole, setSelectedRole] = useState(null);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.container}
-      >
-        <View style={styles.card}>
-          <Text style={styles.eyebrow}>SOAS mobile</Text>
-          <Text style={styles.title}>Sign in to the assessment system</Text>
-          <Text style={styles.subtitle}>
-            This app talks to your existing Django API at:
-          </Text>
-          <Text style={styles.apiUrl}>{API_BASE_URL}</Text>
-
-          <TextInput
-            autoCapitalize="none"
-            keyboardType="email-address"
-            onChangeText={setEmail}
-            placeholder="Email"
-            placeholderTextColor="#64748b"
-            style={styles.input}
-            value={email}
-          />
-          <TextInput
-            onChangeText={setPassword}
-            placeholder="Password"
-            placeholderTextColor="#64748b"
-            secureTextEntry
-            style={styles.input}
-            value={password}
-          />
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <Pressable
-            disabled={isSubmitting}
-            onPress={handleLogin}
-            style={({ pressed }) => [
-              styles.button,
-              pressed && !isSubmitting ? styles.buttonPressed : null,
-            ]}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.buttonText}>Sign in</Text>
-            )}
-          </Pressable>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.inner}>
+        <View style={styles.header}>
+          <Text style={styles.welcomeText}>WELCOME</Text>
+          <Text style={styles.backText}>BACK</Text>
+          <View style={styles.underline} />
         </View>
-      </KeyboardAvoidingView>
+
+        <View style={styles.formContainer}>
+          <Text style={styles.label}>Select your role</Text>
+          <View style={styles.roleGrid}>
+            <TouchableOpacity
+              style={[styles.roleCard, selectedRole === 'admin' && styles.roleCardActive]}
+              onPress={() => setSelectedRole('admin')}
+            >
+              <Text style={[styles.roleText, selectedRole === 'admin' && styles.roleTextActive]}>Program Chair</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.roleCard, selectedRole === 'staff' && styles.roleCardActive]}
+              onPress={() => setSelectedRole('staff')}
+            >
+              <Text style={[styles.roleText, selectedRole === 'staff' && styles.roleTextActive]}>Staff</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Email Address"
+            value={email}
+            onChangeText={setEmail}
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+
+          <TouchableOpacity style={styles.loginButton}>
+            <Text style={styles.loginButtonText}>Sign In</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#dff4ef",
-  },
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 24,
-  },
-  card: {
-    borderRadius: 24,
-    backgroundColor: "#ffffff",
-    padding: 24,
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 6,
-  },
-  eyebrow: {
-    color: "#0f766e",
-    fontSize: 14,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  title: {
-    color: "#0f172a",
-    fontSize: 28,
-    fontWeight: "800",
-    marginBottom: 8,
-  },
-  subtitle: {
-    color: "#475569",
-    fontSize: 14,
-  },
-  apiUrl: {
-    color: "#0f766e",
-    fontSize: 13,
-    marginTop: 4,
-    marginBottom: 20,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 14,
-    color: "#0f172a",
-    fontSize: 16,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  error: {
-    color: "#dc2626",
-    marginBottom: 12,
-  },
-  button: {
-    alignItems: "center",
-    backgroundColor: "#0f766e",
-    borderRadius: 14,
-    marginTop: 8,
-    paddingVertical: 16,
-  },
-  buttonPressed: {
-    opacity: 0.88,
-  },
-  buttonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  inner: { flex: 1, padding: 24, justifyContent: 'center' },
+  header: { marginBottom: 40 },
+  welcomeText: { fontSize: 48, fontWeight: '900', color: '#000' },
+  backText: { fontSize: 48, fontWeight: '900', color: '#EAB308' },
+  underline: { width: 60, height: 4, backgroundColor: '#EAB308', marginTop: 10 },
+  formContainer: { width: '100%' },
+  label: { fontSize: 14, color: '#666', marginBottom: 12 },
+  roleGrid: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  roleCard: { flex: 1, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#eee', alignItems: 'center' },
+  roleCardActive: { borderColor: '#EAB308', backgroundColor: '#FEFCE8' },
+  roleText: { fontSize: 12, fontWeight: '600', color: '#666' },
+  roleTextActive: { color: '#000' },
+  input: { height: 56, backgroundColor: '#f9f9f9', borderRadius: 12, paddingHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: '#eee' },
+  loginButton: { backgroundColor: '#EAB308', height: 56, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  loginButtonText: { fontSize: 16, fontWeight: '700', color: '#000' }
 });
+
+export default LoginScreen;

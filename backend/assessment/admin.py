@@ -9,9 +9,8 @@ class GradeInline(admin.TabularInline):
 
 @admin.register(Assessment)
 class AssessmentAdmin(admin.ModelAdmin):
-    list_display = ("section", "student_outcome", "school_year", "created_at", "updated_at")
+    list_display = ("section", "student_outcome", "school_year", "created_at")
     list_filter = ("section", "student_outcome", "school_year")
-    readonly_fields = ("created_at", "updated_at")
     inlines = [GradeInline]
 
 
@@ -39,12 +38,11 @@ class GradeAdmin(admin.ModelAdmin):
     )
 
     def performance_indicator(self, obj):
-        return obj.criterion.performance_indicator if obj.criterion else obj.performance_indicator
+        return obj.criterion.performance_indicator
 
     performance_indicator.short_description = "Performance Indicator"
 
     def student_outcome(self, obj):
-        indicator = obj.criterion.performance_indicator if obj.criterion else obj.performance_indicator
-        return indicator.student_outcome if indicator else None
+        return obj.criterion.performance_indicator.student_outcome
 
     student_outcome.short_description = "Student Outcome"

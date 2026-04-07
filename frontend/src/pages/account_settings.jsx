@@ -2,13 +2,9 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Lock, CheckCircle, UserPlus } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { Lock, CheckCircle } from "lucide-react";
 import Navbar from "../components/dashboard/Navbar";
 import Footer from "../components/dashboard/Footer";
-import FacultyAccountModal from "@/components/accounts/FacultyAccountModal";
-
-const API_BASE_URL = "http://localhost:8000/api";
 
 const Index = () => {
   const [email, setEmail] = useState("");
@@ -18,11 +14,6 @@ const Index = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  
-  const [showFacultyModal, setShowFacultyModal] = useState(false);
-  
-  const location = useLocation();
-  const isProgramChair = location.pathname.startsWith('/programchair');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -194,23 +185,6 @@ const Index = () => {
                     </Button>
                   </div>
                 </form>
-
-                {/* Create Faculty Account Section */}
-                {isProgramChair && (
-                  <div className="mt-8 pt-8 border-t border-[#D1D5DB]">
-                    <h3 className="text-lg font-semibold text-[#231F20] mb-2">Faculty Account Management</h3>
-                    <p className="text-sm text-[#6B6B6B] mb-4">
-                      Create new faculty accounts with a single click.
-                    </p>
-                    <Button
-                      onClick={() => setShowFacultyModal(true)}
-                      className="px-6 py-2.5 bg-[#3A3A3A] text-white font-semibold hover:bg-[#2A2A2A] transition-colors flex items-center gap-2"
-                    >
-                      <UserPlus className="w-4 h-4" />
-                      Create an Account for Faculty
-                    </Button>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -248,11 +222,6 @@ const Index = () => {
           </div>
         </div>
       </main>
-
-      <FacultyAccountModal
-        open={showFacultyModal}
-        onClose={() => setShowFacultyModal(false)}
-      />
 
       <Footer />
     </div>

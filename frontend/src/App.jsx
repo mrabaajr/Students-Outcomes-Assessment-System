@@ -6,7 +6,6 @@ import StudentOutcomes from './pages/programchair/StudentOutcomes'
 import Courses from './pages/programchair/Courses'
 import Assessment from './pages/programchair/Assessment'
 import Reports from './pages/programchair/Reports'
-import ProgramChairPastReports from './pages/programchair/PastReports'
 import Classes from './pages/programchair/Classes'
 import FacultyHome from './pages/faculty/Home'
 import FacultyLogin from './pages/faculty/Login'
@@ -14,7 +13,6 @@ import FacultyDashboard from './pages/faculty/Dashboard'
 import FacultyClasses from './pages/faculty/Classess'
 import FacultyAssessments from './pages/faculty/Assessments'
 import FacultyReports from './pages/faculty/Reports'
-import FacultyPastReports from './pages/faculty/PastReports'
 import ProtectedRoute from './components/ProtectedRoute'
 
 
@@ -77,14 +75,6 @@ export default function App() {
           } 
         />
         <Route 
-          path="/programchair/past-reports" 
-          element={
-            <ProtectedRoute>
-              <ProgramChairPastReports />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
           path="/programchair/classes" 
           element={
             <ProtectedRoute>
@@ -132,14 +122,6 @@ export default function App() {
           element={
             <ProtectedRoute>
               <FacultyReports />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/faculty/past-reports" 
-          element={
-            <ProtectedRoute>
-              <FacultyPastReports />
             </ProtectedRoute>
           } 
         />
