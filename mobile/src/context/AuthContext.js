@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 import { loginWithEmail } from "../services/auth";
 import { attachAccessToken } from "../services/apiClient";
+import { fetchCurrentUser } from "../services/usersMobile";
 import {
   clearSession,
   getStoredSession,
@@ -25,6 +26,14 @@ export function AuthProvider({ children }) {
         const storedSession = await getStoredSession();
         setSession(storedSession);
         attachAccessToken(storedSession.accessToken);
+        if (storedSession.accessToken) {
+          try {
+            const currentUser = await fetchCurrentUser();
+            setUser(currentUser);
+          } catch {
+            // Keep session even if user bootstrap fetch fails.
+          }
+        }
       } finally {
         setIsBootstrapping(false);
       }
