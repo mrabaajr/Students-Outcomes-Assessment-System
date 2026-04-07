@@ -33,9 +33,10 @@ const Navbar = () => {
     // Clear tokens from localStorage
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
+    localStorage.removeItem("userRole");
     
     // Redirect to login page
-    navigate("/login");
+    navigate("/");
   };
 
   return (

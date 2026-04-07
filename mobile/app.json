@@ -8,11 +8,11 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
-      "package": "com.alexanicole.soasmobile"
+      "package": "com.skool.soasmobile"
+    },
+    "ios": {
+      "bundleIdentifier": "com.skool.soasmobile"
     }
   }
 }

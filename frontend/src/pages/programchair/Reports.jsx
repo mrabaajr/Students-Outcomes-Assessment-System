@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
 import StatCards from "@/components/reports/StatCards.jsx";
@@ -8,13 +9,15 @@ import CourseSummary from "@/components/reports/CourseSummary.jsx";
 import SOSummaryTables from "@/components/reports/SOSummaryTables.jsx";
 import ReportsFilter from "@/components/reports/ReportsFilter.jsx";
 import { useToast } from "@/hooks/use-toast";
-import { FileDown, Loader2 } from "lucide-react";
+import { BookOpen, FileDown, History, Loader2, Tag } from "lucide-react";
 
 const API_BASE_URL = "http://localhost:8000/api";
 
 export default function Reports() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const reportContentRef = useRef(null);
+  const [reportMode, setReportMode] = useState("so");
   const [filters, setFilters] = useState({
     schoolYear: "",
     course: "",
@@ -250,14 +253,49 @@ export default function Reports() {
               Overview of student outcomes and course performance across selected filters.
             </p>
 
-            <button
-              onClick={handleExportReport}
-              disabled={!data || isLoading}
-              className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <FileDown className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>EXPORT AS PDF</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-4">
+              <button
+                onClick={() => navigate("/programchair/past-reports")}
+                className="flex items-center gap-2 bg-white text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-gray-50 transition-colors border border-gray-200"
+              >
+                <History className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>VIEW PAST REPORTS</span>
+              </button>
+
+              <button
+                onClick={handleExportReport}
+                disabled={!data || isLoading}
+                className="flex items-center gap-2 bg-[#FFC20E] text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <FileDown className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>EXPORT AS PDF</span>
+              </button>
+
+              <div className="inline-flex items-center rounded-xl bg-[#3A3A3A] p-1">
+                <button
+                  onClick={() => setReportMode("so")}
+                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                    reportMode === "so"
+                      ? "bg-[#FFC20E] text-[#231F20]"
+                      : "text-[#A5A8AB] hover:text-white"
+                  }`}
+                >
+                  <Tag className="h-4 w-4" />
+                  SO Level
+                </button>
+                <button
+                  onClick={() => setReportMode("course")}
+                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                    reportMode === "course"
+                      ? "bg-[#FFC20E] text-[#231F20]"
+                      : "text-[#A5A8AB] hover:text-white"
+                  }`}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  Course Level
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -268,6 +306,7 @@ export default function Reports() {
             setFilters={setFilters}
             filterOptions={data?.filter_options}
           />
+
         </div>
 
         {/* Report Content */}
@@ -280,12 +319,18 @@ export default function Reports() {
           ) : data ? (
             <>
               <StatCards metrics={data.metrics} />
-              <SOSummaryTables
-                tables={data.so_summary_tables || []}
-                onSaveTable={handleSaveSummaryTable}
-              />
-              <SOPerformance soData={data.so_performance || []} />
-              <CourseSummary courses={data.course_summary || []} />
+              {reportMode === "so" ? (
+                <>
+                  <SOSummaryTables
+                    tables={data.so_summary_tables || []}
+                    onSaveTable={handleSaveSummaryTable}
+                    schoolYearOptions={data.filter_options?.school_years || []}
+                  />
+                  <SOPerformance soData={data.so_performance || []} />
+                </>
+              ) : (
+                <CourseSummary courses={data.course_summary || []} />
+              )}
             </>
           ) : (
             <div className="text-center py-16 text-[#A5A8AB]">
