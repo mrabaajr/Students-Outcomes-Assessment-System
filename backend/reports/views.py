@@ -1,18 +1,21 @@
-from rest_framework import status
-from rest_framework.viewsets import ViewSet
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
-from django.db.models import Avg, Count, Max
-from django.db.utils import OperationalError, ProgrammingError
 from collections import defaultdict
 
+from django.db import transaction
+from django.db.models import Avg, Count, Max
+from django.db.utils import OperationalError, ProgrammingError
+from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.viewsets import ViewSet
+
 from assessment.models import Assessment, Grade
-from so.models import StudentOutcome
+from classess.models import Enrollment, Section
 from courses.models import Course, CourseSOMapping
-from classess.models import Section
-from .models import ReportTemplate
-from .serializers import ReportTemplateSerializer
+from so.models import StudentOutcome
+
+from .models import ReportTemplate, SemesterArchive
+from .serializers import ReportTemplateSerializer, SemesterArchiveSerializer
 
 
 DEFAULT_FORMULA = "(got80OrHigher / studentsAnswered) * distribution"
@@ -32,12 +35,72 @@ def faculty_display_name(faculty):
 class ReportViewSet(ViewSet):
     permission_classes = [AllowAny]
 
+    def get_permissions(self):
+        if getattr(self, "action", None) == "finalize_semester":
+            return [IsAuthenticated()]
+        return [permission() for permission in self.permission_classes]
+
+    def _require_admin(self, request):
+        user = request.user
+        if not getattr(user, "is_authenticated", False) or getattr(user, "role", "") != "admin":
+            return Response(
+                {"detail": "Only program chairs can finalize a semester."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return None
+
     def _report_scope_filters(self, school_year="", course_id=None, section_id=None):
         return {
             "school_year": school_year or "",
             "course_id": course_id or None,
             "section_id": section_id or None,
         }
+
+    def _normalize_unique_values(self, values):
+        return sorted({value for value in values if value})
+
+    def _build_archive_title(self, semester_label):
+        return f"{semester_label or 'Semester'} Finalized Report Archive"
+
+    def _build_archive_summary(self, payload, semester_label, school_year_label):
+        metrics = payload.get("metrics", {})
+        return (
+            f"This finalized archive preserves the live assessment reports for "
+            f"{semester_label or 'the active semester'}"
+            f"{f' ({school_year_label})' if school_year_label else ''}. "
+            f"It captured {metrics.get('total_courses', 0)} courses, "
+            f"{metrics.get('total_sections', 0)} sections, and "
+            f"{metrics.get('total_students', 0)} assessed students before the active sections were cleared."
+        )
+
+    def _build_archive_highlights(self, payload):
+        metrics = payload.get("metrics", {})
+        highlights = [
+            f"{metrics.get('completed_assessments', 0)} of {metrics.get('total_assessments', 0)} assessments had saved grades at finalization time.",
+            f"Average performance across the archived snapshot was {round(metrics.get('avg_performance', 0), 1)}%.",
+        ]
+
+        top_so = max(
+            payload.get("so_performance", []),
+            key=lambda item: item.get("avg", 0),
+            default=None,
+        )
+        if top_so:
+            highlights.append(
+                f"Top student outcome at archive time was SO {top_so.get('number')} with an average of {top_so.get('avg', 0)}%."
+            )
+
+        top_course = max(
+            payload.get("course_summary", []),
+            key=lambda item: item.get("avg", 0),
+            default=None,
+        )
+        if top_course:
+            highlights.append(
+                f"Highest-performing archived course was {top_course.get('code')} at {top_course.get('avg', 0)}%."
+            )
+
+        return highlights
 
     def _build_default_conclusion(self, attainment_percent, target_level):
         comparison = "higher than" if attainment_percent >= target_level else "lower than"
@@ -170,7 +233,6 @@ class ReportViewSet(ViewSet):
     def _build_so_summary_tables(self, assessments):
         so_tables = []
 
-        # Load the related rows once so the summary can be assembled in Python.
         assessment_rows = list(
             assessments.select_related(
                 "section__course",
@@ -183,9 +245,7 @@ class ReportViewSet(ViewSet):
             )
         )
 
-        mapped_so_numbers_by_course_year, fallback_so_numbers_by_course = (
-            self._build_course_mapping_lookup()
-        )
+        mapped_so_numbers_by_course_year, fallback_so_numbers_by_course = self._build_course_mapping_lookup()
 
         grouped_by_so = defaultdict(list)
         for assessment in assessment_rows:
@@ -235,7 +295,6 @@ class ReportViewSet(ViewSet):
                         student.program for student in enrolled_students.values() if student.program
                     )
 
-                # Merge grades across sections for the same course + SO.
                 grades_by_student_indicator = defaultdict(list)
                 answered_students = set()
                 for assessment in course_assessments:
@@ -276,10 +335,9 @@ class ReportViewSet(ViewSet):
                     )
                     weighted_value = satisfactory_count * distribution
 
-                    indicator_label = f"P{indicator.number}"
                     indicator_rows.append({
                         "indicator_id": indicator.id,
-                        "indicator_label": indicator_label,
+                        "indicator_label": f"P{indicator.number}",
                         "distribution": round(distribution, 4),
                         "answered_count": answered_count,
                         "satisfactory_count": satisfactory_count,
@@ -346,39 +404,16 @@ class ReportViewSet(ViewSet):
 
         return so_tables
 
-    @action(detail=False, methods=["get"])
-    def dashboard(self, request):
-        school_year = request.query_params.get("school_year")
-        section_id = request.query_params.get("section")
-        course_id = request.query_params.get("course")
-        so_id = request.query_params.get("so")
-        user = request.user
-
-        assessments = Assessment.objects.select_related(
-            "section__course",
-            "student_outcome"
-        ).filter(section__is_active=True)
-        scoped_sections = Section.objects.select_related("course", "faculty").filter(is_active=True)
-
-        if getattr(user, "is_authenticated", False) and getattr(user, "role", "") == "staff":
-            assessments = assessments.filter(section__faculty=user)
-            scoped_sections = scoped_sections.filter(faculty=user)
-
-        if school_year:
-            assessments = assessments.filter(school_year=school_year)
-            scoped_sections = scoped_sections.filter(academic_year=school_year)
-        if section_id:
-            assessments = assessments.filter(section_id=section_id)
-            scoped_sections = scoped_sections.filter(id=section_id)
-        if course_id:
-            assessments = assessments.filter(section__course_id=course_id)
-            scoped_sections = scoped_sections.filter(course_id=course_id)
-        if so_id:
-            assessments = assessments.filter(student_outcome_id=so_id)
-
+    def _build_dashboard_payload(
+        self,
+        assessments,
+        scoped_sections,
+        school_year="",
+        course_id=None,
+        section_id=None,
+    ):
         grades = Grade.objects.filter(assessment__in=assessments)
 
-        # ── METRICS ──
         total_sos = assessments.values("student_outcome").distinct().count()
         total_courses = assessments.values("section__course").distinct().count()
         total_sections = assessments.values("section").distinct().count()
@@ -386,15 +421,11 @@ class ReportViewSet(ViewSet):
         avg_score_raw = grades.aggregate(avg=Avg("score"))["avg"] or 0
         avg_performance = (avg_score_raw / 6) * 100 if avg_score_raw else 0
 
-        # Total students across all filtered assessments
         total_students = grades.values("student").distinct().count()
-
-        # Completion: how many assessments have at least 1 grade vs total
         total_assessments = assessments.count()
         completed_assessments = assessments.filter(grades__isnull=False).distinct().count()
         completion_rate = (completed_assessments / total_assessments * 100) if total_assessments > 0 else 0
 
-        # ── SO PERFORMANCE ──
         so_perf_raw = (
             grades
             .values(
@@ -408,11 +439,9 @@ class ReportViewSet(ViewSet):
 
         so_performance = []
         for row in so_perf_raw:
-            so_num = row["assessment__student_outcome__number"]
             avg_raw = row["avg_score"] or 0
             avg_pct = round((avg_raw / 6) * 100, 1)
 
-            # Pass rate for this SO: % of students with avg >= 5 (satisfactory)
             student_avgs = (
                 grades
                 .filter(assessment__student_outcome__id=row["assessment__student_outcome__id"])
@@ -425,14 +454,13 @@ class ReportViewSet(ViewSet):
 
             so_performance.append({
                 "id": row["assessment__student_outcome__id"],
-                "number": so_num,
+                "number": row["assessment__student_outcome__number"],
                 "name": row["assessment__student_outcome__title"],
                 "avg": avg_pct,
                 "pass_rate": pass_rate,
                 "met": avg_pct >= 80,
             })
 
-        # ── COURSE SUMMARY ──
         course_summary_raw = (
             grades
             .values(
@@ -449,24 +477,22 @@ class ReportViewSet(ViewSet):
 
         course_summary = []
         for row in course_summary_raw:
-            c_id = row["assessment__section__course__id"]
+            course_id_value = row["assessment__section__course__id"]
             avg_raw = row["avg_score"] or 0
             avg_pct = round((avg_raw / 6) * 100, 1)
             target = 80
 
-            # Linked SOs
             linked_sos = list(
                 assessments
-                .filter(section__course_id=c_id)
+                .filter(section__course_id=course_id_value)
                 .values_list("student_outcome__number", flat=True)
                 .distinct()
                 .order_by("student_outcome__number")
             )
 
-            # Pass rate
             student_avgs = (
                 grades
-                .filter(assessment__section__course_id=c_id)
+                .filter(assessment__section__course_id=course_id_value)
                 .values("student")
                 .annotate(student_avg=Avg("score"))
             )
@@ -476,7 +502,7 @@ class ReportViewSet(ViewSet):
 
             per_so_rows = list(
                 grades
-                .filter(assessment__section__course_id=c_id)
+                .filter(assessment__section__course_id=course_id_value)
                 .values("assessment__student_outcome__id")
                 .annotate(avg_score=Avg("score"))
             )
@@ -486,27 +512,26 @@ class ReportViewSet(ViewSet):
                 if round(((so_row["avg_score"] or 0) / 6) * 100, 1) >= target
             )
 
-            sections_total = scoped_sections.filter(course_id=c_id).values("id").distinct().count()
+            sections_total = scoped_sections.filter(course_id=course_id_value).values("id").distinct().count()
             sections_assessed = (
                 assessments
-                .filter(section__course_id=c_id, grades__isnull=False)
+                .filter(section__course_id=course_id_value, grades__isnull=False)
                 .values("section_id")
                 .distinct()
                 .count()
             )
             last_assessed = (
                 assessments
-                .filter(section__course_id=c_id, grades__isnull=False)
+                .filter(section__course_id=course_id_value, grades__isnull=False)
                 .aggregate(last=Max("updated_at"))
                 .get("last")
             )
 
-            # Faculty names
             faculty_names = sorted(
                 {
                     faculty_display_name(section.faculty)
                     for section in Section.objects.select_related("faculty")
-                    .filter(course_id=c_id, assessments__in=assessments)
+                    .filter(course_id=course_id_value, assessments__in=assessments)
                     if section.faculty
                 }
             )
@@ -514,7 +539,7 @@ class ReportViewSet(ViewSet):
             course_summary.append({
                 "code": row["assessment__section__course__code"],
                 "name": row["assessment__section__course__name"],
-                "instructor": ", ".join(faculty_names) if faculty_names else "—",
+                "instructor": ", ".join(faculty_names) if faculty_names else "-",
                 "sos": linked_sos,
                 "students": row["total_students"],
                 "avg": avg_pct,
@@ -529,20 +554,13 @@ class ReportViewSet(ViewSet):
                 "last_assessed": last_assessed.isoformat() if last_assessed else None,
             })
 
-        # ── FILTER OPTIONS ──
-        all_school_years = sorted(
-            {
-                school_year
-                for school_year in scoped_sections.exclude(academic_year="").values_list("academic_year", flat=True)
-                if school_year
-            }
+        all_school_years = self._normalize_unique_values(
+            scoped_sections.exclude(academic_year="").values_list("academic_year", flat=True)
         )
-
         course_ids = scoped_sections.values_list("course_id", flat=True).distinct()
         all_courses = list(
             Course.objects.filter(id__in=course_ids).values("id", "code", "name").order_by("code")
         )
-
         all_sections = [
             {
                 "id": section.id,
@@ -553,7 +571,6 @@ class ReportViewSet(ViewSet):
             }
             for section in scoped_sections.order_by("name")
         ]
-
         so_ids = assessments.values_list("student_outcome_id", flat=True).distinct()
         all_sos = list(
             StudentOutcome.objects.filter(id__in=so_ids).values("id", "number", "title").order_by("number")
@@ -566,7 +583,7 @@ class ReportViewSet(ViewSet):
             section_id=section_id,
         )
 
-        return Response({
+        return {
             "metrics": {
                 "total_student_outcomes": total_sos,
                 "total_courses": total_courses,
@@ -586,7 +603,113 @@ class ReportViewSet(ViewSet):
                 "sections": all_sections,
                 "student_outcomes": all_sos,
             },
-        })
+        }
+
+    @action(detail=False, methods=["get"])
+    def dashboard(self, request):
+        school_year = request.query_params.get("school_year")
+        section_id = request.query_params.get("section")
+        course_id = request.query_params.get("course")
+        so_id = request.query_params.get("so")
+        user = request.user
+
+        assessments = Assessment.objects.select_related(
+            "section__course",
+            "student_outcome",
+        ).filter(section__is_active=True)
+        scoped_sections = Section.objects.select_related("course", "faculty").filter(is_active=True)
+
+        if getattr(user, "is_authenticated", False) and getattr(user, "role", "") == "staff":
+            assessments = assessments.filter(section__faculty=user)
+            scoped_sections = scoped_sections.filter(faculty=user)
+
+        if school_year:
+            assessments = assessments.filter(school_year=school_year)
+            scoped_sections = scoped_sections.filter(academic_year=school_year)
+        if section_id:
+            assessments = assessments.filter(section_id=section_id)
+            scoped_sections = scoped_sections.filter(id=section_id)
+        if course_id:
+            assessments = assessments.filter(section__course_id=course_id)
+            scoped_sections = scoped_sections.filter(course_id=course_id)
+        if so_id:
+            assessments = assessments.filter(student_outcome_id=so_id)
+
+        return Response(
+            self._build_dashboard_payload(
+                assessments,
+                scoped_sections,
+                school_year=school_year,
+                course_id=course_id,
+                section_id=section_id,
+            )
+        )
+
+    @action(detail=False, methods=["get"], url_path="past_reports")
+    def past_reports(self, request):
+        archives = SemesterArchive.objects.all()
+        return Response({"reports": SemesterArchiveSerializer(archives, many=True).data})
+
+    @action(detail=False, methods=["post"], url_path="finalize_semester")
+    def finalize_semester(self, request):
+        admin_error = self._require_admin(request)
+        if admin_error:
+            return admin_error
+
+        active_sections = Section.objects.select_related("course", "faculty").filter(is_active=True)
+        if not active_sections.exists():
+            return Response(
+                {"detail": "There are no active sections to finalize."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        active_assessments = Assessment.objects.select_related(
+            "section__course",
+            "student_outcome",
+        ).filter(section__in=active_sections)
+
+        school_year_label = ", ".join(
+            self._normalize_unique_values(active_sections.values_list("academic_year", flat=True))
+        )
+        semester_label = ", ".join(
+            self._normalize_unique_values(active_sections.values_list("semester", flat=True))
+        )
+
+        payload = self._build_dashboard_payload(
+            active_assessments,
+            active_sections,
+            school_year=school_year_label,
+        )
+
+        archive = SemesterArchive(
+            title=self._build_archive_title(semester_label),
+            school_year=school_year_label,
+            semester=semester_label,
+            report_type="Program Summary",
+            status="Completed",
+            summary=self._build_archive_summary(payload, semester_label, school_year_label),
+            highlights=self._build_archive_highlights(payload),
+            generated_by="Program Chair Office",
+            file_format="Archived Snapshot",
+            avg_score=payload["metrics"].get("avg_performance", 0),
+            courses_assessed=payload["metrics"].get("total_courses", 0),
+            students_assessed=payload["metrics"].get("total_students", 0),
+            sections_archived=payload["metrics"].get("total_sections", 0),
+            snapshot=payload,
+        )
+
+        with transaction.atomic():
+            archive.save()
+            Enrollment.objects.filter(section__in=active_sections).delete()
+            active_sections.delete()
+
+        return Response(
+            {
+                "message": "Semester finalized successfully.",
+                "archive": SemesterArchiveSerializer(archive).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=False, methods=["post"], url_path="save_summary_table")
     def save_summary_table(self, request):

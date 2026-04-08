@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { Download, FileText, Eye, Calendar, Filter, Search, CheckCircle2, Clock, ArrowLeft } from "lucide-react";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
@@ -7,22 +8,48 @@ import SOSummaryTables from "@/components/reports/SOSummaryTables.jsx";
 import {
   buildPastReportFilterOptions,
   downloadSamplePastReport,
-  programChairPastReports,
 } from "../../data/pastReportsData";
+
+const API_BASE_URL = "http://localhost:8000/api";
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("accessToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 export default function ProgramChairPastReports() {
   const navigate = useNavigate();
+  const [reports, setReports] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const filterOptions = useMemo(
-    () => buildPastReportFilterOptions(programChairPastReports),
-    []
+    () => buildPastReportFilterOptions(reports),
+    [reports]
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("All Years");
   const [selectedReportType, setSelectedReportType] = useState("All Types");
   const [viewDetailsId, setViewDetailsId] = useState(null);
 
+  useEffect(() => {
+    const loadPastReports = async () => {
+      setIsLoading(true);
+      try {
+        const response = await axios.get(`${API_BASE_URL}/reports/past_reports/`, {
+          headers: getAuthHeaders(),
+        });
+        setReports(response.data?.reports || []);
+      } catch (error) {
+        console.error("Failed to load past reports:", error);
+        setReports([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPastReports();
+  }, []);
+
   const filteredReports = useMemo(() => {
-    return programChairPastReports.filter((report) => {
+    return reports.filter((report) => {
       const matchesSearch =
         report.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         report.semester.toLowerCase().includes(searchQuery.toLowerCase());
@@ -33,7 +60,7 @@ export default function ProgramChairPastReports() {
 
       return matchesSearch && matchesYear && matchesType;
     });
-  }, [searchQuery, selectedSchoolYear, selectedReportType]);
+  }, [reports, searchQuery, selectedSchoolYear, selectedReportType]);
 
   const handleViewDetails = (reportId) => {
     setViewDetailsId(viewDetailsId === reportId ? null : reportId);
@@ -120,7 +147,11 @@ export default function ProgramChairPastReports() {
           </div>
 
           <div className="space-y-3">
-            {filteredReports.length > 0 ? (
+            {isLoading ? (
+              <div className="glass-card p-6 sm:p-8 text-center">
+                <p className="text-[#231F20] font-medium mb-1">Loading archived reports...</p>
+              </div>
+            ) : filteredReports.length > 0 ? (
               filteredReports.map((report) => (
                 <div key={report.id} className="glass-card overflow-hidden">
                   <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
