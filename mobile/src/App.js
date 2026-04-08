@@ -1,5 +1,5 @@
 import { NavigationContainer } from "@react-navigation/native";
-import { StatusBar } from "expo-status-bar";
+import { StatusBar } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider } from "./context/AuthContext";
@@ -10,7 +10,7 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <NavigationContainer>
-          <StatusBar style="dark" />
+          <StatusBar barStyle="dark-content" />
           <RootNavigator />
         </NavigationContainer>
       </AuthProvider>
