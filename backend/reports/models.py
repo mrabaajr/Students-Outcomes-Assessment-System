@@ -53,3 +53,30 @@ class ReportTemplate(models.Model):
             scope.append(self.school_year)
         scope_label = " / ".join(scope) if scope else "all filters"
         return f"SO {self.student_outcome.number} report ({scope_label})"
+
+
+class SemesterArchive(models.Model):
+    title = models.CharField(max_length=255)
+    school_year = models.CharField(max_length=20, blank=True, default="")
+    semester = models.CharField(max_length=100, blank=True, default="")
+    report_type = models.CharField(max_length=100, default="Program Summary")
+    status = models.CharField(max_length=50, default="Completed")
+    summary = models.TextField(blank=True, default="")
+    highlights = models.JSONField(default=list, blank=True)
+    generated_by = models.CharField(max_length=255, blank=True, default="")
+    file_format = models.CharField(max_length=100, default="Archived Snapshot")
+    avg_score = models.FloatField(default=0)
+    courses_assessed = models.PositiveIntegerField(default=0)
+    students_assessed = models.PositiveIntegerField(default=0)
+    sections_archived = models.PositiveIntegerField(default=0)
+    snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        semester = self.semester or "Semester"
+        school_year = self.school_year or "No school year"
+        return f"{semester} archive ({school_year})"
