@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { BookOpen, Users, Plus, Settings, Loader2, Search, Filter, RotateCcw, AlertCircle, CheckCircle, X } from "lucide-react";
+import { BookOpen, Users, Plus, Settings, Loader2, Search, Filter, RotateCcw, AlertCircle, CheckCircle, X, TriangleAlert } from "lucide-react";
 import axios from "axios";
+import { useSearchParams } from "react-router-dom";
 import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
 import SectionCard from "@/components/classes/SectionCard";
@@ -9,22 +10,37 @@ import SectionFormDialog from "@/components/classes/SectionFormDialog";
 import StudentFormDialog from "@/components/classes/StudentFormDialog";
 import FacultyFormDialog from "@/components/classes/FacultyFormDialog";
 import DeleteConfirmDialog from "@/components/classes/DeleteConfirmDialog";
+import FacultyAccountModal from "@/components/accounts/FacultyAccountModal";
 import { sections as initialSections, faculty as initialFaculty } from "@/data/classesData";
 import { toast } from "@/hooks/use-toast";
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState("sections");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab = tabFromUrl === "faculty" ? "faculty" : "sections";
   const [sectionsData, setSectionsData] = useState([]);
   const [facultyData, setFacultyData] = useState([]);
+  const [deletedFacultyIds, setDeletedFacultyIds] = useState([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [sectionSearch, setSectionSearch] = useState("");
   const [selectedCourse, setSelectedCourse] = useState("All Courses");
+  const [selectedSectionStatus, setSelectedSectionStatus] = useState("All Statuses");
+  const [selectedSemester, setSelectedSemester] = useState("All Semesters");
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("All School Years");
   const [selectedFaculty, setSelectedFaculty] = useState("All Faculty");
+  const [selectedAssignmentStatus, setSelectedAssignmentStatus] = useState("All Sections");
   const [facultySearch, setFacultySearch] = useState("");
   const [selectedHandledCourse, setSelectedHandledCourse] = useState("All Courses");
+  const autoSaveTimeoutRef = useRef(null);
+  const hasLoadedRef = useRef(false);
+
+  const setActiveTab = (tab) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", tab);
+    setSearchParams(nextParams, { replace: true });
+  };
 
   // Load data from backend on mount; fall back to mock data
   useEffect(() => {
@@ -32,25 +48,38 @@ const Index = () => {
       try {
         const response = await axios.get('/api/sections/load_all/');
         const { sections, faculty } = response.data;
-        if (sections.length > 0) {
-          setSectionsData(sections);
-          setFacultyData(faculty);
-        } else {
-          setSectionsData(initialSections);
-          setFacultyData(initialFaculty);
-        }
+        setSectionsData(Array.isArray(sections) ? sections : initialSections);
+        setFacultyData(Array.isArray(faculty) ? faculty : initialFaculty);
       } catch (error) {
         console.error('Failed to load classes from backend:', error);
         setSectionsData(initialSections);
         setFacultyData(initialFaculty);
       }
       setIsLoading(false);
+      hasLoadedRef.current = true;
     };
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (!hasLoadedRef.current || !hasUnsavedChanges || isSaving) {
+      return undefined;
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      handleSaveChanges();
+    }, 900);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [hasUnsavedChanges, isSaving, sectionsData, facultyData, deletedFacultyIds]);
+
   const sectionFilterOptions = useMemo(() => {
     const courses = ["All Courses", ...new Set(sectionsData.map((section) => section.courseCode).filter(Boolean))];
+    const semesters = ["All Semesters", ...new Set(sectionsData.map((section) => section.semester).filter(Boolean))];
     const schoolYears = ["All School Years", ...new Set(sectionsData.map((section) => section.schoolYear).filter(Boolean))];
     const facultyNames = [
       "All Faculty",
@@ -68,7 +97,7 @@ const Index = () => {
       ),
     ];
 
-    return { courses, schoolYears, facultyNames };
+    return { courses, semesters, schoolYears, facultyNames };
   }, [sectionsData, facultyData]);
 
   const facultyCourseOptions = useMemo(() => {
@@ -103,13 +132,30 @@ const Index = () => {
         hasStudentMatch;
 
       const matchesCourse = selectedCourse === "All Courses" || section.courseCode === selectedCourse;
+      const matchesStatus =
+        selectedSectionStatus === "All Statuses" ||
+        (selectedSectionStatus === "Active" && section.isActive !== false) ||
+        (selectedSectionStatus === "Inactive" && section.isActive === false);
+      const matchesSemester = selectedSemester === "All Semesters" || section.semester === selectedSemester;
       const matchesSchoolYear =
         selectedSchoolYear === "All School Years" || section.schoolYear === selectedSchoolYear;
       const matchesFaculty = selectedFaculty === "All Faculty" || facultyName === selectedFaculty;
+      const matchesAssignmentStatus =
+        selectedAssignmentStatus === "All Sections" ||
+        (selectedAssignmentStatus === "Assigned" && facultyName) ||
+        (selectedAssignmentStatus === "Unassigned" && !facultyName);
 
-      return matchesSearch && matchesCourse && matchesSchoolYear && matchesFaculty;
+      return (
+        matchesSearch &&
+        matchesCourse &&
+        matchesStatus &&
+        matchesSemester &&
+        matchesSchoolYear &&
+        matchesFaculty &&
+        matchesAssignmentStatus
+      );
     });
-  }, [sectionsData, facultyData, sectionSearch, selectedCourse, selectedSchoolYear, selectedFaculty]);
+  }, [sectionsData, facultyData, sectionSearch, selectedCourse, selectedSectionStatus, selectedSemester, selectedSchoolYear, selectedFaculty, selectedAssignmentStatus]);
 
   const filteredFaculty = useMemo(() => {
     return facultyData.filter((faculty) => {
@@ -136,8 +182,11 @@ const Index = () => {
   const resetSectionFilters = () => {
     setSectionSearch("");
     setSelectedCourse("All Courses");
+    setSelectedSectionStatus("All Statuses");
+    setSelectedSemester("All Semesters");
     setSelectedSchoolYear("All School Years");
     setSelectedFaculty("All Faculty");
+    setSelectedAssignmentStatus("All Sections");
   };
 
   const resetFacultyFilters = () => {
@@ -158,8 +207,27 @@ const Index = () => {
 
   // Faculty CRUD
   const [facultyDialog, setFacultyDialog] = useState(false);
+  const [facultyAccountModalOpen, setFacultyAccountModalOpen] = useState(false);
   const [editingFaculty, setEditingFaculty] = useState(null);
   const [deleteFacultyId, setDeleteFacultyId] = useState(null);
+
+  const facultyPendingDelete = useMemo(
+    () => facultyData.find((faculty) => faculty.id === deleteFacultyId) || null,
+    [facultyData, deleteFacultyId]
+  );
+
+  const sectionsAffectedByFacultyDelete = useMemo(() => {
+    if (!facultyPendingDelete) return [];
+
+    return facultyPendingDelete.courses.flatMap((course) =>
+      course.sections.map((sectionName) => ({
+        key: `${course.code}-${sectionName}`,
+        sectionName,
+        courseCode: course.code,
+        courseName: course.name,
+      }))
+    );
+  }, [facultyPendingDelete]);
 
   // CSV Import
   const [importCSVModal, setImportCSVModal] = useState({
@@ -174,14 +242,93 @@ const Index = () => {
 
   // --- Section handlers ---
   const handleSaveSection = (data) => {
-    if (editingSection) {
-      setSectionsData(prev => prev.map(s => s.id === editingSection.id ? { ...s, ...data } : s));
-      toast({ title: "Section updated successfully" });
-    } else {
-      const newSection = { ...data, id: Date.now().toString(), students: [] };
-      setSectionsData(prev => [...prev, newSection]);
-      toast({ title: "Section added successfully" });
-    }
+    const previousSectionName = editingSection?.name || "";
+    const previousCourseCode = editingSection?.courseCode || "";
+    const savedSection = editingSection
+      ? {
+          ...editingSection,
+          ...data,
+          isActive: data.isActive,
+          semester: data.semester,
+          academicYear: data.schoolYear,
+        }
+      : {
+          ...data,
+          id: Date.now().toString(),
+          students: [],
+          studentOutcomes: [],
+          isActive: data.isActive,
+          semester: data.semester,
+          academicYear: data.schoolYear,
+        };
+
+    setSectionsData((prev) =>
+      editingSection
+        ? prev.map((section) => (section.id === editingSection.id ? savedSection : section))
+        : [...prev, savedSection]
+    );
+
+    setFacultyData((prev) => {
+      const targetFacultyEmail = (data.facultyEmail || "").trim().toLowerCase();
+
+      return prev.map((faculty) => {
+        const normalizedFacultyEmail = (faculty.email || "").trim().toLowerCase();
+        const updatedCourses = faculty.courses
+          .map((course) => {
+            const isSameCourse = course.code === savedSection.courseCode;
+            const filteredSections = course.sections.filter((sectionName) => {
+              if (sectionName === savedSection.name) {
+                return false;
+              }
+
+              if (
+                previousSectionName &&
+                previousCourseCode &&
+                course.code === previousCourseCode &&
+                sectionName === previousSectionName
+              ) {
+                return false;
+              }
+
+              return true;
+            });
+
+            if (normalizedFacultyEmail === targetFacultyEmail && isSameCourse) {
+              return {
+                ...course,
+                sections: [...filteredSections, savedSection.name],
+              };
+            }
+
+            return {
+              ...course,
+              sections: filteredSections,
+            };
+          })
+          .filter((course) => course.sections.length > 0);
+
+        if (
+          normalizedFacultyEmail === targetFacultyEmail &&
+          !updatedCourses.some((course) => course.code === savedSection.courseCode)
+        ) {
+          updatedCourses.push({
+            code: savedSection.courseCode,
+            name: savedSection.courseName,
+            sections: [savedSection.name],
+          });
+        }
+
+        return {
+          ...faculty,
+          courses: updatedCourses,
+        };
+      });
+    });
+
+    toast({
+      title: editingSection ? "Section updated successfully" : "Section added successfully",
+      description: "Section details will be saved automatically.",
+    });
     setEditingSection(null);
     setHasUnsavedChanges(true);
   };
@@ -236,24 +383,84 @@ const Index = () => {
 
   // --- Faculty handlers ---
   const handleSaveFaculty = (data) => {
-    if (editingFaculty) {
-      setFacultyData(prev => prev.map(f => f.id === editingFaculty.id ? { ...f, ...data } : f));
-      toast({ title: "Faculty updated" });
-    } else {
-      setFacultyData(prev => [...prev, { ...data, id: `f${Date.now()}` }]);
-      toast({ title: "Faculty added" });
-    }
+    const savedFaculty = editingFaculty
+      ? { ...editingFaculty, ...data }
+      : { ...data, id: `f${Date.now()}` };
+
+    setFacultyData((prev) => {
+      const nextFaculty = editingFaculty
+        ? prev.map((faculty) => (faculty.id === editingFaculty.id ? savedFaculty : faculty))
+        : [...prev, savedFaculty];
+
+      const claimedSections = new Set(
+        savedFaculty.courses.flatMap((course) =>
+          course.sections.map((sectionName) => `${course.code}::${sectionName}`)
+        )
+      );
+
+      return nextFaculty.map((faculty) => {
+        if (faculty.id === savedFaculty.id) {
+          return faculty;
+        }
+
+        return {
+          ...faculty,
+          courses: faculty.courses.map((course) => ({
+            ...course,
+            sections: course.sections.filter(
+              (sectionName) => !claimedSections.has(`${course.code}::${sectionName}`)
+            ),
+          })),
+        };
+      });
+    });
+
+    toast({
+      title: editingFaculty ? "Faculty updated" : "Faculty added",
+      description: "Section assignments will be saved automatically.",
+    });
     setEditingFaculty(null);
     setHasUnsavedChanges(true);
   };
 
-  const handleDeleteFaculty = () => {
-    if (deleteFacultyId) {
-      setFacultyData(prev => prev.filter(f => f.id !== deleteFacultyId));
-      toast({ title: "Faculty deleted" });
+  const handleDeleteFaculty = async () => {
+    if (!deleteFacultyId) return;
+
+    const deletingFacultyId = deleteFacultyId;
+    setIsSaving(true);
+
+    try {
+      await axios.delete(`/api/users/${deletingFacultyId}/`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        },
+      });
+
+      setFacultyData((prev) => prev.filter((faculty) => faculty.id !== deletingFacultyId));
+      setDeletedFacultyIds((prev) => prev.filter((id) => id !== deletingFacultyId));
       setDeleteFacultyId(null);
-      setHasUnsavedChanges(true);
+      toast({ title: "Faculty deleted", description: "The faculty account and section assignment links were removed." });
+    } catch (error) {
+      toast({
+        title: "Error deleting faculty",
+        description: error.response?.data?.detail || "Failed to delete faculty.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleFacultyAccountCreated = (createdFaculty) => {
+    setFacultyData((prev) => {
+      const exists = prev.some((faculty) => faculty.email === createdFaculty.email);
+      if (exists) {
+        return prev;
+      }
+      return [...prev, createdFaculty];
+    });
+    setDeletedFacultyIds((prev) => prev.filter((id) => id !== createdFaculty.id));
+    toast({ title: "Faculty account created" });
   };
 
   // --- CSV Import handlers ---
@@ -327,7 +534,7 @@ const Index = () => {
         try {
           const reloadRes = await axios.get('/api/sections/load_all/');
           const { sections } = reloadRes.data;
-          if (sections.length > 0) {
+          if (Array.isArray(sections)) {
             setSectionsData(sections);
           }
         } catch (e) {
@@ -361,21 +568,26 @@ const Index = () => {
 
   // Save all changes to backend
   const handleSaveChanges = async () => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
     setIsSaving(true);
     try {
       const response = await axios.post('/api/sections/bulk_save/', {
         sections: sectionsData,
         faculty: facultyData,
+        deletedFacultyIds,
       });
       if (response.data.success) {
-        toast({ title: "Changes saved", description: "All changes have been saved to the database." });
         setHasUnsavedChanges(false);
+        setDeletedFacultyIds([]);
         // Reload data from backend so IDs are synced with DB
         try {
           const reloadRes = await axios.get('/api/sections/load_all/');
           const { sections, faculty } = reloadRes.data;
-          setSectionsData(sections.length > 0 ? sections : sectionsData);
-          setFacultyData(faculty.length > 0 ? faculty : facultyData);
+          setSectionsData(Array.isArray(sections) ? sections : []);
+          setFacultyData(Array.isArray(faculty) ? faculty : []);
         } catch (e) {
           console.error('Failed to reload after save:', e);
         }
@@ -430,8 +642,7 @@ const Index = () => {
                     setEditingSection(null);
                     setSectionDialog(true);
                   } else {
-                    setEditingFaculty(null);
-                    setFacultyDialog(true);
+                    setFacultyAccountModalOpen(true);
                   }
                 }}
                 className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-[#FFC20E] text-[#231F20] rounded-lg text-sm sm:text-base font-medium hover:bg-[#FFC20E]/90 transition-colors"
@@ -440,18 +651,24 @@ const Index = () => {
                 ADD {activeTab === "sections" ? "SECTION" : "FACULTY"}
               </button>
 
-              <button
-                onClick={handleSaveChanges}
-                disabled={!hasUnsavedChanges || isSaving}
-                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-transparent text-white rounded-lg text-sm sm:text-base font-medium hover:bg-[#3A3A3A] transition-colors border border-[#A5A8AB] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <div className="flex items-center gap-2 rounded-lg border border-[#A5A8AB] px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-white">
                 {isSaving ? (
-                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                  <>
+                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                    <span>SAVING...</span>
+                  </>
+                ) : hasUnsavedChanges ? (
+                  <>
+                    <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span>CHANGES PENDING...</span>
+                  </>
                 ) : (
-                  <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <>
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span>AUTO-SAVED</span>
+                  </>
                 )}
-                {isSaving ? "SAVING..." : "SAVE CHANGES"}
-              </button>
+              </div>
 
               <div className="flex items-center bg-[#3A3A3A] rounded-lg p-1">
                 <button
@@ -486,8 +703,8 @@ const Index = () => {
           {activeTab === "sections" && (
             <div className="space-y-4">
               <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 sm:p-5 shadow-sm">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-                  <div className="flex-1">
+                <div className="space-y-4">
+                  <div>
                     <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
                       <Search className="h-3.5 w-3.5" />
                       Search
@@ -503,67 +720,116 @@ const Index = () => {
                     </div>
                   </div>
 
-                  <div className="grid flex-1 gap-4 sm:grid-cols-3">
-                    <div>
-                      <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                        <Filter className="h-3.5 w-3.5" />
-                        Course
-                      </label>
-                      <select
-                        value={selectedCourse}
-                        onChange={(event) => setSelectedCourse(event.target.value)}
-                        className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                      >
-                        {sectionFilterOptions.courses.map((course) => (
-                          <option key={course} value={course}>
-                            {course}
-                          </option>
-                        ))}
-                      </select>
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
+                    <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                      <div>
+                        <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          <Filter className="h-3.5 w-3.5" />
+                          Course
+                        </label>
+                        <select
+                          value={selectedCourse}
+                          onChange={(event) => setSelectedCourse(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          {sectionFilterOptions.courses.map((course) => (
+                            <option key={course} value={course}>
+                              {course}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          Status
+                        </label>
+                        <select
+                          value={selectedSectionStatus}
+                          onChange={(event) => setSelectedSectionStatus(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          <option value="All Statuses">All Statuses</option>
+                          <option value="Active">Active</option>
+                          <option value="Inactive">Inactive</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          Semester
+                        </label>
+                        <select
+                          value={selectedSemester}
+                          onChange={(event) => setSelectedSemester(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          {sectionFilterOptions.semesters.map((semester) => (
+                            <option key={semester} value={semester}>
+                              {semester}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          School Year
+                        </label>
+                        <select
+                          value={selectedSchoolYear}
+                          onChange={(event) => setSelectedSchoolYear(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          {sectionFilterOptions.schoolYears.map((schoolYear) => (
+                            <option key={schoolYear} value={schoolYear}>
+                              {schoolYear}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          Faculty
+                        </label>
+                        <select
+                          value={selectedFaculty}
+                          onChange={(event) => setSelectedFaculty(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          {sectionFilterOptions.facultyNames.map((facultyName) => (
+                            <option key={facultyName} value={facultyName}>
+                              {facultyName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                          Assignment
+                        </label>
+                        <select
+                          value={selectedAssignmentStatus}
+                          onChange={(event) => setSelectedAssignmentStatus(event.target.value)}
+                          className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                        >
+                          <option value="All Sections">All Sections</option>
+                          <option value="Assigned">Assigned</option>
+                          <option value="Unassigned">Unassigned</option>
+                        </select>
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                        School Year
-                      </label>
-                      <select
-                        value={selectedSchoolYear}
-                        onChange={(event) => setSelectedSchoolYear(event.target.value)}
-                        className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                      >
-                        {sectionFilterOptions.schoolYears.map((schoolYear) => (
-                          <option key={schoolYear} value={schoolYear}>
-                            {schoolYear}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                        Faculty
-                      </label>
-                      <select
-                        value={selectedFaculty}
-                        onChange={(event) => setSelectedFaculty(event.target.value)}
-                        className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                      >
-                        {sectionFilterOptions.facultyNames.map((facultyName) => (
-                          <option key={facultyName} value={facultyName}>
-                            {facultyName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <button
+                      onClick={resetSectionFilters}
+                      className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB] xl:self-auto"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Reset
+                    </button>
                   </div>
-
-                  <button
-                    onClick={resetSectionFilters}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB]"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    Reset
-                  </button>
                 </div>
 
                 <div className="mt-4 text-sm text-[#6B6B6B]">
@@ -610,6 +876,7 @@ const Index = () => {
                   const sectionWithFaculty = {
                     ...section,
                     facultyName: assignedFaculty ? assignedFaculty.name : null,
+                    facultyEmail: assignedFaculty ? assignedFaculty.email : "",
                   };
                   return (
                     <SectionCard
@@ -694,7 +961,7 @@ const Index = () => {
                     </p>
                     {facultyData.length === 0 ? (
                       <button
-                        onClick={() => { setEditingFaculty(null); setFacultyDialog(true); }}
+                        onClick={() => setFacultyAccountModalOpen(true)}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-[#FFC20E] text-[#231F20] rounded-lg text-sm font-medium hover:bg-[#FFC20E]/90"
                       >
                         <Plus className="w-4 h-4" /> Add Faculty
@@ -741,6 +1008,7 @@ const Index = () => {
         onClose={() => { setSectionDialog(false); setEditingSection(null); }}
         onSave={handleSaveSection}
         initialData={editingSection}
+        facultyOptions={facultyData}
       />
       <StudentFormDialog
         open={studentDialog}
@@ -754,6 +1022,12 @@ const Index = () => {
         onSave={handleSaveFaculty}
         initialData={editingFaculty}
         availableSections={sectionsData}
+        allFaculty={facultyData}
+      />
+      <FacultyAccountModal
+        open={facultyAccountModalOpen}
+        onClose={() => setFacultyAccountModalOpen(false)}
+        onCreated={handleFacultyAccountCreated}
       />
       <DeleteConfirmDialog
         open={!!deleteSection}
@@ -775,7 +1049,30 @@ const Index = () => {
         onConfirm={handleDeleteFaculty}
         title="Delete Faculty"
         description="Are you sure you want to delete this faculty member?"
-      />
+      >
+        {sectionsAffectedByFacultyDelete.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <div className="flex items-start gap-3">
+              <TriangleAlert className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-amber-900">
+                  Warning: the following sections will have their faculty assignment removed.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {sectionsAffectedByFacultyDelete.map((section) => (
+                    <span
+                      key={section.key}
+                      className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-amber-900 ring-1 ring-amber-200"
+                    >
+                      {section.sectionName} · {section.courseCode}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </DeleteConfirmDialog>
 
       {/* CSV Import Modal */}
       {importCSVModal.isOpen && (

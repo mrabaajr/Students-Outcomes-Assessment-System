@@ -3,6 +3,47 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
+const normalizeCourse = (course) => ({
+  id: course.id,
+  course: course.course,
+  code: course.code,
+  name: course.name,
+  section: course.section || '',
+  department: course.department,
+  description: course.description || '',
+  credits: course.credits || 3,
+  curriculum: course.curriculum_year || course.curriculumYear || course.curriculum,
+  curriculum_year: course.curriculum_year || course.curriculumYear || course.curriculum,
+  semester: course.semester,
+  year_level: course.year_level || '',
+  academic_year: course.academic_year || '',
+  academicYear: course.academicYear || course.academic_year,
+  instructor: course.instructor || '',
+  studentCount: course.studentCount || course.student_count || 0,
+  enrolledStudents: course.studentCount || course.student_count || 0,
+  status: course.status || 'active',
+  mappedSOs: course.mappedSOs || course.mapped_sos || [],
+  performanceIndicators: course.performanceIndicators || [],
+});
+
+const getErrorMessage = (err, fallback) => {
+  const detail = err.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (detail && typeof detail === 'object') {
+    return Object.entries(detail)
+      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+      .join(' | ');
+  }
+
+  if (err.response?.data && typeof err.response.data === 'object') {
+    return Object.entries(err.response.data)
+      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+      .join(' | ');
+  }
+
+  return fallback;
+};
+
 // Helper: Get auth header
 const getAuthHeader = () => {
   const token = localStorage.getItem('accessToken');
@@ -35,23 +76,7 @@ export function useCourses() {
         headers: getAuthHeader(),
       });
 
-      const transformed = response.data.map(course => ({
-        id: course.id,
-        code: course.code,
-        name: course.name,
-        section: course.section || '',
-        department: course.department,
-        description: course.description || '',
-        credits: course.credits || 3,
-        semester: course.semester,
-        academicYear: course.academicYear || course.academic_year,
-        instructor: course.instructor || '',
-        studentCount: course.studentCount || course.student_count || 0,
-        enrolledStudents: course.studentCount || course.student_count || 0,
-        status: course.status || 'active',
-        mappedSOs: course.mappedSOs || course.mapped_sos || [],
-        performanceIndicators: course.performanceIndicators || [],
-      }));
+      const transformed = response.data.map(normalizeCourse);
 
       setCourses(transformed);
     } catch (err) {
@@ -72,7 +97,7 @@ export function useCourses() {
     try {
       // Map frontend field names to backend expected fields
       const payload = {
-        course: courseData.selectedCourseId,
+        course: courseData.selectedCourseId ? parseInt(courseData.selectedCourseId, 10) : null,
         code: courseData.code,
         name: courseData.name,
         curriculum: courseData.curriculum,
@@ -89,14 +114,7 @@ export function useCourses() {
         { headers: getAuthHeader() }
       );
 
-      const newCourse = {
-        ...response.data,
-        academicYear: response.data.academicYear || response.data.academic_year,
-        studentCount: response.data.studentCount || response.data.student_count || 0,
-        enrolledStudents: response.data.studentCount || response.data.student_count || 0,
-        mappedSOs: response.data.mappedSOs || response.data.mapped_sos || [],
-        performanceIndicators: response.data.performanceIndicators || [],
-      };
+      const newCourse = normalizeCourse(response.data);
 
       setCourses(prev => [...prev, newCourse]);
       return { success: true, course: newCourse };
@@ -104,7 +122,7 @@ export function useCourses() {
       console.error('Error adding course:', err);
       return {
         success: false,
-        message: err.response?.data?.detail || 'Failed to add course',
+        message: getErrorMessage(err, 'Failed to add course'),
       };
     }
   };
@@ -116,8 +134,8 @@ export function useCourses() {
       // Map frontend field names to backend expected fields
       // IMPORTANT: PUT requests require ALL fields including course and curriculum
       const payload = {
-        course: courseData.course || courseData.selectedCourseId, // Required ForeignKey
-        curriculum: courseData.curriculum, // Required ForeignKey
+        course: courseData.course || (courseData.selectedCourseId ? parseInt(courseData.selectedCourseId, 10) : null),
+        curriculum: courseData.curriculum,
         code: courseData.code,
         name: courseData.name,
         semester: courseData.semester,
@@ -136,14 +154,7 @@ export function useCourses() {
         { headers: getAuthHeader() }
       );
 
-      const updated = {
-        ...response.data,
-        academicYear: response.data.academicYear || response.data.academic_year,
-        studentCount: response.data.studentCount || response.data.student_count || 0,
-        enrolledStudents: response.data.studentCount || response.data.student_count || 0,
-        mappedSOs: response.data.mappedSOs || response.data.mapped_sos || [],
-        performanceIndicators: response.data.performanceIndicators || [],
-      };
+      const updated = normalizeCourse(response.data);
 
       setCourses(prev => prev.map(c => c.id === courseId ? updated : c));
       return { success: true, course: updated };
@@ -152,7 +163,7 @@ export function useCourses() {
       console.error('Error response data:', err.response?.data);
       return {
         success: false,
-        message: err.response?.data?.detail || 'Failed to update course',
+        message: getErrorMessage(err, 'Failed to update course'),
       };
     }
   };
@@ -171,7 +182,7 @@ export function useCourses() {
       console.error('Error deleting course:', err);
       return {
         success: false,
-        message: err.response?.data?.detail || 'Failed to delete course',
+        message: getErrorMessage(err, 'Failed to delete course'),
       };
     }
   };
@@ -186,14 +197,7 @@ export function useCourses() {
         { headers: getAuthHeader() }
       );
 
-      const updated = {
-        ...response.data.courseMapping,
-        academicYear: response.data.courseMapping.academicYear || response.data.courseMapping.academic_year,
-        studentCount: response.data.courseMapping.studentCount || response.data.courseMapping.student_count || 0,
-        enrolledStudents: response.data.courseMapping.studentCount || response.data.courseMapping.student_count || 0,
-        mappedSOs: response.data.courseMapping.mappedSOs || response.data.courseMapping.mapped_sos || [],
-        performanceIndicators: response.data.courseMapping.performanceIndicators || [],
-      };
+      const updated = normalizeCourse(response.data.courseMapping);
 
       setCourses(prev => prev.map(c => c.id === courseId ? updated : c));
       return { success: true, message: response.data.message };
@@ -201,7 +205,7 @@ export function useCourses() {
       console.error('Error toggling SO mapping:', err);
       return {
         success: false,
-        message: err.response?.data?.detail || 'Failed to toggle mapping',
+        message: getErrorMessage(err, 'Failed to toggle mapping'),
       };
     }
   };

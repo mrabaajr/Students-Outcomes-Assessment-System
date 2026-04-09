@@ -1,135 +1,142 @@
-import re
-
-from rest_framework import viewsets, status
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.exceptions import PermissionDenied
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from django.db import transaction
-
 import csv
+import re
 from io import TextIOWrapper
 
-from .models import Student, Section, Enrollment, Faculty, FacultyCourseAssignment
-from .serializers import (
-    StudentSerializer,
-    SectionSerializer,
-    SectionDetailSerializer,
-    EnrollmentSerializer,
-    ClassesFacultySerializer,
-)
-from users.models import User
-from courses.models import Course, Curriculum
+from django.db import transaction
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 
-# ------------------------
-# STUDENT VIEWSET
-# ------------------------
+from courses.models import Course, Curriculum, SchoolYear
+from users.models import User
+
+from .models import Enrollment, Section, Student
+from .serializers import (
+    ClassesFacultySerializer,
+    EnrollmentSerializer,
+    SectionDetailSerializer,
+    SectionSerializer,
+    StudentSerializer,
+)
+
+
+DEFAULT_FACULTY_PASSWORD = "Faculty123!"
+DEFAULT_DEPARTMENT = "Computer Engineering"
+
+
+def build_faculty_name(user):
+    if not user:
+        return ""
+    return " ".join(part for part in [user.first_name, user.last_name] if part).strip() or user.email
+
+
+def split_full_name(full_name):
+    cleaned_name = (full_name or "").strip()
+    if not cleaned_name:
+        return "", ""
+
+    parts = cleaned_name.split()
+    if len(parts) == 1:
+        return parts[0], ""
+    return " ".join(parts[:-1]), parts[-1]
+
+
 class StudentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Student.objects.all()
     serializer_class = StudentSerializer
 
     def perform_create(self, serializer):
-        if self.request.user.role != 'admin':
+        if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can create students.")
         serializer.save()
 
     def perform_update(self, serializer):
-        if self.request.user.role != 'admin':
+        if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can update students.")
         serializer.save()
 
     def perform_destroy(self, instance):
-        if self.request.user.role != 'admin':
+        if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can delete students.")
         instance.delete()
 
-    @action(detail=False, methods=['post'], url_path='import-csv')
+    @action(detail=False, methods=["post"], url_path="import-csv")
     def import_csv(self, request):
-        if request.user.role != 'admin':
+        if request.user.role != "admin":
             raise PermissionDenied("Only admins can import students.")
 
-        file = request.FILES.get('file')
-
+        file = request.FILES.get("file")
         if not file:
-            return Response(
-                {"error": "No file uploaded."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "No file uploaded."}, status=status.HTTP_400_BAD_REQUEST)
 
-        decoded_file = TextIOWrapper(file.file, encoding='utf-8')
+        decoded_file = TextIOWrapper(file.file, encoding="utf-8")
         reader = csv.DictReader(decoded_file)
 
         created_count = 0
         skipped_count = 0
 
         for row in reader:
-            student_id = row.get('student_id')
-
+            student_id = row.get("student_id")
             if Student.objects.filter(student_id=student_id).exists():
                 skipped_count += 1
                 continue
 
             Student.objects.create(
                 student_id=student_id,
-                first_name=row.get('first_name'),
-                last_name=row.get('last_name'),
-                program=row.get('program'),
-                year_level=row.get('year_level'),
+                first_name=row.get("first_name"),
+                last_name=row.get("last_name"),
+                program=row.get("program"),
+                year_level=row.get("year_level"),
             )
-
             created_count += 1
 
-        return Response({
-            "message": "Import completed",
-            "created": created_count,
-            "skipped": skipped_count
-        })
+        return Response(
+            {
+                "message": "Import completed",
+                "created": created_count,
+                "skipped": skipped_count,
+            }
+        )
 
-# ------------------------
-# SECTION VIEWSET
-# ------------------------
+
 class SectionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_authenticators(self):
-        """Skip JWT authentication for public actions to avoid 401 on stale tokens."""
-        if getattr(self, 'action', None) in ('load_all', 'bulk_save', 'import_csv_into_section'):
+        if getattr(self, "action", None) in ("load_all", "bulk_save", "import_csv_into_section"):
             return []
         return super().get_authenticators()
 
     def get_queryset(self):
         user = self.request.user
+        base_queryset = Section.objects.select_related("course", "faculty").prefetch_related("enrollments")
 
-        base_queryset = Section.objects.select_related(
-            'course',
-            'faculty'
-        ).prefetch_related('enrollments')
-
-        # Admin sees all
-        if user.role == 'admin':
+        if not getattr(user, "is_authenticated", False):
             return base_queryset
-
-        # Staff sees only their sections
+        if user.role == "admin":
+            return base_queryset
         return base_queryset.filter(faculty=user)
 
     def get_serializer_class(self):
-        if self.action == 'retrieve':
+        if self.action == "retrieve":
             return SectionDetailSerializer
         return SectionSerializer
 
     def perform_create(self, serializer):
-        if self.request.user.role != 'admin':
+        if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can create sections.")
         serializer.save()
 
     def perform_update(self, serializer):
-        if self.request.user.role != 'admin':
+        if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can update sections.")
         serializer.save()
 
     def perform_destroy(self, instance):
-        if self.request.user.role != 'admin':
+        if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can delete sections.")
         instance.delete()
 
@@ -137,58 +144,43 @@ class SectionViewSet(viewsets.ModelViewSet):
         obj = super().get_object()
         user = self.request.user
 
-        # Staff cannot access sections not assigned to them
-        if user.role == 'staff' and obj.faculty != user:
+        if not getattr(user, "is_authenticated", False):
+            return obj
+        if user.role == "staff" and obj.faculty != user:
             raise PermissionDenied("You do not have access to this section.")
 
         return obj
 
-    # --------------------------------------------------
-    # import_csv_into_section – import students from CSV
-    # and enroll them into the section.
-    # Expected CSV columns: student_id, first_name, last_name, program, year_level
-    # --------------------------------------------------
-    @action(detail=True, methods=['post'], url_path='import-csv')
+    @action(detail=True, methods=["post"], permission_classes=[AllowAny], url_path="import-csv")
     def import_csv_into_section(self, request, pk=None):
-        """
-        Import students from a CSV file into a section.
-        Requires section ID (pk) and CSV file in request.
-        """
         section = self.get_object()
-        
-        # Check authorization
         user = request.user
-        if user.role == 'staff' and section.faculty != user:
+        user_role = getattr(user, "role", None)
+
+        if user_role == "staff" and section.faculty != user:
             raise PermissionDenied("You do not have access to import students into this section.")
-        if user.role not in ['admin', 'staff']:
+        if user_role and user_role not in ["admin", "staff"]:
             raise PermissionDenied("Only admins or assigned faculty can import students.")
 
-        file = request.FILES.get('file')
+        file = request.FILES.get("file")
         if not file:
-            return Response(
-                {"error": "No file uploaded."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "No file uploaded."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            decoded_file = TextIOWrapper(file.file, encoding='utf-8')
+            decoded_file = TextIOWrapper(file.file, encoding="utf-8")
             reader = csv.DictReader(decoded_file)
-            
+
             if not reader.fieldnames:
-                return Response(
-                    {"error": "CSV file is empty."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Verify required columns
-            required_columns = {'student_id', 'first_name', 'last_name', 'program', 'year_level'}
+                return Response({"error": "CSV file is empty."}, status=status.HTTP_400_BAD_REQUEST)
+
+            required_columns = {"student_id", "first_name", "last_name", "program", "year_level"}
             csv_columns = set(reader.fieldnames) if reader.fieldnames else set()
             missing_columns = required_columns - csv_columns
-            
+
             if missing_columns:
                 return Response(
                     {"error": f"CSV is missing required columns: {', '.join(missing_columns)}"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             created_count = 0
@@ -197,356 +189,314 @@ class SectionViewSet(viewsets.ModelViewSet):
             errors = []
 
             with transaction.atomic():
-                for row_num, row in enumerate(reader, start=2):  # start=2 because header is row 1
+                for row_num, row in enumerate(reader, start=2):
                     try:
-                        student_id = row.get('student_id', '').strip()
-                        first_name = row.get('first_name', '').strip()
-                        last_name = row.get('last_name', '').strip()
-                        program = row.get('program', '').strip()
-                        year_level_str = row.get('year_level', '').strip()
-                        
-                        # Validate required fields
+                        student_id = row.get("student_id", "").strip()
+                        first_name = row.get("first_name", "").strip()
+                        last_name = row.get("last_name", "").strip()
+                        program = row.get("program", "").strip()
+                        year_level_str = row.get("year_level", "").strip()
+
                         if not student_id or not first_name or not last_name:
                             errors.append(f"Row {row_num}: Missing student_id, first_name, or last_name")
                             skipped_count += 1
                             continue
-                        
-                        # Parse year_level
+
                         try:
                             year_level = int(year_level_str)
                             if year_level < 1 or year_level > 4:
                                 errors.append(f"Row {row_num}: year_level must be between 1 and 4")
                                 skipped_count += 1
                                 continue
-                        except (ValueError, TypeError):
+                        except (TypeError, ValueError):
                             errors.append(f"Row {row_num}: year_level must be a number")
                             skipped_count += 1
                             continue
-                        
-                        # Create or update student
+
                         student, created = Student.objects.update_or_create(
                             student_id=student_id,
                             defaults={
-                                'first_name': first_name,
-                                'last_name': last_name,
-                                'program': program,
-                                'year_level': year_level,
-                            }
+                                "first_name": first_name,
+                                "last_name": last_name,
+                                "program": program,
+                                "year_level": year_level,
+                            },
                         )
-                        
-                        # Create or update enrollment
-                        enrollment, enrollment_created = Enrollment.objects.update_or_create(
+
+                        Enrollment.objects.update_or_create(
                             student=student,
                             course=section.course,
-                            defaults={'section': section}
+                            defaults={"section": section},
                         )
-                        
+
                         if created:
                             created_count += 1
                         else:
                             updated_count += 1
 
-                    except Exception as e:
-                        errors.append(f"Row {row_num}: {str(e)}")
+                    except Exception as exc:
+                        errors.append(f"Row {row_num}: {str(exc)}")
                         skipped_count += 1
-                        continue
 
-            return Response({
-                "message": "CSV import completed",
-                "section": section.name,
-                "created": created_count,
-                "updated": updated_count,
-                "skipped": skipped_count,
-                "errors": errors if errors else []
-            }, status=status.HTTP_200_OK)
+            return Response(
+                {
+                    "message": "CSV import completed",
+                    "section": section.name,
+                    "created": created_count,
+                    "updated": updated_count,
+                    "skipped": skipped_count,
+                    "errors": errors if errors else [],
+                },
+                status=status.HTTP_200_OK,
+            )
 
         except UnicodeDecodeError:
             return Response(
                 {"error": "File encoding error. Please ensure the CSV file is UTF-8 encoded."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        except Exception as e:
+        except Exception as exc:
             return Response(
-                {"error": f"Error processing CSV: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": f"Error processing CSV: {str(exc)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    # --------------------------------------------------
-    # load_all – returns all sections + faculty in the
-    # frontend's data format so the Classes page can
-    # hydrate from the backend on mount.
-    # Includes StudentOutcome mappings for each section.
-    # --------------------------------------------------
-    @action(detail=False, methods=['get'], permission_classes=[AllowAny],
-            url_path='load_all')
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny], url_path="load_all")
     def load_all(self, request):
         from courses.models import CourseSOMapping
         from courses.serializers import CourseSOMappingSerializer
-        
+
         sections = (
-            Section.objects
-            .select_related('course', 'course__curriculum', 'assigned_faculty')
-            .prefetch_related('enrollments__student')
+            Section.objects.select_related("course", "course__curriculum", "faculty")
+            .prefetch_related("enrollments__student")
             .all()
         )
 
         def _year_str(level):
-            suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(level, 'th')
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(level, "th")
             return f"{level}{suffix} Year"
 
         sections_payload = []
         for sec in sections:
             students = []
             for enr in sec.enrollments.all():
-                s = enr.student
-                students.append({
-                    'id': str(s.id),
-                    'name': f"{s.first_name} {s.last_name}",
-                    'studentId': s.student_id,
-                    'course': s.program,
-                    'yearLevel': _year_str(s.year_level),
-                })
-            
-            # Get StudentOutcome mappings for this section's course
+                student = enr.student
+                students.append(
+                    {
+                        "id": str(student.id),
+                        "name": f"{student.first_name} {student.last_name}",
+                        "studentId": student.student_id,
+                        "course": student.program,
+                        "yearLevel": _year_str(student.year_level),
+                    }
+                )
+
             student_outcomes = []
             try:
                 mapping = CourseSOMapping.objects.filter(
                     course=sec.course,
-                    academic_year=sec.academic_year
+                    academic_year=sec.academic_year,
+                    semester=sec.semester or sec.course.semester,
                 ).first()
-                
+                if not mapping:
+                    mapping = (
+                        CourseSOMapping.objects.filter(course=sec.course)
+                        .order_by("-academic_year", "-updated_at")
+                        .first()
+                    )
                 if mapping:
-                    # Serialize the mapping to get mapped_sos_details
                     mapping_serializer = CourseSOMappingSerializer(mapping)
-                    so_details = mapping_serializer.data.get('mapped_sos_details', [])
+                    so_details = mapping_serializer.data.get("mapped_sos_details", [])
                     student_outcomes = [
                         {
-                            'id': so['id'],
-                            'number': so['number'],
-                            'title': so['title'],
-                            'description': so['description'][:100] + '...' if len(so['description']) > 100 else so['description'],
+                            "id": so["id"],
+                            "number": so["number"],
+                            "title": so["title"],
+                            "description": (
+                                so["description"][:100] + "..."
+                                if len(so["description"]) > 100
+                                else so["description"]
+                            ),
                         }
-                        for so in so_details if isinstance(so, dict)
+                        for so in so_details
+                        if isinstance(so, dict)
                     ]
             except Exception:
                 pass
-            
-            sections_payload.append({
-                'id': str(sec.id),
-                'name': sec.name,
-                'courseCode': sec.course.code,
-                'courseName': sec.course.name,
-                'facultyName': sec.assigned_faculty.name if sec.assigned_faculty else '',
-                'curriculum': sec.course.curriculum.year if sec.course.curriculum else '',
-                'semester': sec.semester or sec.course.semester or '',
-                'schoolYear': sec.academic_year or '',
-                'academicYear': sec.academic_year or '',
-                'students': students,
-                'studentOutcomes': student_outcomes,
-            })
 
-        # Faculty from the dedicated Faculty model
-        faculty_qs = (
-            Faculty.objects
-            .prefetch_related('course_assignments')
-            .all()
-        )
-        faculty_payload = []
-        for fac in faculty_qs:
-            courses = []
-            for ca in fac.course_assignments.all():
-                courses.append({
-                    'code': ca.course_code,
-                    'name': ca.course_name,
-                    'sections': ca.get_sections_list(),
-                })
-            faculty_payload.append({
-                'id': str(fac.id),
-                'name': fac.name,
-                'department': fac.department or 'Computer Engineering',
-                'email': fac.email,
-                'courses': courses,
-            })
+            sections_payload.append(
+                {
+                    "id": str(sec.id),
+                    "name": sec.name,
+                    "courseCode": sec.course.code,
+                    "courseName": sec.course.name,
+                    "facultyName": build_faculty_name(sec.faculty),
+                    "curriculum": sec.course.curriculum.year if sec.course.curriculum else "",
+                    "isActive": sec.is_active,
+                    "semester": sec.semester or sec.course.semester or "",
+                    "schoolYear": sec.academic_year or "",
+                    "academicYear": sec.academic_year or "",
+                    "students": students,
+                    "studentOutcomes": student_outcomes,
+                }
+            )
 
-        return Response({
-            'sections': sections_payload,
-            'faculty': faculty_payload,
-        })
+        faculty_payload = ClassesFacultySerializer(
+            User.objects.filter(role="staff")
+            .prefetch_related("assigned_sections__course")
+            .order_by("first_name", "last_name", "email"),
+            many=True,
+        ).data
 
-    # --------------------------------------------------
-    # bulk_save – persists the entire Classes-page state
-    # (sections + faculty + students) to the database in
-    # a single atomic transaction.
-    # --------------------------------------------------
-    @action(detail=False, methods=['post'], permission_classes=[AllowAny],
-            url_path='bulk_save')
+        return Response({"sections": sections_payload, "faculty": faculty_payload})
+
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny], url_path="bulk_save")
     def bulk_save(self, request):
-        sections_data = request.data.get('sections', [])
-        faculty_data = request.data.get('faculty', [])
+        sections_data = request.data.get("sections", [])
+        faculty_data = request.data.get("faculty", [])
+        deleted_faculty_ids = request.data.get("deletedFacultyIds", [])
 
-        if not sections_data and not faculty_data:
+        if not sections_data and not faculty_data and not deleted_faculty_ids:
             return Response(
-                {'detail': 'No data provided', 'success': False},
+                {"detail": "No data provided", "success": False},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             with transaction.atomic():
-                # ── 1. Faculty (dedicated Faculty model) ─────────────
-                saved_faculty_ids = set()
-                faculty_email_map = {}     # email → Faculty instance
+                deleted_faculty_qs = User.objects.filter(id__in=deleted_faculty_ids, role="staff")
+                if deleted_faculty_qs.exists():
+                    Section.objects.filter(faculty__in=deleted_faculty_qs).update(faculty=None)
+                    deleted_faculty_qs.delete()
+
+                valid_school_years = set(SchoolYear.objects.values_list("year", flat=True))
+                faculty_email_map = {}
+
                 for fac in faculty_data:
-                    fac_obj, _ = Faculty.objects.update_or_create(
-                        email=fac['email'],
-                        defaults={
-                            'name': fac.get('name', ''),
-                            'department': fac.get('department', 'Computer Engineering'),
-                        },
-                    )
-                    saved_faculty_ids.add(fac_obj.id)
-                    faculty_email_map[fac['email']] = fac_obj
+                    email = (fac.get("email") or "").strip().lower()
+                    if not email:
+                        continue
 
-                    # Save course assignments
-                    saved_assignment_ids = set()
-                    for ci in fac.get('courses', []):
-                        ca, _ = FacultyCourseAssignment.objects.update_or_create(
-                            faculty=fac_obj,
-                            course_code=ci['code'],
-                            defaults={
-                                'course_name': ci.get('name', ci['code']),
-                            },
-                        )
-                        ca.set_sections_list(ci.get('sections', []))
-                        ca.save()
-                        saved_assignment_ids.add(ca.id)
+                    first_name, last_name = split_full_name(fac.get("name", ""))
+                    defaults = {
+                        "username": email,
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "department": fac.get("department", DEFAULT_DEPARTMENT) or DEFAULT_DEPARTMENT,
+                        "role": "staff",
+                    }
 
-                    # Remove course assignments no longer present
-                    FacultyCourseAssignment.objects.filter(
-                        faculty=fac_obj,
-                    ).exclude(id__in=saved_assignment_ids).delete()
+                    user, created = User.objects.update_or_create(email=email, defaults=defaults)
+                    if created or not user.has_usable_password():
+                        user.set_password(DEFAULT_FACULTY_PASSWORD)
+                        user.save(update_fields=["password"])
 
-                # Remove faculty no longer in frontend state
-                Faculty.objects.exclude(id__in=saved_faculty_ids).delete()
+                    faculty_email_map[email] = user
 
-                # ── 2. Map (section_name, course_code) → Faculty ────
                 section_faculty = {}
                 for fac in faculty_data:
-                    fac_obj = faculty_email_map[fac['email']]
-                    for ci in fac.get('courses', []):
-                        for sec_name in ci.get('sections', []):
-                            section_faculty[(sec_name, ci['code'])] = fac_obj
+                    user = faculty_email_map.get((fac.get("email") or "").strip().lower())
+                    if not user:
+                        continue
+                    for course_info in fac.get("courses", []):
+                        for section_name in course_info.get("sections", []):
+                            section_faculty[(section_name, course_info.get("code", ""))] = user
 
-                # ── 3. Sections ──────────────────────────────────────
-                default_curriculum, _ = Curriculum.objects.get_or_create(
-                    year='2025',
-                )
-
+                default_curriculum, _ = Curriculum.objects.get_or_create(year="2025")
                 saved_section_ids = set()
+
                 for sec in sections_data:
-                    course_code = sec.get('courseCode', '')
+                    course_code = sec.get("courseCode", "")
                     course, _ = Course.objects.get_or_create(
                         code=course_code,
                         defaults={
-                            'name': sec.get('courseName', course_code),
-                            'curriculum': default_curriculum,
-                            'year_level': '1st Year',
-                            'semester': sec.get('semester', '1st Semester') or '1st Semester',
+                            "name": sec.get("courseName", course_code),
+                            "curriculum": default_curriculum,
+                            "year_level": "1st Year",
+                            "semester": sec.get("semester", "1st Semester") or "1st Semester",
                         },
                     )
 
-                    semester = sec.get('semester')
-                    academic_year = sec.get('academicYear', sec.get('schoolYear', ''))
+                    semester = sec.get("semester")
+                    academic_year = sec.get("academicYear", sec.get("schoolYear", ""))
 
-                    fac_obj = section_faculty.get(
-                        (sec['name'], course_code)
-                    )
+                    if academic_year and academic_year not in valid_school_years:
+                        return Response(
+                            {"detail": f"Invalid school year: {academic_year}", "success": False},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                     section_obj, _ = Section.objects.update_or_create(
-                        name=sec['name'],
+                        name=sec["name"],
                         course=course,
                         academic_year=academic_year,
-                        semester=semester or '1st Semester',
+                        semester=semester or "1st Semester",
                         defaults={
-                            'assigned_faculty': fac_obj,
+                            "faculty": section_faculty.get((sec["name"], course_code)),
+                            "is_active": sec.get("isActive", True),
                         },
                     )
                     saved_section_ids.add(section_obj.id)
 
-                    # ── 4. Students & Enrollments per section ────────
                     saved_enrollment_ids = set()
-                    for stu in sec.get('students', []):
+                    for stu in sec.get("students", []):
                         year_level = 1
-                        yl = stu.get('yearLevel', '1')
-                        m = re.search(r'\d+', yl)
-                        if m:
-                            year_level = int(m.group())
+                        match = re.search(r"\d+", stu.get("yearLevel", "1"))
+                        if match:
+                            year_level = int(match.group())
 
-                        name_parts = stu.get('name', '').rsplit(' ', 1)
-                        first = name_parts[0] if name_parts else ''
-                        last = name_parts[1] if len(name_parts) > 1 else ''
+                        name_parts = stu.get("name", "").rsplit(" ", 1)
+                        first_name = name_parts[0] if name_parts else ""
+                        last_name = name_parts[1] if len(name_parts) > 1 else ""
 
                         student_obj, _ = Student.objects.update_or_create(
-                            student_id=stu['studentId'],
+                            student_id=stu["studentId"],
                             defaults={
-                                'first_name': first,
-                                'last_name': last,
-                                'program': stu.get('course', ''),
-                                'year_level': year_level,
+                                "first_name": first_name,
+                                "last_name": last_name,
+                                "program": stu.get("course", ""),
+                                "year_level": year_level,
                             },
                         )
 
                         enrollment_obj, _ = Enrollment.objects.update_or_create(
                             student=student_obj,
                             course=course,
-                            defaults={'section': section_obj},
+                            defaults={"section": section_obj},
                         )
                         saved_enrollment_ids.add(enrollment_obj.id)
 
-                    # Remove enrollments dropped from this section
-                    Enrollment.objects.filter(
-                        section=section_obj,
-                    ).exclude(id__in=saved_enrollment_ids).delete()
+                    Enrollment.objects.filter(section=section_obj).exclude(id__in=saved_enrollment_ids).delete()
 
-                # ── 5. Remove sections no longer in frontend state ───
                 stale_sections = Section.objects.exclude(id__in=saved_section_ids)
                 Enrollment.objects.filter(section__in=stale_sections).delete()
                 stale_sections.delete()
 
-            return Response({
-                'message': 'Classes saved successfully',
-                'success': True,
-            })
+            return Response({"message": "Classes saved successfully", "success": True})
 
-        except Exception as e:
+        except Exception as exc:
             return Response(
-                {'detail': f'Error saving classes: {str(e)}', 'success': False},
+                {"detail": f"Error saving classes: {str(exc)}", "success": False},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
-# ------------------------
-# ENROLLMENT VIEWSET
-# ------------------------
 class EnrollmentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-    queryset = Enrollment.objects.select_related(
-        'student',
-        'section',
-        'course'
-    )
+    queryset = Enrollment.objects.select_related("student", "section", "course")
     serializer_class = EnrollmentSerializer
 
     def perform_create(self, serializer):
-        if self.request.user.role != 'admin':
+        if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can manage enrollments.")
         serializer.save()
 
     def perform_update(self, serializer):
-        if self.request.user.role != 'admin':
+        if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can manage enrollments.")
         serializer.save()
 
     def perform_destroy(self, instance):
-        if self.request.user.role != 'admin':
+        if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can manage enrollments.")
         instance.delete()

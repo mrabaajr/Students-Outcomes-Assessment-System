@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "SOAS Mobile",
+    "slug": "soas-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.skool.soasmobile"
+    },
+    "ios": {
+      "bundleIdentifier": "com.skool.soasmobile"
+    }
+  }
+}

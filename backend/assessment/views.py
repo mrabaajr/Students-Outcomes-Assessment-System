@@ -250,7 +250,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             performance_indicators = so.performance_indicators.all().order_by('number')
             assessment_columns = []
             for pi in performance_indicators:
-                criteria = pi.criteria.all().order_by('number')
+                criteria = pi.criteria.all().order_by('order')
                 if criteria.exists():
                     for criterion in criteria:
                         assessment_columns.append({

@@ -5,7 +5,24 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
-import { semesters } from '../../data/mockCoursesData';
+import { useToast } from '../../hooks/use-toast';
+import { academicYears as fallbackAcademicYears, semesters } from '../../data/mockCoursesData';
+
+const yearLevels = [
+  '1st Year',
+  '2nd Year',
+  '3rd Year',
+  '4th Year',
+];
+
+const courseCodePattern = /^[A-Za-z0-9][A-Za-z0-9-\s]*$/;
+
+const getAutofillClassName = (isAutofilled) =>
+  `w-full p-2 border rounded-md ${
+    isAutofilled
+      ? 'bg-gray-100 border-gray-300 text-gray-500'
+      : 'bg-background border-border'
+  }`;
 
 const AddCourseModal = ({
   isOpen,
@@ -16,9 +33,12 @@ const AddCourseModal = ({
   editingCourse = null,
   curriculumOptions = [],
 }) => {
+  const { toast } = useToast();
   const [curricula, setCurricula] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [loadingCourses, setLoadingCourses] = useState(false);
+  const [courseMappings, setCourseMappings] = useState([]);
+  const [academicYears, setAcademicYears] = useState(fallbackAcademicYears);
+  const [loadingCourseMappings, setLoadingCourseMappings] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const [formData, setFormData] = useState({
     curriculum: '',
@@ -63,6 +83,7 @@ const AddCourseModal = ({
         mappedSOs: [],
       });
     }
+    setErrors({});
   }, [editingCourse, isOpen]);
 
   // Fetch curricula on mount
@@ -88,26 +109,104 @@ const AddCourseModal = ({
     fetchCurricula();
   }, [curriculumOptions]);
 
+  useEffect(() => {
+    const fetchAcademicYears = async () => {
+      try {
+        const res = await fetch('/api/school-years/');
+        const data = await res.json();
+        const years = (Array.isArray(data) ? data : data.results || [])
+          .map((item) => item.year)
+          .filter(Boolean);
+
+        if (years.length > 0) {
+          setAcademicYears(years);
+        }
+      } catch (err) {
+        console.error('Error fetching academic years:', err);
+        setAcademicYears(fallbackAcademicYears);
+      }
+    };
+
+    fetchAcademicYears();
+  }, []);
+
   // Fetch courses when curriculum changes
   useEffect(() => {
     if (!formData.curriculum) return;
 
-    const fetchCourses = async () => {
-      setLoadingCourses(true);
+    const fetchCourseMappings = async () => {
+      setLoadingCourseMappings(true);
       try {
-        const res = await fetch(`/api/courses/?curriculum=${formData.curriculum}`);
+        const res = await fetch(`/api/course-so-mappings/?curriculum=${formData.curriculum}`);
         const data = await res.json();
-        setCourses(data.results || data);
+        setCourseMappings(data.results || data);
       } catch (err) {
-        console.error('Error fetching courses:', err);
-        setCourses([]);
+        console.error('Error fetching course mappings:', err);
+        setCourseMappings([]);
       } finally {
-        setLoadingCourses(false);
+        setLoadingCourseMappings(false);
       }
     };
 
-    fetchCourses();
+    fetchCourseMappings();
   }, [formData.curriculum]);
+
+  const validateField = (name, value) => {
+    const trimmedValue = typeof value === 'string' ? value.trim() : value;
+
+    switch (name) {
+      case 'curriculum':
+        return trimmedValue ? '' : 'Please select a curriculum.';
+      case 'academic_year':
+        if (!trimmedValue) return 'Please select an academic year.';
+        return academicYears.includes(trimmedValue)
+          ? ''
+          : 'Please select a valid academic year.';
+      case 'semester':
+        return trimmedValue ? '' : 'Please select a semester.';
+      case 'year_level':
+        return trimmedValue ? '' : 'Please select a year level.';
+      case 'code':
+        if (!trimmedValue) return 'Please enter a course code.';
+        return courseCodePattern.test(trimmedValue)
+          ? ''
+          : 'Please enter a valid course code.';
+      case 'name':
+        if (!trimmedValue) return 'Please enter a course name.';
+        return trimmedValue.length >= 3
+          ? ''
+          : 'Course name must be at least 3 characters.';
+      default:
+        return '';
+    }
+  };
+
+  const updateField = (name, value) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setErrors(prev => {
+      const nextError = validateField(name, value);
+      if (!nextError && !prev[name]) return prev;
+      return { ...prev, [name]: nextError };
+    });
+  };
+
+  const validateForm = () => {
+    const nextErrors = {
+      curriculum: validateField('curriculum', formData.curriculum),
+      academic_year: validateField('academic_year', formData.academic_year),
+      semester: validateField('semester', formData.semester),
+      year_level: validateField('year_level', formData.year_level),
+      code: validateField('code', formData.code),
+      name: validateField('name', formData.name),
+    };
+
+    const filteredErrors = Object.fromEntries(
+      Object.entries(nextErrors).filter(([, value]) => value)
+    );
+
+    setErrors(filteredErrors);
+    return Object.keys(filteredErrors).length === 0;
+  };
 
   const handleCourseSelect = (courseId) => {
     setFormData((prev) => {
@@ -117,12 +216,13 @@ const AddCourseModal = ({
           selectedCourseId: '',
           academic_year: '',
           semester: '',
+          year_level: '',
           code: '',
           name: '',
         };
       }
 
-      const course = courses.find(c => String(c.id) === String(courseId));
+      const course = courseMappings.find(c => String(c.id) === String(courseId));
       if (!course) return prev;
 
       return {
@@ -135,8 +235,17 @@ const AddCourseModal = ({
         year_level: course.year_level || '',
         credits: course.credits || 3,
         description: course.description || '',
+        mappedSOs: course.mappedSOs || [],
       };
     });
+    setErrors(prev => ({
+      ...prev,
+      academic_year: '',
+      semester: '',
+      year_level: '',
+      code: '',
+      name: '',
+    }));
   };
 
   // Toggle Student Outcome mapping
@@ -151,8 +260,19 @@ const AddCourseModal = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateForm()) {
+      toast({
+        title: 'Invalid Course Details',
+        description: 'Please correct the highlighted fields before submitting.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     await onSave(formData);
   };
+
+  const isAutofilledFromCourse = Boolean(formData.selectedCourseId);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -175,11 +295,13 @@ const AddCourseModal = ({
                   selectedCourseId: '',
                   academic_year: '',
                   semester: '',
+                  year_level: '',
                   code: '',
                   name: '',
                 }))
               }
-              className="w-full p-2 bg-background border border-border rounded-md"
+              onBlur={(e) => setErrors(prev => ({ ...prev, curriculum: validateField('curriculum', e.target.value) }))}
+              className={getAutofillClassName(isAutofilledFromCourse)}
               required
             >
               <option value="">Select Curriculum</option>
@@ -189,6 +311,7 @@ const AddCourseModal = ({
                 </option>
               ))}
             </select>
+            {errors.curriculum ? <p className="text-sm text-destructive">{errors.curriculum}</p> : null}
           </div>
 
           <div className="space-y-2">
@@ -200,35 +323,47 @@ const AddCourseModal = ({
               disabled={!formData.curriculum}
             >
               <option value="">Select course to autofill (optional)</option>
-              {loadingCourses && <option>Loading...</option>}
-              {courses.map(course => (
+              {loadingCourseMappings && <option>Loading...</option>}
+              {courseMappings.map(course => (
                 <option key={course.id} value={course.id}>
-                  {course.code} - {course.name}
+                  {course.code} - {course.name} ({course.academic_year || 'No school year'} | {course.semester || 'No semester'})
                 </option>
               ))}
             </select>
             <p className="text-xs text-muted-foreground">
-              Selecting a course fills the fields below, but you can still edit them for new entries.
+              Selecting an existing course mapping fills the fields below using the saved school year, semester, and year level.
             </p>
           </div>
 
-          {/* Academic Year + Semester */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Academic Year + Semester + Year Level */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Academic Year</Label>
-              <Input
+              <Label>Academic Year *</Label>
+              <select
                 value={formData.academic_year}
-                onChange={(e) => setFormData(prev => ({ ...prev, academic_year: e.target.value }))}
-                placeholder="YYYY-YYYY"
-              />
+                onChange={(e) => updateField('academic_year', e.target.value)}
+                onBlur={(e) => setErrors(prev => ({ ...prev, academic_year: validateField('academic_year', e.target.value) }))}
+                className={getAutofillClassName(isAutofilledFromCourse)}
+                required
+              >
+                <option value="">Select Academic Year</option>
+                {academicYears.map((academicYear) => (
+                  <option key={academicYear} value={academicYear}>
+                    {academicYear}
+                  </option>
+                ))}
+              </select>
+              {errors.academic_year ? <p className="text-sm text-destructive">{errors.academic_year}</p> : null}
             </div>
 
             <div className="space-y-2">
-              <Label>Semester</Label>
+              <Label>Semester *</Label>
               <select
                 value={formData.semester}
-                onChange={(e) => setFormData(prev => ({ ...prev, semester: e.target.value }))}
-                className="w-full p-2 bg-background border border-border rounded-md"
+                onChange={(e) => updateField('semester', e.target.value)}
+                onBlur={(e) => setErrors(prev => ({ ...prev, semester: validateField('semester', e.target.value) }))}
+                className={getAutofillClassName(isAutofilledFromCourse)}
+                required
               >
                 <option value="">Select Semester</option>
                 {semesters.map((semester) => (
@@ -237,6 +372,26 @@ const AddCourseModal = ({
                   </option>
                 ))}
               </select>
+              {errors.semester ? <p className="text-sm text-destructive">{errors.semester}</p> : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Year Level *</Label>
+              <select
+                value={formData.year_level}
+                onChange={(e) => updateField('year_level', e.target.value)}
+                onBlur={(e) => setErrors(prev => ({ ...prev, year_level: validateField('year_level', e.target.value) }))}
+                className={getAutofillClassName(isAutofilledFromCourse)}
+                required
+              >
+                <option value="">Select Year Level</option>
+                {yearLevels.map((yearLevel) => (
+                  <option key={yearLevel} value={yearLevel}>
+                    {yearLevel}
+                  </option>
+                ))}
+              </select>
+              {errors.year_level ? <p className="text-sm text-destructive">{errors.year_level}</p> : null}
             </div>
           </div>
 
@@ -246,20 +401,26 @@ const AddCourseModal = ({
               <Label>Course Code *</Label>
               <Input
                 value={formData.code}
-                onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
+                onChange={(e) => updateField('code', e.target.value.toUpperCase())}
+                onBlur={(e) => setErrors(prev => ({ ...prev, code: validateField('code', e.target.value) }))}
                 placeholder="CPE-101"
+                className={isAutofilledFromCourse ? 'bg-gray-100 border-gray-300 text-gray-500' : ''}
                 required
               />
+              {errors.code ? <p className="text-sm text-destructive">{errors.code}</p> : null}
             </div>
 
             <div className="space-y-2">
               <Label>Course Name *</Label>
               <Input
                 value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) => updateField('name', e.target.value)}
+                onBlur={(e) => setErrors(prev => ({ ...prev, name: validateField('name', e.target.value) }))}
                 placeholder="Simple Course Name"
+                className={isAutofilledFromCourse ? 'bg-gray-100 border-gray-300 text-gray-500' : ''}
                 required
               />
+              {errors.name ? <p className="text-sm text-destructive">{errors.name}</p> : null}
             </div>
           </div>
 

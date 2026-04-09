@@ -1,723 +1,355 @@
 import { useEffect, useMemo, useState } from "react";
-import { RotateCcw, Save, Plus, Pencil } from "lucide-react";
-import FormulaEditorDialog, {
-  DEFAULT_VARIABLES,
-} from "./FormulaEditorDialog";
+import { Loader2, Pencil, RotateCcw, Save } from "lucide-react";
+import FormulaEditorDialog, { DEFAULT_VARIABLES } from "./FormulaEditorDialog";
 
-const STORAGE_PREFIX = "so-summary-table";
+const DEFAULT_FORMULA = "(got80OrHigher / studentsAnswered) * distribution";
+const clone = (value) => JSON.parse(JSON.stringify(value));
+const num = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+const fmt = (value, digits = 4) => num(value).toFixed(digits).replace(/\.?0+$/, "");
+const targetStatement = (target) => `${target}% of the class gets satisfactory rating or higher`;
+const conclusionText = (attainment, target) =>
+  `${attainment.toFixed(2)}% of the class got satisfactory rating or higher. Thus, the level of attainment is ${attainment >= target ? "higher than" : "lower than"} the target level of ${target}%.`;
 
-const deepClone = (value) => JSON.parse(JSON.stringify(value));
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const formatNumberInput = (value, digits = 4) => {
-  const numericValue = Number(value ?? 0);
-  if (!Number.isFinite(numericValue)) return "0";
-  return numericValue.toFixed(digits).replace(/\.?0+$/, "");
+const evaluateFormula = (formula, variables, values) => {
+  let expression = (formula || DEFAULT_FORMULA).trim();
+  (variables.length ? variables : DEFAULT_VARIABLES).forEach((variable) => {
+    expression = expression.replace(
+      new RegExp(`\\b${escapeRegExp(variable.key)}\\b`, "g"),
+      `(${num(values[variable.key])})`
+    );
+  });
+  if (/[A-Za-z_]/.test(expression) || !/^[0-9+\-*/().\s]+$/.test(expression)) {
+    return 0;
+  }
+  try {
+    const result = Function(`"use strict"; return (${expression});`)();
+    return Number.isFinite(result) ? result : 0;
+  } catch {
+    return 0;
+  }
 };
 
-const mergeStoredTable = (baseTable, storedTable) => {
-  if (!storedTable) return deepClone(baseTable);
+const recalculateTable = (table, formula, variables) => {
+  const next = clone(table);
+  const previousTotals = next.totals || {};
+  const target = num(previousTotals.target_level, 80);
+  const previousAutoConclusion = conclusionText(num(previousTotals.attainment_percent, 0), target);
+  const previousAutoTarget = targetStatement(target);
 
-  const merged = deepClone(baseTable);
-  merged.program = storedTable.program ?? merged.program;
-  merged.source_assessment = storedTable.source_assessment ?? merged.source_assessment;
-  merged.time_of_data_collection = storedTable.time_of_data_collection ?? merged.time_of_data_collection;
-  merged.totals.target_level = storedTable?.totals?.target_level ?? merged.totals.target_level;
-  merged.totals.target_statement =
-    storedTable?.totals?.target_statement ??
-    merged.totals.target_statement ??
-    `${merged.totals.target_level}% of the class gets satisfactory rating or higher`;
-  merged.totals.conclusion = storedTable?.totals?.conclusion ?? merged.totals.conclusion;
-
-  merged.courses = merged.courses.map((course) => {
-    const storedCourse = storedTable?.courses?.find((item) => item.course_id === course.course_id);
-    if (!storedCourse) return course;
-
+  next.courses = (next.courses || []).map((course) => {
+    const actual = num(course.actual_class_size);
+    const cli = num(course.cli);
+    const indicators = (course.indicators || []).map((indicator) => {
+      const runtimeValues = {
+        distribution: num(indicator.distribution),
+        studentsAnswered: num(indicator.answered_count),
+        got80OrHigher: num(indicator.satisfactory_count),
+      };
+      variables
+        .filter((variable) => !DEFAULT_VARIABLES.some((item) => item.key === variable.key))
+        .forEach((variable) => {
+          runtimeValues[variable.key] = num(indicator[variable.key]);
+        });
+      return {
+        ...indicator,
+        distribution: runtimeValues.distribution,
+        answered_count: runtimeValues.studentsAnswered,
+        satisfactory_count: runtimeValues.got80OrHigher,
+        weighted_value: Number(evaluateFormula(formula, variables, runtimeValues).toFixed(4)),
+      };
+    });
+    const weightedTotal = indicators.reduce((sum, indicator) => sum + num(indicator.weighted_value), 0);
     return {
       ...course,
-      course_name: storedCourse.course_name ?? course.course_name,
-      actual_class_size: storedCourse.actual_class_size ?? course.actual_class_size,
-      cli: storedCourse.cli ?? course.cli,
-      answered_count: storedCourse.answered_count ?? course.answered_count,
-      virtual_class_size: storedCourse.virtual_class_size ?? course.virtual_class_size,
-      weighted_total: storedCourse.weighted_total ?? course.weighted_total,
-      indicators: course.indicators.map((indicator) => {
-        const storedIndicator = storedCourse?.indicators?.find(
-          (item) => item.indicator_id === indicator.indicator_id
-        );
-        if (!storedIndicator) return indicator;
-
-        return {
-          ...indicator,
-          indicator_label: storedIndicator.indicator_label ?? indicator.indicator_label,
-          distribution: storedIndicator.distribution ?? indicator.distribution,
-          answered_count: storedIndicator.answered_count ?? indicator.answered_count,
-          satisfactory_count: storedIndicator.satisfactory_count ?? indicator.satisfactory_count,
-          weighted_value: storedIndicator.weighted_value ?? indicator.weighted_value,
-        };
-      }),
+      actual_class_size: actual,
+      cli,
+      answered_count: num(course.answered_count),
+      virtual_class_size: Number((actual * cli).toFixed(4)),
+      weighted_total: Number(weightedTotal.toFixed(4)),
+      indicators,
     };
   });
 
-  merged.totals.attainment_percent =
-    storedTable?.totals?.attainment_percent ?? merged.totals.attainment_percent;
-  merged.totals.virtual_class_size_total =
-    storedTable?.totals?.virtual_class_size_total ?? merged.totals.virtual_class_size_total;
+  const virtualTotal = next.courses.reduce((sum, course) => sum + num(course.virtual_class_size), 0);
+  const weightedTotal = next.courses.reduce((sum, course) => sum + num(course.weighted_total), 0);
+  const actualTotal = next.courses.reduce((sum, course) => sum + num(course.actual_class_size), 0);
+  const attainment = virtualTotal > 0 ? Number(((weightedTotal / virtualTotal) * 100).toFixed(2)) : 0;
+  const nextConclusion = conclusionText(attainment, target);
+  const nextTarget = targetStatement(target);
 
-  return merged;
+  next.totals = {
+    ...previousTotals,
+    actual_student_total: actualTotal,
+    virtual_class_size_total: Number(virtualTotal.toFixed(4)),
+    weighted_satisfactory_total: Number(weightedTotal.toFixed(4)),
+    attainment_percent: attainment,
+    target_level: target,
+    target_statement:
+      !previousTotals.target_statement || previousTotals.target_statement === previousAutoTarget
+        ? nextTarget
+        : previousTotals.target_statement,
+    conclusion:
+      !previousTotals.conclusion || previousTotals.conclusion === previousAutoConclusion
+        ? nextConclusion
+        : previousTotals.conclusion,
+  };
+  next.formula = formula;
+  next.variables = variables;
+  return next;
 };
 
-function EditableInput({
-  value,
-  onChange,
-  type = "text",
-  align = "left",
-  className = "",
-  multiline = false,
-}) {
-  const baseClassName =
-    "w-full box-border rounded-md border border-transparent bg-transparent px-2 py-1.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E] focus:bg-[#FFFCF3]";
-  const alignClassName = align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left";
-
+function TextInput({ value, onChange, type = "text", multiline = false }) {
+  const className =
+    "w-full rounded-md border border-[#E5DED0] bg-white px-3 py-2 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]";
   if (multiline) {
-    return (
-      <textarea
-        value={value ?? ""}
-        onChange={(event) => onChange(event.target.value)}
-        rows={3}
-        className={`${baseClassName} ${alignClassName} resize-y ${className}`}
-      />
-    );
+    return <textarea rows={3} className={className} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />;
   }
-
-  return (
-    <input
-      type={type}
-      value={value ?? ""}
-      onChange={(event) => onChange(event.target.value)}
-      className={`${baseClassName} ${alignClassName} ${className}`}
-    />
-  );
+  return <input type={type} className={className} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />;
 }
 
-function SOSummaryCard({ table }) {
-  const storageKey = `${STORAGE_PREFIX}-${table.so_id}`;
-  const initialTable = useMemo(() => {
-    if (typeof window === "undefined") {
-      return deepClone(table);
-    }
-
-    try {
-      const storedValue = window.localStorage.getItem(storageKey);
-      return mergeStoredTable(table, storedValue ? JSON.parse(storedValue) : null);
-    } catch (error) {
-      console.error("Failed to load saved SO summary table:", error);
-      return deepClone(table);
-    }
-  }, [table, storageKey]);
-
-  const [savedTable, setSavedTable] = useState(initialTable);
-  const [draftTable, setDraftTable] = useState(initialTable);
-  const [isSaved, setIsSaved] = useState(true);
-  const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
-  const [selectedFormula, setSelectedFormula] = useState(
-    "(got80OrHigher / studentsAnswered) * distribution"
+function SOSummaryCard({ table, onSaveTable, schoolYearOptions = [] }) {
+  const uniqueSchoolYearOptions = useMemo(
+    () => [...new Set((schoolYearOptions || []).filter(Boolean))],
+    [schoolYearOptions]
   );
-  const [variables, setVariables] = useState(DEFAULT_VARIABLES);
-  const [editingIndicator, setEditingIndicator] = useState(null);
-  const [editingForm, setEditingForm] = useState(null);
+  const normalized = useMemo(
+    () => recalculateTable(table, table.formula || DEFAULT_FORMULA, table.variables?.length ? table.variables : DEFAULT_VARIABLES),
+    [table]
+  );
+  const [savedTable, setSavedTable] = useState(normalized);
+  const [draftTable, setDraftTable] = useState(normalized);
+  const [formula, setFormula] = useState(normalized.formula || DEFAULT_FORMULA);
+  const [variables, setVariables] = useState(normalized.variables?.length ? normalized.variables : DEFAULT_VARIABLES);
+  const [formulaOpen, setFormulaOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    setSavedTable(initialTable);
-    setDraftTable(initialTable);
-    setIsSaved(true);
-  }, [initialTable]);
+    setSavedTable(normalized);
+    setDraftTable(normalized);
+    setFormula(normalized.formula || DEFAULT_FORMULA);
+    setVariables(normalized.variables?.length ? normalized.variables : DEFAULT_VARIABLES);
+  }, [normalized]);
 
-  const updateDraft = (updater) => {
-    setDraftTable((current) => {
-      const next = typeof updater === "function" ? updater(deepClone(current)) : updater;
-      setIsSaved(JSON.stringify(next) === JSON.stringify(savedTable));
-      return next;
-    });
+  const isSaved = JSON.stringify(draftTable) === JSON.stringify(savedTable);
+  const customVariables = variables.filter((variable) => !DEFAULT_VARIABLES.some((item) => item.key === variable.key));
+
+  const updateDraft = (updater, nextFormula = formula, nextVariables = variables) => {
+    setDraftTable((current) => recalculateTable(typeof updater === "function" ? updater(clone(current)) : updater, nextFormula, nextVariables));
   };
 
-  const setCourseField = (courseId, field, value) => {
-    updateDraft((current) => {
-      current.courses = current.courses.map((course) =>
-        course.course_id === courseId ? { ...course, [field]: value } : course
-      );
-      return current;
-    });
-  };
-
-  const setIndicatorField = (courseId, indicatorId, field, value) => {
-    updateDraft((current) => {
-      current.courses = current.courses.map((course) => {
-        if (course.course_id !== courseId) return course;
-
-        return {
-          ...course,
-          indicators: course.indicators.map((indicator) =>
-            indicator.indicator_id === indicatorId ? { ...indicator, [field]: value } : indicator
-          ),
-        };
-      });
-      return current;
-    });
-  };
-
-  const customVariables = variables.filter(
-    (v) => !DEFAULT_VARIABLES.some((d) => d.key === v.key)
-  );
-
-  const handleIndicatorEditStart = (courseId, indicator) => {
-    setEditingIndicator({ courseId, indicatorId: indicator.indicator_id });
-    setEditingForm({ ...indicator });
-  };
-
-  const handleIndicatorEditSave = (courseId, indicatorId) => {
-    if (!editingForm) return;
-    setIndicatorField(courseId, indicatorId, "indicator_label", editingForm.indicator_label);
-    setIndicatorField(courseId, indicatorId, "distribution", editingForm.distribution);
-    setIndicatorField(courseId, indicatorId, "answered_count", editingForm.answered_count);
-    setIndicatorField(courseId, indicatorId, "satisfactory_count", editingForm.satisfactory_count);
-    setIndicatorField(courseId, indicatorId, "weighted_value", editingForm.weighted_value);
-    customVariables.forEach((v) => {
-      if (editingForm[v.key] !== undefined) {
-        setIndicatorField(courseId, indicatorId, v.key, editingForm[v.key]);
-      }
-    });
-    setEditingIndicator(null);
-    setEditingForm(null);
-  };
-
-  const handleIndicatorEditCancel = () => {
-    setEditingIndicator(null);
-    setEditingForm(null);
-  };
-
-  const handleDeleteIndicator = (courseId, indicatorId) => {
-    updateDraft((current) => {
-      current.courses = current.courses.map((course) => {
-        if (course.course_id !== courseId) return course;
-        return {
-          ...course,
-          indicators: course.indicators.filter((ind) => ind.indicator_id !== indicatorId),
-        };
-      });
-      return current;
-    });
-  };
-
-  const handleVariablesChange = (newVars) => {
-    setVariables(newVars);
-    const newCustomKeys = newVars
-      .filter((v) => !DEFAULT_VARIABLES.some((d) => d.key === v.key))
-      .map((v) => v.key);
-    updateDraft((current) => {
-      current.courses = current.courses.map((course) => ({
-        ...course,
-        indicators: course.indicators.map((indicator) => {
-          const updated = { ...indicator };
-          newCustomKeys.forEach((key) => {
-            if (updated[key] === undefined) updated[key] = 0;
-          });
-          return updated;
-        }),
-      }));
-      return current;
-    });
-  }
-
-  const handleSave = () => {
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(draftTable));
-      setSavedTable(deepClone(draftTable));
-      setIsSaved(true);
-    } catch (error) {
-      console.error("Failed to save SO summary table:", error);
+  const saveCard = async () => {
+    if (!onSaveTable) {
+      setSavedTable(clone(draftTable));
+      return;
     }
-  };
-
-  const handleReset = () => {
-    setDraftTable(deepClone(savedTable));
-    setIsSaved(true);
+    setIsSaving(true);
+    try {
+      await onSaveTable({
+        so_id: draftTable.so_id,
+        so_number: draftTable.so_number,
+        formula,
+        variables,
+        table_data: { ...draftTable, formula, variables },
+      });
+      setSavedTable(clone(draftTable));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
-    <section className="glass-card overflow-hidden border border-[#D8D2C4] bg-white/95 shadow-[0_18px_45px_rgba(35,31,32,0.08)]">
-      <div className="flex flex-col gap-4 border-b border-[#E7E0D4] bg-[linear-gradient(135deg,#FFFDF8_0%,#F6F1E6_100%)] px-5 py-5 sm:px-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
-            <div className="inline-flex rounded-full border border-[#E7D7A4] bg-[#FFF5D6] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8A6A00]">
-              SO {draftTable.so_number} Summary
-            </div>
-            <h2 className="text-lg font-semibold text-[#231F20]">
-              Summary Result of Direct Assessment on Student Outcome
-            </h2>
-            <p className="max-w-4xl text-sm leading-6 text-[#4D4741]">
-              SO {draftTable.so_number}. {draftTable.so_title}
-              {draftTable.so_description ? `, ${draftTable.so_description}` : ""}
-            </p>
+    <section className="glass-card space-y-5 border border-[#D8D2C4] bg-white p-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="inline-flex rounded-full border border-[#E7D7A4] bg-[#FFF5D6] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8A6A00]">
+            SO {draftTable.so_number} Summary
           </div>
-
-          <div className="flex items-center gap-2 self-start">
-            <button
-              type="button"
-              onClick={handleReset}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#D7D0C2] bg-white px-3 py-2 text-sm font-medium text-[#4D4741] transition hover:bg-[#F8F5EE]"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Reset
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#231F20] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#3A3535]"
-            >
-              <Save className="h-4 w-4" />
-              Save
-            </button>
-          </div>
+          <h2 className="mt-3 text-lg font-semibold text-[#231F20]">Summary Result of Direct Assessment on Student Outcome</h2>
+          <p className="mt-2 text-sm text-[#4D4741]">
+            SO {draftTable.so_number}. {draftTable.so_title}
+            {draftTable.so_description ? `, ${draftTable.so_description}` : ""}
+          </p>
         </div>
-
-        <div className="text-xs font-medium text-[#7B746B]">
-          {isSaved ? "Saved values are shown." : "You have unsaved changes in this card."}
+        <div className="flex gap-2">
+          <button type="button" onClick={() => { setDraftTable(clone(savedTable)); setFormula(savedTable.formula || DEFAULT_FORMULA); setVariables(savedTable.variables?.length ? savedTable.variables : DEFAULT_VARIABLES); }} className="inline-flex items-center gap-2 rounded-lg border border-[#D7D0C2] bg-white px-3 py-2 text-sm font-medium text-[#4D4741]">
+            <RotateCcw className="h-4 w-4" />
+            Reset
+          </button>
+          <button type="button" disabled={isSaving} onClick={saveCard} className="inline-flex items-center gap-2 rounded-lg bg-[#231F20] px-3 py-2 text-sm font-medium text-white disabled:opacity-70">
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save
+          </button>
         </div>
       </div>
 
-      <div className="space-y-6 bg-[#FFFCF6] p-5 sm:p-6">
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-xl border border-[#E5DED0] bg-white p-4">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8A817C]">Program</p>
-            <EditableInput
-              value={draftTable.program}
-              onChange={(value) => updateDraft((current) => ({ ...current, program: value }))}
-            />
-          </div>
-          <div className="rounded-xl border border-[#E5DED0] bg-white p-4 lg:col-span-2">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8A817C]">Source of Assessment</p>
-            <EditableInput
-              value={draftTable.source_assessment}
-              onChange={(value) =>
-                updateDraft((current) => ({ ...current, source_assessment: value }))
-              }
-            />
-          </div>
-          <div className="rounded-xl border border-[#E5DED0] bg-white p-4 lg:col-span-3">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8A817C]">Time of Data Collection</p>
-            <EditableInput
-              value={draftTable.time_of_data_collection}
-              onChange={(value) =>
-                updateDraft((current) => ({ ...current, time_of_data_collection: value }))
-              }
-            />
-          </div>
+      <p className="text-xs font-medium text-[#7B746B]">{isSaved ? "Saved values are shown." : "You have unsaved changes in this card."}</p>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8A817C]">Program</p>
+          <TextInput value={draftTable.program} onChange={(value) => updateDraft((current) => ({ ...current, program: value }))} />
         </div>
-
-        <div className="overflow-hidden rounded-2xl border border-[#D9D2C6] bg-white">
-          <div className="border-b border-[#ECE5D8] bg-[#F7F1E4] px-4 py-3 text-sm font-semibold text-[#231F20]">
-            Course Overview
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] border-collapse text-sm text-[#231F20]">
-              <thead className="bg-[#FCF8EE]">
-                <tr>
-                  <th className="border-b border-[#ECE5D8] px-4 py-3 text-left font-semibold">Courses</th>
-                  <th className="border-b border-[#ECE5D8] px-4 py-3 text-center font-semibold">Actual Class Size</th>
-                  <th className="border-b border-[#ECE5D8] px-4 py-3 text-center font-semibold">% of CLI</th>
-                  <th className="border-b border-[#ECE5D8] px-4 py-3 text-center font-semibold">Students Answered</th>
-                  <th className="border-b border-[#ECE5D8] px-4 py-3 text-center font-semibold">Virtual Class Size</th>
-                </tr>
-              </thead>
-              <tbody>
-                {draftTable.courses.map((course) => (
-                  <tr key={course.course_id} className="even:bg-[#FFFCF7]">
-                    <td className="border-b border-[#F1EADF] px-3 py-2">
-                      <EditableInput
-                        value={course.course_name}
-                        onChange={(value) => setCourseField(course.course_id, "course_name", value)}
-                      />
-                    </td>
-                    <td className="border-b border-[#F1EADF] px-3 py-2">
-                      <EditableInput
-                        type="number"
-                        align="center"
-                        value={course.actual_class_size}
-                        onChange={(value) => setCourseField(course.course_id, "actual_class_size", value)}
-                      />
-                    </td>
-                    <td className="border-b border-[#F1EADF] px-3 py-2">
-                      <EditableInput
-                        align="center"
-                        value={formatNumberInput(course.cli)}
-                        onChange={(value) => setCourseField(course.course_id, "cli", value)}
-                      />
-                    </td>
-                    <td className="border-b border-[#F1EADF] px-3 py-2">
-                      <EditableInput
-                        type="number"
-                        align="center"
-                        value={course.answered_count}
-                        onChange={(value) => setCourseField(course.course_id, "answered_count", value)}
-                      />
-                    </td>
-                    <td className="border-b border-[#F1EADF] px-3 py-2">
-                      <EditableInput
-                        align="center"
-                        value={formatNumberInput(course.virtual_class_size)}
-                        onChange={(value) => setCourseField(course.course_id, "virtual_class_size", value)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-                <tr className="bg-[#F7F1E4]">
-                  <td colSpan={4} className="px-4 py-3 text-right font-semibold">
-                    Total Virtual Class Size
-                  </td>
-                  <td className="px-3 py-2">
-                    <EditableInput
-                      align="center"
-                      value={formatNumberInput(draftTable.totals.virtual_class_size_total)}
-                      onChange={(value) =>
-                        updateDraft((current) => ({
-                          ...current,
-                          totals: { ...current.totals, virtual_class_size_total: value },
-                        }))
-                      }
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+        <div className="lg:col-span-2">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8A817C]">Source of Assessment</p>
+          <TextInput value={draftTable.source_assessment} onChange={(value) => updateDraft((current) => ({ ...current, source_assessment: value }))} />
         </div>
-
-        <div className="overflow-hidden rounded-2xl border border-[#D9D2C6] bg-white">
-          <div className="border-b border-[#ECE5D8] bg-[#F7F1E4] px-4 py-3 flex items-center justify-between">
-            <span className="text-sm font-semibold text-[#231F20]">Indicator Breakdown</span>
-            <button
-              onClick={() => setFormulaDialogOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#D7D0C2] bg-white px-3 py-2 text-sm font-medium text-[#4D4741] transition hover:bg-[#F8F5EE]"
-            >
-              <Pencil className="h-4 w-4" />
-              Edit Formula
-            </button>
-          </div>
-          <div className="space-y-px bg-[#ECE5D8]">
-            {draftTable.courses.map((course) => (
-              <div key={`course-block-${course.course_id}`} className="bg-white border-b-2 border-[#D7D0C2] last:border-b-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-sm text-[#231F20]">
-                    <thead className="bg-[#FCF8EE]">
-                      <tr className="border-b border-[#D7D0C2]">
-                        <th className="border-r border-[#ECE5D8] px-4 py-4 text-left font-semibold min-w-[140px]" rowSpan={1}>Course Name</th>
-                        <th className="border-r border-[#ECE5D8] px-4 py-4 text-center font-semibold min-w-[100px]">Performance Indicator</th>
-                        <th className="border-r border-[#ECE5D8] px-4 py-4 text-center font-semibold min-w-[140px]">Performance Indicators     (% Level of Distribution) (i)</th>
-                        <th className="border-r border-[#ECE5D8] px-4 py-4 text-center font-semibold min-w-[120px]">No. of Students Who Answered per Indicator</th>
-                        <th className="border-r border-[#ECE5D8] px-4 py-4 text-center font-semibold min-w-[140px]">Actual no. students who got 80% rating or higher (j)</th>
-                        {customVariables.map((v) => (
-                          <th key={v.key} className="border-r border-[#ECE5D8] px-4 py-4 text-center font-semibold min-w-[100px]">
-                            {v.label}
-                          </th>
-                        ))}
-                        <th className="border-r border-[#ECE5D8] px-4 py-4 text-center font-semibold min-w-[80px]">Pij</th>
-                        <th className="px-4 py-4 text-center font-semibold min-w-[80px]">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {course.indicators.map((indicator, index) => {
-                        const isEditing =
-                          editingIndicator?.courseId === course.course_id &&
-                          editingIndicator?.indicatorId === indicator.indicator_id;
-
-                        return (
-                          <tr key={indicator.indicator_id} className="border-b border-[#F1EADF] hover:bg-[#FFFBF5] transition">
-                            {index === 0 && (
-                              <td
-                                rowSpan={course.indicators.length}
-                                className="border-r border-[#ECE5D8] px-4 py-3 align-middle font-medium text-[#4D4741] min-w-[220px] w-[220px] hover:!bg-transparent select-none"
-                              >
-                                <div className="overflow-hidden">
-                                  <EditableInput
-                                    value={course.course_name}
-                                    onChange={(value) =>
-                                      setCourseField(course.course_id, "course_name", value)
-                                    }
-                                  />
-                                </div>
-                              </td>
-                            )}
-                            {isEditing && editingForm ? (
-                              <>
-                                <td className="border-r border-[#ECE5D8] px-4 py-2">
-                                  <div className="flex items-center justify-center">
-                                    <input
-                                      className="h-9 w-28 rounded border border-[#D7D0C2] bg-white px-2 py-1 text-sm text-center"
-                                      value={editingForm.indicator_label}
-                                      onChange={(e) =>
-                                        setEditingForm({
-                                          ...editingForm,
-                                          indicator_label: e.target.value,
-                                        })
-                                      }
-                                    />
-                                  </div>
-                                </td>
-                                <td className="border-r border-[#ECE5D8] px-4 py-2">
-                                  <div className="flex items-center justify-center">
-                                    <input
-                                      type="number"
-                                      step="0.1"
-                                      className="h-9 w-24 rounded border border-[#D7D0C2] bg-white px-2 py-1 text-sm text-center"
-                                      value={editingForm.distribution}
-                                      onChange={(e) =>
-                                        setEditingForm({
-                                          ...editingForm,
-                                          distribution: parseFloat(e.target.value) || 0,
-                                        })
-                                      }
-                                    />
-                                  </div>
-                                </td>
-                                <td className="border-r border-[#ECE5D8] px-4 py-2">
-                                  <div className="flex items-center justify-center">
-                                    <input
-                                      type="number"
-                                      className="h-9 w-24 rounded border border-[#D7D0C2] bg-white px-2 py-1 text-sm text-center"
-                                      value={editingForm.answered_count}
-                                      onChange={(e) =>
-                                        setEditingForm({
-                                          ...editingForm,
-                                          answered_count: parseInt(e.target.value) || 0,
-                                        })
-                                      }
-                                    />
-                                  </div>
-                                </td>
-                                <td className="border-r border-[#ECE5D8] px-4 py-2">
-                                  <div className="flex items-center justify-center">
-                                    <input
-                                      type="number"
-                                      className="h-9 w-24 rounded border border-[#D7D0C2] bg-white px-2 py-1 text-sm text-center"
-                                      value={editingForm.satisfactory_count}
-                                      onChange={(e) =>
-                                        setEditingForm({
-                                          ...editingForm,
-                                          satisfactory_count: parseInt(e.target.value) || 0,
-                                        })
-                                      }
-                                    />
-                                  </div>
-                                </td>
-                                {customVariables.map((v) => (
-                                  <td key={v.key} className="border-r border-[#ECE5D8] px-4 py-2">
-                                    <div className="flex items-center justify-center">
-                                      <input
-                                        type="number"
-                                        className="h-9 w-24 rounded border border-[#D7D0C2] bg-white px-2 py-1 text-sm text-center"
-                                        value={editingForm[v.key] || 0}
-                                        onChange={(e) =>
-                                          setEditingForm({
-                                            ...editingForm,
-                                            [v.key]: parseFloat(e.target.value) || 0,
-                                          })
-                                        }
-                                      />
-                                    </div>
-                                  </td>
-                                ))}
-                                <td className="border-r border-[#ECE5D8] px-4 py-2 text-center">
-                                  <div className="flex items-center justify-center h-9">
-                                    <span className="font-semibold text-[#231F20]">
-                                      {formatNumberInput(editingForm.weighted_value)}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-2">
-                                  <div className="flex items-center justify-center gap-1 h-9">
-                                    <button
-                                      onClick={() =>
-                                        handleIndicatorEditSave(
-                                          course.course_id,
-                                          indicator.indicator_id
-                                        )
-                                      }
-                                      className="rounded px-2 py-1 text-xs font-medium bg-[#231F20] text-white hover:bg-[#3A3535] transition"
-                                    >
-                                      Save
-                                    </button>
-                                    <button
-                                      onClick={handleIndicatorEditCancel}
-                                      className="rounded px-2 py-1 text-xs font-medium border border-[#D7D0C2] text-[#4D4741] hover:bg-[#F8F5EE] transition"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </td>
-                              </>
-                            ) : (
-                              <>
-                                <td className="border-r border-[#ECE5D8] px-4 py-3 text-center">
-                                  <span className="font-medium text-[#231F20]">{indicator.indicator_label}</span>
-                                </td>
-                                <td className="border-r border-[#ECE5D8] px-4 py-3 text-center">
-                                  <span className="text-[#231F20]">
-                                    {formatNumberInput(indicator.distribution)}
-                                  </span>
-                                </td>
-                                <td className="border-r border-[#ECE5D8] px-4 py-3 text-center">
-                                  <span className="font-semibold text-[#231F20]">
-                                    {indicator.answered_count}
-                                  </span>
-                                </td>
-                                <td className="border-r border-[#ECE5D8] px-4 py-3 text-center">
-                                  <span className="font-semibold text-[#231F20]">
-                                    {indicator.satisfactory_count}
-                                  </span>
-                                </td>
-                                {customVariables.map((v) => (
-                                  <td
-                                    key={v.key}
-                                    className="border-r border-[#ECE5D8] px-4 py-3 text-center"
-                                  >
-                                    <span className="font-semibold text-[#231F20]">
-                                      {indicator[v.key] || 0}
-                                    </span>
-                                  </td>
-                                ))}
-                                <td className="border-r border-[#ECE5D8] px-4 py-3 text-center">
-                                  <span className="font-semibold text-[#231F20]">
-                                    {formatNumberInput(indicator.weighted_value)}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex items-center justify-center">
-                                    <button
-                                      onClick={() =>
-                                        handleIndicatorEditStart(course.course_id, indicator)
-                                      }
-                                      className="rounded p-1.5 text-[#8A817C] hover:bg-[#F1EADF] hover:text-[#231F20] transition"
-                                      aria-label="Edit row"
-                                    >
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </>
-                            )}
-                          </tr>
-                        );
-                      })}
-                      <tr className="bg-[#F7F1E4] font-semibold border-t border-[#D7D0C2]">
-                        <td colSpan={5} className="border-r border-[#ECE5D8] px-4 py-3 text-right">
-                          Course Weighted Total
-                        </td>
-                        {customVariables.map((v) => (
-                          <td key={v.key} className="border-r border-[#ECE5D8] px-4 py-3"></td>
-                        ))}
-                        <td className="border-r border-[#ECE5D8] px-4 py-3">
-                          <div className="flex items-center justify-center">
-                            <EditableInput
-                              align="center"
-                              value={formatNumberInput(course.weighted_total)}
-                              onChange={(value) =>
-                                setCourseField(course.course_id, "weighted_total", value)
-                              }
-                            />
-                          </div>
-                        </td>
-                        <td className="px-4 py-3"></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+        <div className="lg:col-span-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8A817C]">Time of Data Collection</p>
+          <select
+            value={draftTable.time_of_data_collection ?? ""}
+            onChange={(event) => updateDraft((current) => ({ ...current, time_of_data_collection: event.target.value }))}
+            className="w-full rounded-md border border-[#E5DED0] bg-white px-3 py-2 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+          >
+            <option value="">Select School Year</option>
+            {uniqueSchoolYearOptions.map((schoolYear) => (
+              <option key={schoolYear} value={schoolYear}>
+                {schoolYear}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
-
-        <div className="overflow-hidden rounded-2xl border border-[#D9D2C6] bg-white">
-          <div className="border-b border-[#ECE5D8] bg-[#F7F1E4] px-4 py-3 text-sm font-semibold text-[#231F20]">
-            Attainment Summary
-          </div>
-          <div className="grid gap-px bg-[#ECE5D8] sm:grid-cols-[320px_1fr]">
-            <div className="bg-white px-4 py-3 text-sm font-semibold text-[#231F20]">
-              % of the class who got satisfactory rating or higher
-            </div>
-            <div className="bg-white px-3 py-2">
-              <EditableInput
-                value={`${draftTable.totals.attainment_percent}`}
-                onChange={(value) =>
-                  updateDraft((current) => ({
-                    ...current,
-                    totals: { ...current.totals, attainment_percent: value },
-                  }))
-                }
-              />
-            </div>
-
-            <div className="bg-white px-4 py-3 text-sm font-semibold text-[#231F20]">
-              Target Level of attainment
-            </div>
-            <div className="bg-white px-3 py-2">
-              <EditableInput
-                value={
-                  draftTable.totals.target_statement ??
-                  `${draftTable.totals.target_level}% of the class gets satisfactory rating or higher`
-                }
-                onChange={(value) =>
-                  updateDraft((current) => ({
-                    ...current,
-                    totals: { ...current.totals, target_statement: value },
-                  }))
-                }
-              />
-            </div>
-
-            <div className="bg-white px-4 py-3 text-sm font-semibold text-[#231F20]">
-              Conclusion
-            </div>
-            <div className="bg-white px-3 py-2">
-              <EditableInput
-                multiline
-                value={draftTable.totals.conclusion}
-                onChange={(value) =>
-                  updateDraft((current) => ({
-                    ...current,
-                    totals: { ...current.totals, conclusion: value },
-                  }))
-                }
-              />
-            </div>
-          </div>
-        </div>
-
-        <FormulaEditorDialog
-          open={formulaDialogOpen}
-          onOpenChange={setFormulaDialogOpen}
-          formula={selectedFormula}
-          onSave={(formula) => setSelectedFormula(formula)}
-          variables={variables}
-          onVariablesChange={handleVariablesChange}
-        />
       </div>
+
+      <div className="overflow-hidden rounded-xl border border-[#D9D2C6]">
+        <div className="bg-[#F7F1E4] px-4 py-3 text-sm font-semibold text-[#231F20]">Course Overview</div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead className="bg-[#FCF8EE] text-left">
+              <tr>
+                <th className="px-4 py-3">Course</th>
+                <th className="px-4 py-3 text-center">Actual Class Size</th>
+                <th className="px-4 py-3 text-center">% of CLI</th>
+                <th className="px-4 py-3 text-center">Students Answered</th>
+                <th className="px-4 py-3 text-center">Virtual Class Size</th>
+              </tr>
+            </thead>
+            <tbody>
+              {draftTable.courses.map((course) => (
+                <tr key={course.course_id} className="border-t border-[#F1EADF]">
+                  <td className="px-4 py-3"><TextInput value={course.course_name} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, course_name: value } : item) }))} /></td>
+                  <td className="px-4 py-3"><TextInput type="number" value={course.actual_class_size} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, actual_class_size: value } : item) }))} /></td>
+                  <td className="px-4 py-3"><TextInput value={course.cli} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, cli: value } : item) }))} /></td>
+                  <td className="px-4 py-3"><TextInput type="number" value={course.answered_count} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, answered_count: value } : item) }))} /></td>
+                  <td className="px-4 py-3 text-center font-semibold">{fmt(course.virtual_class_size)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-[#D9D2C6]">
+        <div className="flex items-center justify-between bg-[#F7F1E4] px-4 py-3">
+          <span className="text-sm font-semibold text-[#231F20]">Indicator Breakdown</span>
+          <button type="button" onClick={() => setFormulaOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[#D7D0C2] bg-white px-3 py-2 text-sm font-medium text-[#4D4741]">
+            <Pencil className="h-4 w-4" />
+            Edit Formula
+          </button>
+        </div>
+        <div className="space-y-4 p-4">
+          {draftTable.courses.map((course) => (
+            <div key={course.course_id} className="rounded-lg border border-[#ECE5D8]">
+              <div className="border-b border-[#ECE5D8] bg-[#FCF8EE] px-4 py-3 font-medium text-[#231F20]">{course.course_name}</div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead>
+                    <tr className="text-left text-[#6B6B6B]">
+                      <th className="px-4 py-3">Indicator</th>
+                      <th className="px-4 py-3">Distribution</th>
+                      <th className="px-4 py-3">Answered</th>
+                      <th className="px-4 py-3">80% or Higher</th>
+                      {customVariables.map((variable) => <th key={variable.key} className="px-4 py-3">{variable.label}</th>)}
+                      <th className="px-4 py-3">Pij</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {course.indicators.map((indicator) => (
+                      <tr key={indicator.indicator_id} className="border-t border-[#F1EADF]">
+                        <td className="px-4 py-3"><TextInput value={indicator.indicator_label} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => row.indicator_id === indicator.indicator_id ? { ...row, indicator_label: value } : row) } : item) }))} /></td>
+                        <td className="px-4 py-3"><TextInput value={indicator.distribution} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => row.indicator_id === indicator.indicator_id ? { ...row, distribution: value } : row) } : item) }))} /></td>
+                        <td className="px-4 py-3"><TextInput type="number" value={indicator.answered_count} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => row.indicator_id === indicator.indicator_id ? { ...row, answered_count: value } : row) } : item) }))} /></td>
+                        <td className="px-4 py-3"><TextInput type="number" value={indicator.satisfactory_count} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => row.indicator_id === indicator.indicator_id ? { ...row, satisfactory_count: value } : row) } : item) }))} /></td>
+                        {customVariables.map((variable) => (
+                          <td key={variable.key} className="px-4 py-3">
+                            <TextInput type="number" value={indicator[variable.key] || 0} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => row.indicator_id === indicator.indicator_id ? { ...row, [variable.key]: value } : row) } : item) }))} />
+                          </td>
+                        ))}
+                        <td className="px-4 py-3 font-semibold">{fmt(indicator.weighted_value)}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-[#ECE5D8] bg-[#FCF8EE] font-semibold">
+                      <td colSpan={4 + customVariables.length} className="px-4 py-3 text-right">Course Weighted Total</td>
+                      <td className="px-4 py-3">{fmt(course.weighted_total)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+        <div className="rounded-xl border border-[#D9D2C6] bg-[#FCF8EE] px-4 py-3 text-sm font-semibold text-[#231F20]">% of the class who got satisfactory rating or higher</div>
+        <div className="rounded-xl border border-[#D9D2C6] bg-white px-4 py-3 text-sm font-semibold text-[#231F20]">{draftTable.totals.attainment_percent}%</div>
+        <div className="rounded-xl border border-[#D9D2C6] bg-[#FCF8EE] px-4 py-3 text-sm font-semibold text-[#231F20]">Target Level of attainment</div>
+        <div className="rounded-xl border border-[#D9D2C6] bg-white px-4 py-3"><TextInput value={draftTable.totals.target_statement ?? targetStatement(draftTable.totals.target_level ?? 80)} onChange={(value) => updateDraft((current) => ({ ...current, totals: { ...current.totals, target_statement: value } }))} /></div>
+        <div className="rounded-xl border border-[#D9D2C6] bg-[#FCF8EE] px-4 py-3 text-sm font-semibold text-[#231F20]">Conclusion</div>
+        <div className="rounded-xl border border-[#D9D2C6] bg-white px-4 py-3"><TextInput multiline value={draftTable.totals.conclusion} onChange={(value) => updateDraft((current) => ({ ...current, totals: { ...current.totals, conclusion: value } }))} /></div>
+      </div>
+
+      <FormulaEditorDialog
+        open={formulaOpen}
+        onOpenChange={setFormulaOpen}
+        formula={formula}
+        onSave={(nextFormula) => {
+          const normalizedFormula = nextFormula || DEFAULT_FORMULA;
+          setFormula(normalizedFormula);
+          updateDraft((current) => current, normalizedFormula, variables);
+        }}
+        variables={variables}
+        onVariablesChange={(nextVariables) => {
+          const normalizedVariables = nextVariables.length ? nextVariables : DEFAULT_VARIABLES;
+          setVariables(normalizedVariables);
+          updateDraft(
+            (current) => ({
+              ...current,
+              courses: current.courses.map((course) => ({
+                ...course,
+                indicators: course.indicators.map((indicator) => {
+                  const nextIndicator = { ...indicator };
+                  normalizedVariables
+                    .filter((variable) => !DEFAULT_VARIABLES.some((item) => item.key === variable.key))
+                    .forEach((variable) => {
+                      if (nextIndicator[variable.key] === undefined) nextIndicator[variable.key] = 0;
+                    });
+                  return nextIndicator;
+                }),
+              })),
+            }),
+            formula,
+            normalizedVariables
+          );
+        }}
+      />
     </section>
   );
 }
 
-export default function SOSummaryTables({ tables = [] }) {
+export default function SOSummaryTables({ tables = [], onSaveTable, schoolYearOptions = [] }) {
   if (tables.length === 0) {
-    return (
-      <div className="glass-card p-6 text-center text-[#6B6B6B] py-12">
-        <p className="text-sm">No SO summary tables available for the selected filters.</p>
-      </div>
-    );
+    return <div className="glass-card p-6 text-center text-[#6B6B6B]">No SO summary tables available for the selected filters.</div>;
   }
 
   return (
     <div className="space-y-6">
       {tables.map((table) => (
-        <SOSummaryCard key={table.so_id} table={table} />
+        <SOSummaryCard key={`${table.so_id}-${table.report_config_id ?? "default"}`} table={table} onSaveTable={onSaveTable} schoolYearOptions={schoolYearOptions} />
       ))}
     </div>
   );
