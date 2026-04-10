@@ -59,6 +59,7 @@ const Login = () => {
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("userRole");
+        localStorage.removeItem("userId");
         setError("Unknown role. Please contact administrator.");
         setLoading(false);
         return;
@@ -68,6 +69,7 @@ const Login = () => {
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("userRole");
+        localStorage.removeItem("userId");
         setError(
           `This account is ${userRole === "admin" ? "Program Chair" : "Faculty"}. Please select the correct role.`
         );
@@ -76,6 +78,7 @@ const Login = () => {
       }
 
       localStorage.setItem("userRole", userRole);
+        localStorage.setItem("userId", String(userId));
 
       // Route based on role
       navigate(ROLE_ROUTE_MAP[userRole]);

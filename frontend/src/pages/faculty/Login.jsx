@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { jwtDecode } from 'jwt-decode'
 
 const API_BASE_URL = 'http://localhost:8000/api'
 
@@ -25,6 +26,10 @@ export default function Login() {
       localStorage.setItem('accessToken', response.data.access)
       localStorage.setItem('refreshToken', response.data.refresh)
       localStorage.setItem('userRole', 'staff')
+      const decoded = jwtDecode(response.data.access)
+      if (decoded?.user_id) {
+        localStorage.setItem('userId', String(decoded.user_id))
+      }
       navigate('/faculty/dashboard')
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed')

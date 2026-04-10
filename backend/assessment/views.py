@@ -175,6 +175,10 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             section.id: section
             for section in Section.objects.prefetch_related('enrollments').filter(id__in=section_ids)
         }
+        student_outcomes = {
+            so.id: so
+            for so in StudentOutcome.objects.filter(id__in=so_ids).prefetch_related('performance_indicators__criteria')
+        }
         assessments = Assessment.objects.prefetch_related('grades').filter(
             section_id__in=section_ids,
             student_outcome_id__in=so_ids,
@@ -188,20 +192,53 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         summaries = []
         for item in normalized_requests:
             section = sections.get(item['section_id'])
+            so = student_outcomes.get(item['so_id'])
             total_students = section.enrollments.count() if section else 0
             assessment = assessment_map.get((item['section_id'], item['so_id'], item['school_year']))
             graded_students = 0
+            fully_graded_students = 0
 
-            if assessment:
-                student_grade_map = defaultdict(bool)
+            expected_bases = set()
+            if so:
+                for indicator in so.performance_indicators.all():
+                    criteria = list(indicator.criteria.all())
+                    if criteria:
+                        for criterion in criteria:
+                            expected_bases.add(('criterion', criterion.id))
+                    else:
+                        expected_bases.add(('indicator', indicator.id))
+
+            enrolled_student_ids = {
+                enrollment.student_id
+                for enrollment in section.enrollments.all()
+            } if section else set()
+
+            if assessment and expected_bases:
+                student_grade_map = defaultdict(set)
                 for grade in assessment.grades.all():
-                    if grade.score is not None:
-                        student_grade_map[grade.student_id] = True
-                graded_students = sum(1 for has_grade in student_grade_map.values() if has_grade)
+                    if grade.score is None or grade.student_id not in enrolled_student_ids:
+                        continue
+
+                    if grade.criterion_id:
+                        basis_key = ('criterion', grade.criterion_id)
+                    elif grade.performance_indicator_id:
+                        basis_key = ('indicator', grade.performance_indicator_id)
+                    else:
+                        continue
+
+                    if basis_key in expected_bases:
+                        student_grade_map[grade.student_id].add(basis_key)
+
+                graded_students = sum(1 for basis_keys in student_grade_map.values() if len(basis_keys) > 0)
+                fully_graded_students = sum(
+                    1
+                    for student_id in enrolled_student_ids
+                    if len(student_grade_map.get(student_id, set())) == len(expected_bases)
+                )
 
             if total_students == 0 or graded_students == 0:
                 status_value = 'not-yet'
-            elif graded_students == total_students:
+            elif fully_graded_students == total_students:
                 status_value = 'assessed'
             else:
                 status_value = 'incomplete'
@@ -212,6 +249,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 'school_year': item['school_year'],
                 'total_students': total_students,
                 'graded_students': graded_students,
+                'fully_graded_students': fully_graded_students,
                 'status': status_value,
                 'last_assessed': assessment.updated_at.isoformat() if assessment else None,
             })
