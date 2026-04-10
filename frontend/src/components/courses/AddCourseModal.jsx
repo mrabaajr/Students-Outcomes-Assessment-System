@@ -17,6 +17,13 @@ const yearLevels = [
 
 const courseCodePattern = /^[A-Za-z0-9][A-Za-z0-9-\s]*$/;
 
+const getAutofillClassName = (isAutofilled) =>
+  `w-full p-2 border rounded-md ${
+    isAutofilled
+      ? 'bg-gray-100 border-gray-300 text-gray-500'
+      : 'bg-background border-border'
+  }`;
+
 const AddCourseModal = ({
   isOpen,
   onClose,
@@ -28,9 +35,9 @@ const AddCourseModal = ({
 }) => {
   const { toast } = useToast();
   const [curricula, setCurricula] = useState([]);
-  const [courses, setCourses] = useState([]);
+  const [courseMappings, setCourseMappings] = useState([]);
   const [academicYears, setAcademicYears] = useState(fallbackAcademicYears);
-  const [loadingCourses, setLoadingCourses] = useState(false);
+  const [loadingCourseMappings, setLoadingCourseMappings] = useState(false);
   const [errors, setErrors] = useState({});
 
   const [formData, setFormData] = useState({
@@ -127,21 +134,21 @@ const AddCourseModal = ({
   useEffect(() => {
     if (!formData.curriculum) return;
 
-    const fetchCourses = async () => {
-      setLoadingCourses(true);
+    const fetchCourseMappings = async () => {
+      setLoadingCourseMappings(true);
       try {
-        const res = await fetch(`/api/courses/?curriculum=${formData.curriculum}`);
+        const res = await fetch(`/api/course-so-mappings/?curriculum=${formData.curriculum}`);
         const data = await res.json();
-        setCourses(data.results || data);
+        setCourseMappings(data.results || data);
       } catch (err) {
-        console.error('Error fetching courses:', err);
-        setCourses([]);
+        console.error('Error fetching course mappings:', err);
+        setCourseMappings([]);
       } finally {
-        setLoadingCourses(false);
+        setLoadingCourseMappings(false);
       }
     };
 
-    fetchCourses();
+    fetchCourseMappings();
   }, [formData.curriculum]);
 
   const validateField = (name, value) => {
@@ -215,7 +222,7 @@ const AddCourseModal = ({
         };
       }
 
-      const course = courses.find(c => String(c.id) === String(courseId));
+      const course = courseMappings.find(c => String(c.id) === String(courseId));
       if (!course) return prev;
 
       return {
@@ -228,6 +235,7 @@ const AddCourseModal = ({
         year_level: course.year_level || '',
         credits: course.credits || 3,
         description: course.description || '',
+        mappedSOs: course.mappedSOs || [],
       };
     });
     setErrors(prev => ({
@@ -264,6 +272,8 @@ const AddCourseModal = ({
     await onSave(formData);
   };
 
+  const isAutofilledFromCourse = Boolean(formData.selectedCourseId);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -291,7 +301,7 @@ const AddCourseModal = ({
                 }))
               }
               onBlur={(e) => setErrors(prev => ({ ...prev, curriculum: validateField('curriculum', e.target.value) }))}
-              className="w-full p-2 bg-background border border-border rounded-md"
+              className={getAutofillClassName(isAutofilledFromCourse)}
               required
             >
               <option value="">Select Curriculum</option>
@@ -313,15 +323,15 @@ const AddCourseModal = ({
               disabled={!formData.curriculum}
             >
               <option value="">Select course to autofill (optional)</option>
-              {loadingCourses && <option>Loading...</option>}
-              {courses.map(course => (
+              {loadingCourseMappings && <option>Loading...</option>}
+              {courseMappings.map(course => (
                 <option key={course.id} value={course.id}>
-                  {course.code} - {course.name}
+                  {course.code} - {course.name} ({course.academic_year || 'No school year'} | {course.semester || 'No semester'})
                 </option>
               ))}
             </select>
             <p className="text-xs text-muted-foreground">
-              Selecting a course fills the fields below, but you can still edit them for new entries.
+              Selecting an existing course mapping fills the fields below using the saved school year, semester, and year level.
             </p>
           </div>
 
@@ -333,7 +343,7 @@ const AddCourseModal = ({
                 value={formData.academic_year}
                 onChange={(e) => updateField('academic_year', e.target.value)}
                 onBlur={(e) => setErrors(prev => ({ ...prev, academic_year: validateField('academic_year', e.target.value) }))}
-                className="w-full p-2 bg-background border border-border rounded-md"
+                className={getAutofillClassName(isAutofilledFromCourse)}
                 required
               >
                 <option value="">Select Academic Year</option>
@@ -352,7 +362,7 @@ const AddCourseModal = ({
                 value={formData.semester}
                 onChange={(e) => updateField('semester', e.target.value)}
                 onBlur={(e) => setErrors(prev => ({ ...prev, semester: validateField('semester', e.target.value) }))}
-                className="w-full p-2 bg-background border border-border rounded-md"
+                className={getAutofillClassName(isAutofilledFromCourse)}
                 required
               >
                 <option value="">Select Semester</option>
@@ -371,7 +381,7 @@ const AddCourseModal = ({
                 value={formData.year_level}
                 onChange={(e) => updateField('year_level', e.target.value)}
                 onBlur={(e) => setErrors(prev => ({ ...prev, year_level: validateField('year_level', e.target.value) }))}
-                className="w-full p-2 bg-background border border-border rounded-md"
+                className={getAutofillClassName(isAutofilledFromCourse)}
                 required
               >
                 <option value="">Select Year Level</option>
@@ -394,6 +404,7 @@ const AddCourseModal = ({
                 onChange={(e) => updateField('code', e.target.value.toUpperCase())}
                 onBlur={(e) => setErrors(prev => ({ ...prev, code: validateField('code', e.target.value) }))}
                 placeholder="CPE-101"
+                className={isAutofilledFromCourse ? 'bg-gray-100 border-gray-300 text-gray-500' : ''}
                 required
               />
               {errors.code ? <p className="text-sm text-destructive">{errors.code}</p> : null}
@@ -406,6 +417,7 @@ const AddCourseModal = ({
                 onChange={(e) => updateField('name', e.target.value)}
                 onBlur={(e) => setErrors(prev => ({ ...prev, name: validateField('name', e.target.value) }))}
                 placeholder="Simple Course Name"
+                className={isAutofilledFromCourse ? 'bg-gray-100 border-gray-300 text-gray-500' : ''}
                 required
               />
               {errors.name ? <p className="text-sm text-destructive">{errors.name}</p> : null}
