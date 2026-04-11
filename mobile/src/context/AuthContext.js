@@ -30,8 +30,24 @@ export function AuthProvider({ children }) {
           try {
             const currentUser = await fetchCurrentUser();
             setUser(currentUser);
-          } catch {
-            // Keep session even if user bootstrap fetch fails.
+          } catch (error) {
+            const isAuthError =
+              error.response?.status === 401 ||
+              String(error.response?.data?.detail || error.message || "").toLowerCase().includes("token not valid");
+
+            if (isAuthError) {
+              await clearSession();
+              attachAccessToken(null);
+              setSession({
+                accessToken: null,
+                refreshToken: null,
+                userRole: null,
+              });
+              setUser(null);
+              return;
+            }
+
+            // Keep session if the failure is unrelated to authentication.
           }
         }
       } finally {
