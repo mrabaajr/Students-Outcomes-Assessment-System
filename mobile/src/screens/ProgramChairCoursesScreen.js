@@ -63,6 +63,7 @@ export default function ProgramChairCoursesScreen() {
       eyebrow="Program Chair"
       title="Courses and mappings"
       subtitle="Browse mapped courses and quickly inspect the outcome coverage already available in your backend."
+      showMeta={false}
     >
       <InfoCard title="Filters">
         <View style={styles.stack}>

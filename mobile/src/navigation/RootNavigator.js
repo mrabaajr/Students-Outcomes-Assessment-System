@@ -1,4 +1,4 @@
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createStackNavigator } from "@react-navigation/stack";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../context/AuthContext";
@@ -24,7 +24,7 @@ import ProgramChairStudentOutcomesScreen, {
 } from "../screens/ProgramChairStudentOutcomesScreen";
 import { colors } from "../theme/colors";
 
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 
 function SplashScreen() {
   return (
@@ -69,42 +69,42 @@ export default function RootNavigator() {
           <Stack.Screen
             name="ProgramChairCourses"
             component={ProgramChairCoursesScreen}
-            options={{ title: "Courses" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairClasses"
             component={ProgramChairClassesScreen}
-            options={{ title: "Classes" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairStudentOutcomes"
             component={ProgramChairStudentOutcomesScreen}
-            options={{ title: "Student Outcomes" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairOutcomeRubric"
             component={ProgramChairOutcomeRubricScreen}
-            options={{ title: "Rubric" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairAssessments"
             component={ProgramChairAssessmentsScreen}
-            options={{ title: "Assessments" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairAssessmentEntry"
             component={ProgramChairAssessmentEntryScreen}
-            options={{ title: "Assessment Entry" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairReports"
             component={ProgramChairReportsScreen}
-            options={{ title: "Reports" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairSettings"
             component={SettingsScreen}
-            options={{ title: "Settings" }}
+            options={{ headerShown: false }}
           />
         </>
       ) : (

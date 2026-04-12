@@ -11,6 +11,7 @@ export default function AppScreen({
   title,
   subtitle,
   heroFooter,
+  showMeta = true,
   children,
   footer,
 }) {
@@ -57,7 +58,7 @@ export default function AppScreen({
             <Text style={[styles.title, styles.titleInline]}>{title}</Text>
           </View>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-          {user?.email ? <Text style={styles.meta}>{user.email}</Text> : null}
+          {showMeta && user?.email ? <Text style={styles.meta}>{user.email}</Text> : null}
           {heroFooter ? <View style={styles.heroFooter}>{heroFooter}</View> : null}
         </View>
 
