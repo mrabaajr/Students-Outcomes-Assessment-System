@@ -13,30 +13,29 @@ export default function ProgramChairDashboardScreen({ navigation }) {
   const { signOut } = useAuth();
   const [state, setState] = useState({ loading: true, error: "", data: null });
 
-  useEffect(() => {
-    let cancelled = false;
+  async function loadDashboard() {
+    try {
+      setState((current) => ({ ...current, loading: true, error: "" }));
 
-    async function load() {
-      try {
-        const data = await fetchProgramChairDashboardData();
-        if (!cancelled) {
-          setState({ loading: false, error: "", data });
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setState({
-            loading: false,
-            error: error.response?.data?.detail || error.message || "Failed to load dashboard.",
-            data: null,
-          });
-        }
-      }
+      const data = await Promise.race([
+        fetchProgramChairDashboardData(),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Dashboard request timed out. Please retry.")), 15000);
+        }),
+      ]);
+
+      setState({ loading: false, error: "", data });
+    } catch (error) {
+      setState({
+        loading: false,
+        error: error.response?.data?.detail || error.message || "Failed to load dashboard.",
+        data: null,
+      });
     }
+  }
 
-    load();
-    return () => {
-      cancelled = true;
-    };
+  useEffect(() => {
+    loadDashboard();
   }, []);
 
   return (
@@ -58,6 +57,9 @@ export default function ProgramChairDashboardScreen({ navigation }) {
       ) : state.error ? (
         <InfoCard title="Dashboard unavailable">
           <Text style={styles.error}>{state.error}</Text>
+          <Pressable onPress={loadDashboard} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
         </InfoCard>
       ) : (
         <>
@@ -132,6 +134,18 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 14,
     lineHeight: 21,
+  },
+  retryButton: {
+    alignItems: "center",
+    backgroundColor: colors.dark,
+    borderRadius: 12,
+    marginTop: 14,
+    paddingVertical: 11,
+  },
+  retryButtonText: {
+    color: colors.yellow,
+    fontSize: 13,
+    fontWeight: "700",
   },
   statsGrid: {
     flexDirection: "row",

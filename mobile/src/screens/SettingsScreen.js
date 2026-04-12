@@ -184,7 +184,6 @@ export default function SettingsScreen() {
   return (
     <>
       <AppScreen
-        eyebrow="Account Settings"
         title={"Account\nSettings"}
         subtitle="Manage your password and account security settings."
       >

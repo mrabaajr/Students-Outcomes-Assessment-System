@@ -1,2 +1,29 @@
-node_modules
+node_modules/
+**/node_modules/
+**/.vite/
 
+# IDE
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# React Native / Android build artifacts
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/local.properties
+mobile/android/.cxx/
+
+# React Native / Metro cache
+mobile/.expo/
+mobile/.expo-shared/
+mobile/.bundle/
+
+# Python cache
+__pycache__/
+*.pyc

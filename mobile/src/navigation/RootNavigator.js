@@ -3,7 +3,12 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../context/AuthContext";
 import FacultyClassesScreen from "../screens/FacultyClassesScreen";
+import FacultyAssessmentsScreen, {
+  FacultyAssessmentEntryScreen,
+} from "../screens/FacultyAssessmentsScreen";
 import FacultyDashboardScreen from "../screens/FacultyDashboardScreen";
+import FacultyPastReportsScreen from "../screens/FacultyPastReportsScreen";
+import FacultyReportsScreen from "../screens/FacultyReportsScreen";
 import LoginScreen from "../screens/LoginScreen";
 import PlaceholderScreen from "../screens/PlaceholderScreen";
 import ProgramChairAssessmentsScreen, {
@@ -112,34 +117,32 @@ export default function RootNavigator() {
           <Stack.Screen
             name="FacultyClasses"
             component={FacultyClassesScreen}
-            options={{ title: "My Classes" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="FacultyAssessments"
-            component={PlaceholderScreen}
-            initialParams={{
-              eyebrow: "Faculty",
-              title: "Assessments",
-              subtitle: "This screen will host faculty assessment entry and grading tools.",
-              icon: "assignment",
-            }}
-            options={{ title: "Assessments" }}
+            component={FacultyAssessmentsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="FacultyAssessmentEntry"
+            component={FacultyAssessmentEntryScreen}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="FacultyReports"
-            component={PlaceholderScreen}
-            initialParams={{
-              eyebrow: "Faculty",
-              title: "Reports",
-              subtitle: "This screen will hold faculty-facing summaries and report exports.",
-              icon: "description",
-            }}
-            options={{ title: "Reports" }}
+            component={FacultyReportsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="FacultyPastReports"
+            component={FacultyPastReportsScreen}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="FacultySettings"
             component={SettingsScreen}
-            options={{ title: "Settings" }}
+            options={{ headerShown: false }}
           />
         </>
       )}

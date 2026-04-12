@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "../../theme/colors";
 
@@ -20,10 +21,11 @@ export default function AppSidebar({
   onLogout,
   onNavigate,
 }) {
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={styles.overlay}>
-      <Pressable style={styles.scrim} onPress={onClose} />
-      <View style={styles.panel}>
+      <View style={[styles.panel, { paddingBottom: Math.max(18, insets.bottom + 10) }]}>
         <View style={styles.header}>
           <Text style={styles.brand}>SO Assessment</Text>
           <Text style={styles.email}>{email || "Signed in"}</Text>
@@ -48,13 +50,17 @@ export default function AppSidebar({
               </Text>
             </Pressable>
           ))}
-        </View>
+      </View>
 
-        <Pressable onPress={onLogout} style={({ pressed }) => [styles.logout, pressed && styles.linkPressed]}>
+        <Pressable
+          onPress={onLogout}
+          style={({ pressed }) => [styles.logout, { marginBottom: Math.max(0, insets.bottom) }, pressed && styles.linkPressed]}
+        >
           <Text style={styles.icon}>{iconMap.logout}</Text>
           <Text style={styles.logoutText}>Logout</Text>
         </Pressable>
       </View>
+      <Pressable style={styles.scrim} onPress={onClose} />
     </View>
   );
 }
@@ -62,6 +68,7 @@ export default function AppSidebar({
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
+    elevation: 40,
     flexDirection: "row",
     zIndex: 50,
   },
@@ -73,6 +80,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#efeff7",
     borderBottomRightRadius: 18,
     borderTopRightRadius: 18,
+    elevation: 41,
+    justifyContent: "space-between",
     maxWidth: 340,
     width: "86%",
   },
@@ -95,6 +104,7 @@ const styles = StyleSheet.create({
   body: {
     borderBottomColor: colors.graySoft,
     borderBottomWidth: 1,
+    flex: 1,
     gap: 8,
     paddingHorizontal: 10,
     paddingVertical: 14,
