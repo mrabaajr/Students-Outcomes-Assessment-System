@@ -454,42 +454,53 @@ export default function SOAssessment() {
   };
 
   // ── State for course assessment status ──
-  const [courseAssessmentStatus, setCourseAssessmentStatus] = useState({}); // courseCode-soId -> status
+  const [courseAssessmentStatus, setCourseAssessmentStatus] = useState({}); // courseCode-soId and courseCode-all -> status
   const [sectionAssessmentStatus, setSectionAssessmentStatus] = useState({}); // sectionId-soId -> status
-  const [courseLastAssessed, setCourseLastAssessed] = useState({}); // courseCode-soId -> iso string
+  const [courseLastAssessed, setCourseLastAssessed] = useState({}); // courseCode-soId and courseCode-all -> iso string
   const [sectionLastAssessed, setSectionLastAssessed] = useState({}); // sectionId-soId -> iso string
   const [isStatusLoading, setIsStatusLoading] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0); // Trigger to refresh assessment status
 
-  const getRelevantSOIdForCourse = useCallback((courseCode) => {
+  const getMappedSOIdsForCourse = useCallback((courseCode) => {
     const mappedSOs = courseMappings[courseCode] || [];
+    return [...new Set(
+      mappedSOs
+        .map((soId) => parseInt(soId, 10))
+        .filter((soId) => Number.isFinite(soId))
+    )];
+  }, [courseMappings]);
+
+  const getRelevantSOIdForCourse = useCallback((courseCode) => {
+    const mappedSOs = getMappedSOIdsForCourse(courseCode);
     if (selectedSOIds.length > 0) {
-      const selectedId = selectedSOIds[0];
-      const isMapped = mappedSOs.some((soId) => parseInt(soId) === parseInt(selectedId));
+      const selectedId = parseInt(selectedSOIds[0], 10);
+      const isMapped = mappedSOs.some((soId) => soId === selectedId);
       if (isMapped) return selectedId;
     }
 
-    return mappedSOs.length > 0 ? parseInt(mappedSOs[0]) : null;
-  }, [courseMappings, selectedSOIds]);
+    return mappedSOs.length > 0 ? mappedSOs[0] : null;
+  }, [getMappedSOIdsForCourse, selectedSOIds]);
 
   const buildAssessmentSummaryRequests = useCallback((courses) => {
     const requests = [];
 
     courses.forEach((course) => {
-      const relevantSoId = getRelevantSOIdForCourse(course.courseCode);
-      if (!relevantSoId) return;
+      const mappedSOIds = getMappedSOIdsForCourse(course.courseCode);
+      if (mappedSOIds.length === 0) return;
 
-      course.sections.forEach((section) => {
-        requests.push({
-          section_id: parseInt(section.id),
-          so_id: parseInt(relevantSoId),
-          school_year: section.schoolYear || "",
+      mappedSOIds.forEach((soId) => {
+        course.sections.forEach((section) => {
+          requests.push({
+            section_id: parseInt(section.id),
+            so_id: soId,
+            school_year: section.schoolYear || "",
+          });
         });
       });
     });
 
     return requests;
-  }, [getRelevantSOIdForCourse]);
+  }, [getMappedSOIdsForCourse]);
 
   const applyAssessmentSummaries = useCallback((summaries, courses) => {
     const nextSectionStatuses = {};
@@ -503,36 +514,62 @@ export default function SOAssessment() {
     });
 
     courses.forEach((course) => {
-      const relevantSoId = getRelevantSOIdForCourse(course.courseCode);
-      if (!relevantSoId) return;
-
-      const statusesForCourse = course.sections.map(
-        (section) => nextSectionStatuses[`${section.id}-${relevantSoId}`] || "not-yet"
-      );
-
-      if (statusesForCourse.length === 0) {
-        nextCourseStatuses[`${course.courseCode}-${relevantSoId}`] = "not-yet";
-      } else if (statusesForCourse.every((status) => status === "assessed")) {
-        nextCourseStatuses[`${course.courseCode}-${relevantSoId}`] = "assessed";
-      } else if (statusesForCourse.some((status) => status === "assessed" || status === "incomplete")) {
-        nextCourseStatuses[`${course.courseCode}-${relevantSoId}`] = "incomplete";
-      } else {
-        nextCourseStatuses[`${course.courseCode}-${relevantSoId}`] = "not-yet";
+      const mappedSOIds = getMappedSOIdsForCourse(course.courseCode);
+      if (mappedSOIds.length === 0) {
+        nextCourseStatuses[`${course.courseCode}-all`] = "not-yet";
+        nextCourseLastAssessed[`${course.courseCode}-all`] = null;
+        return;
       }
 
-      const latestSectionAssessment = course.sections
-        .map((section) => nextSectionLastAssessed[`${section.id}-${relevantSoId}`])
+      const perSOStatuses = mappedSOIds.map((soId) => {
+        const statusesForSO = course.sections.map(
+          (section) => nextSectionStatuses[`${section.id}-${soId}`] || "not-yet"
+        );
+
+        let soStatus = "not-yet";
+        if (statusesForSO.length > 0) {
+          if (statusesForSO.every((status) => status === "assessed")) {
+            soStatus = "assessed";
+          } else if (statusesForSO.some((status) => status === "assessed" || status === "incomplete")) {
+            soStatus = "incomplete";
+          }
+        }
+
+        nextCourseStatuses[`${course.courseCode}-${soId}`] = soStatus;
+
+        const latestSectionAssessmentForSO = course.sections
+          .map((section) => nextSectionLastAssessed[`${section.id}-${soId}`])
+          .filter(Boolean)
+          .sort((left, right) => new Date(right) - new Date(left))[0] || null;
+
+        nextCourseLastAssessed[`${course.courseCode}-${soId}`] = latestSectionAssessmentForSO;
+        return soStatus;
+      });
+
+      let aggregateStatus = "not-yet";
+      if (perSOStatuses.every((status) => status === "assessed")) {
+        aggregateStatus = "assessed";
+      } else if (perSOStatuses.every((status) => status === "not-yet")) {
+        aggregateStatus = "not-yet";
+      } else {
+        aggregateStatus = "incomplete";
+      }
+
+      nextCourseStatuses[`${course.courseCode}-all`] = aggregateStatus;
+
+      const latestAssessmentAcrossSOs = mappedSOIds
+        .map((soId) => nextCourseLastAssessed[`${course.courseCode}-${soId}`])
         .filter(Boolean)
         .sort((left, right) => new Date(right) - new Date(left))[0] || null;
 
-      nextCourseLastAssessed[`${course.courseCode}-${relevantSoId}`] = latestSectionAssessment;
+      nextCourseLastAssessed[`${course.courseCode}-all`] = latestAssessmentAcrossSOs;
     });
 
     setSectionAssessmentStatus(nextSectionStatuses);
     setCourseAssessmentStatus(nextCourseStatuses);
     setSectionLastAssessed(nextSectionLastAssessed);
     setCourseLastAssessed(nextCourseLastAssessed);
-  }, [getRelevantSOIdForCourse]);
+  }, [getMappedSOIdsForCourse]);
 
   const fetchAssessmentSummaries = useCallback(async (courses) => {
     const requests = buildAssessmentSummaryRequests(courses);
@@ -645,13 +682,9 @@ export default function SOAssessment() {
           0
         ),
         lastAssessed:
-          courseLastAssessed[
-            `${course.courseCode}-${getRelevantSOIdForCourse(course.courseCode)}`
-          ] || null,
+          courseLastAssessed[`${course.courseCode}-all`] || null,
         assessmentStatus:
-          courseAssessmentStatus[
-            `${course.courseCode}-${getRelevantSOIdForCourse(course.courseCode)}`
-          ] || "not-yet",
+          courseAssessmentStatus[`${course.courseCode}-all`] || "not-yet",
       };
     });
   }, [courseAssessmentStatus, courseLastAssessed, coursesData, getRelevantSOIdForCourse, selectedSOIds, selectedCourseCode, selectedSectionName, selectedSemester, selectedFaculty, courseMappings]);

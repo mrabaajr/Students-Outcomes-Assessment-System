@@ -313,16 +313,16 @@ export default function FacultyClasses() {
 
       <main className="flex-1">
         <section className="bg-[#231F20] border-b border-[#A5A8AB] pt-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-10 sm:pb-14 lg:pb-16">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-12 sm:pb-16">
             <div className="inline-block px-3 py-1 bg-[#3A3A3A] rounded-full text-xs text-[#A5A8AB] mb-4">
               FACULTY PORTAL
             </div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-3">
               <span className="text-white">My Classes</span>
             </h1>
-            <p className="text-sm sm:text-base text-[#A5A8AB] max-w-2xl mb-6">
-              View only the sections assigned to you. Active classes are actionable, while inactive
-              classes stay visible for reference only.
+            <p className="text-sm sm:text-base text-[#A5A8AB] max-w-xl mb-6">
+              View your assigned sections and student rosters. Inactive classes remain visible but
+              stay view-only.
             </p>
 
             <div className="flex items-center bg-[#3A3A3A] rounded-lg p-1 w-fit">
@@ -352,11 +352,11 @@ export default function FacultyClasses() {
           </div>
         </section>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 sm:p-5 shadow-sm mb-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-              <div className="flex-1">
-                <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          <div className="rounded-2xl border border-[#DADDE3] bg-white p-4 sm:p-5 shadow-[0_8px_24px_rgba(35,31,32,0.08)] mb-5">
+            <div className="grid gap-4 lg:grid-cols-[1.4fr_repeat(4,minmax(0,0.8fr))_auto] lg:items-end">
+              <div>
+                <label className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6B6B6B]">
                   <Search className="h-3.5 w-3.5" />
                   Search
                 </label>
@@ -365,91 +365,89 @@ export default function FacultyClasses() {
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Course, section, year, or student"
+                    placeholder="Section, course, or student"
                     className="w-full rounded-lg border border-[#D1D5DB] bg-white py-2.5 pl-10 pr-3 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
                   />
                 </div>
               </div>
 
-              <div className="grid flex-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <div>
-                  <label className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                    <Filter className="h-3.5 w-3.5" />
-                    Status
-                  </label>
-                  <select
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value)}
-                    className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                  >
-                    <option value="active">Active Only</option>
-                    <option value="all">All Classes</option>
-                    <option value="inactive">Inactive Only</option>
-                  </select>
-                </div>
+              <div>
+                <label className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6B6B6B]">
+                  <Filter className="h-3.5 w-3.5" />
+                  Course
+                </label>
+                <select
+                  value={selectedCourse}
+                  onChange={(event) => setSelectedCourse(event.target.value)}
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                >
+                  {filterOptions.courses.map((course) => (
+                    <option key={course} value={course}>
+                      {course}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                <div>
-                  <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                    Course
-                  </label>
-                  <select
-                    value={selectedCourse}
-                    onChange={(event) => setSelectedCourse(event.target.value)}
-                    className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                  >
-                    {filterOptions.courses.map((course) => (
-                      <option key={course} value={course}>
-                        {course}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6B6B6B]">
+                  School Year
+                </label>
+                <select
+                  value={selectedYear}
+                  onChange={(event) => setSelectedYear(event.target.value)}
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                >
+                  {filterOptions.schoolYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                <div>
-                  <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                    School Year
-                  </label>
-                  <select
-                    value={selectedYear}
-                    onChange={(event) => setSelectedYear(event.target.value)}
-                    className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                  >
-                    {filterOptions.schoolYears.map((year) => (
-                      <option key={year} value={year}>
-                        {year}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6B6B6B]">
+                  Section
+                </label>
+                <select
+                  value={selectedSection}
+                  onChange={(event) => setSelectedSection(event.target.value)}
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                >
+                  {filterOptions.sectionNames.map((section) => (
+                    <option key={section} value={section}>
+                      {section}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                <div>
-                  <label className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-                    Section
-                  </label>
-                  <select
-                    value={selectedSection}
-                    onChange={(event) => setSelectedSection(event.target.value)}
-                    className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                  >
-                    {filterOptions.sectionNames.map((section) => (
-                      <option key={section} value={section}>
-                        {section}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6B6B6B]">
+                  Status
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
+                >
+                  <option value="active">Active</option>
+                  <option value="all">All</option>
+                  <option value="inactive">Inactive</option>
+                </select>
               </div>
 
               <button
                 onClick={resetFilters}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB]"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB] lg:mt-[1.55rem]"
               >
                 <RotateCcw className="h-4 w-4" />
                 Reset
               </button>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[#6B6B6B]">
+            <div className="mt-4 text-sm text-[#6B6B6B]">
               <span>
                 Showing <span className="font-semibold text-[#231F20]">{filteredSections.length}</span> of{" "}
                 <span className="font-semibold text-[#231F20]">{sections.length}</span> assigned
@@ -477,7 +475,7 @@ export default function FacultyClasses() {
           )}
 
           {!sectionsLoading && !sectionsError && (
-            <div className={viewMode === "card" ? "grid gap-4 md:grid-cols-2 lg:grid-cols-3" : "space-y-4"}>
+            <div className={viewMode === "card" ? "grid gap-5 md:grid-cols-2 xl:grid-cols-3" : "space-y-4"}>
               {viewMode === "card" &&
                 filteredSections.map((section) => {
                   const isExpanded = expandedSectionId === section.id;
@@ -488,48 +486,63 @@ export default function FacultyClasses() {
                   return (
                     <div
                       key={section.id}
-                      className={`flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow ${
+                      className={`max-w-[296px] flex flex-col overflow-hidden rounded-2xl border shadow-sm transition-shadow ${
                         section.isActive
-                          ? "border-[#E5E7EB] hover:shadow-lg"
-                          : "border-[#E5E7EB] bg-[#FAFAFA]"
+                          ? "border-[#2E3338] bg-white hover:shadow-lg"
+                          : "border-[#CFCFCF] bg-[#FAFAFA]"
                       }`}
                     >
-                      <div className="p-4 sm:p-5">
+                      <div className="p-4">
                         <div className="mb-3 flex items-start justify-between gap-3">
-                          <div>
-                            <div className="mb-2 flex flex-wrap items-center gap-2">
-                              <span className="rounded bg-primary/10 px-2 py-1 text-xs font-bold text-primary">
-                                {section.courseCode}
-                              </span>
-                              <span
-                                className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                                  section.isActive
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-gray-200 text-gray-600"
-                                }`}
-                              >
-                                {section.isActive ? "Active" : "Inactive"}
-                              </span>
-                            </div>
-                            <h3 className="line-clamp-2 text-sm font-semibold text-[#231F20]">
-                              {section.courseName}
-                            </h3>
-                            <p className="mt-1 text-xs text-[#6B6B6B]">{section.sectionName}</p>
-                          </div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#6B7280]">
+                            {section.sectionName}
+                          </p>
+                          <span className="rounded-full bg-[#FFF3CC] px-2 py-1 text-[10px] font-semibold text-[#F5A300]">
+                            {section.courseCode}
+                          </span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
-                          <div className="flex items-center gap-1.5 text-[#6B6B6B]">
-                            <Clock className="h-3.5 w-3.5 text-[#A5A8AB]" />
-                            <span>{section.semester}</span>
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                          <h3 className="line-clamp-2 text-lg font-semibold text-[#231F20]">
+                            {section.courseName}
+                          </h3>
+                          <span
+                            className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                              section.isActive
+                                ? "bg-green-100 text-green-700"
+                                : "bg-gray-200 text-gray-600"
+                            }`}
+                          >
+                            {section.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 mb-3 text-xs">
+                          <div className="rounded-lg bg-[#F5F7FA] px-3 py-2">
+                            <p className="text-[9px] uppercase tracking-[0.18em] text-[#8B9097] mb-1">
+                              Semester
+                            </p>
+                            <p className="font-medium text-[#231F20]">{section.semester}</p>
                           </div>
-                          <div className="flex items-center gap-1.5 text-[#6B6B6B]">
-                            <BookOpen className="h-3.5 w-3.5 text-[#A5A8AB]" />
-                            <span>{section.academicYear}</span>
+                          <div className="rounded-lg bg-[#F5F7FA] px-3 py-2">
+                            <p className="text-[9px] uppercase tracking-[0.18em] text-[#8B9097] mb-1">
+                              School Year
+                            </p>
+                            <p className="font-medium text-[#231F20]">{section.academicYear}</p>
                           </div>
-                          <div className="col-span-2 flex items-center gap-1.5 text-[#6B6B6B]">
-                            <Users className="h-3.5 w-3.5 text-[#A5A8AB]" />
-                            <span>{section.studentCount} students</span>
+                          <div className="rounded-lg bg-[#F5F7FA] px-3 py-2">
+                            <p className="text-[9px] uppercase tracking-[0.18em] text-[#8B9097] mb-1">
+                              Students
+                            </p>
+                            <p className="font-medium text-[#231F20]">{section.studentCount}</p>
+                          </div>
+                          <div className="rounded-lg bg-[#F5F7FA] px-3 py-2">
+                            <p className="text-[9px] uppercase tracking-[0.18em] text-[#8B9097] mb-1">
+                              Access
+                            </p>
+                            <p className="font-medium text-[#231F20]">
+                              {section.isActive ? "Editable" : "View Only"}
+                            </p>
                           </div>
                         </div>
 
@@ -537,7 +550,7 @@ export default function FacultyClasses() {
                           <button
                             onClick={() => handleImportClick(section)}
                             disabled={!section.isActive}
-                            className={`flex-1 flex items-center justify-center gap-1 rounded px-2 py-2 text-xs font-medium transition ${
+                            className={`flex-1 flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-xs font-medium transition ${
                               section.isActive
                                 ? "bg-primary text-white hover:bg-primary/90"
                                 : "cursor-not-allowed bg-gray-100 text-[#A5A8AB]"
@@ -562,7 +575,7 @@ export default function FacultyClasses() {
                       </button>
 
                       {isExpanded && (
-                        <div className="border-t border-gray-200 bg-[#F9FAFB] px-4 py-3">
+                        <div className="border-t border-gray-200 bg-[#FBFBFC] px-3 py-2">
                           {isRosterLoading && (
                             <div className="text-xs text-[#6B6B6B]">Loading students...</div>
                           )}
@@ -576,18 +589,18 @@ export default function FacultyClasses() {
                           )}
 
                           {!isRosterLoading && !rosterError && roster.length > 0 && (
-                            <div className="max-h-56 space-y-2 overflow-y-auto text-xs">
+                            <div className="max-h-56 overflow-y-auto text-xs">
                               {roster.map((student) => (
                                 <div
                                   key={student.studentId}
-                                  className="border-b border-gray-100 pb-2 last:border-0"
+                                  className="border-b border-gray-100 px-1 py-2 last:border-0"
                                 >
-                                  <div className="mb-0.5 font-mono text-[10px] text-primary">
+                                  <div className="mb-0.5 font-mono text-[10px] text-primary/80">
                                     {student.studentId}
                                   </div>
                                   <div className="font-medium text-[#231F20]">{student.name}</div>
                                   <div className="text-[10px] text-[#6B6B6B]">
-                                    {[student.program, student.yearLevel ? `Year ${student.yearLevel}` : ""]
+                                    {[student.program || "Program not set", student.yearLevel ? `Year ${student.yearLevel}` : ""]
                                       .filter(Boolean)
                                       .join(" | ")}
                                   </div>

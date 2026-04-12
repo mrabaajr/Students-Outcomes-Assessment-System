@@ -1,14 +1,16 @@
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, BookOpen, ClipboardCheck, BarChart3, Users, Clock, CheckCircle2, AlertCircle, Bell, TrendingUp, Target } from "lucide-react";
 import { Link } from "react-router-dom";
+import axios from "axios";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
 
-const statCards = [
-  { icon: BookOpen, label: "MY SECTIONS", value: "4", sub: "Active this semester", color: "text-primary", bg: "bg-primary/10" },
-  { icon: Users, label: "TOTAL STUDENTS", value: "142", sub: "Across all sections", color: "text-info", bg: "bg-info/10", trend: "+12" },
-  { icon: ClipboardCheck, label: "ASSESSMENTS", value: "8", sub: "Pending completion", color: "text-warning", bg: "bg-warning/10", trend: "-3" },
-  { icon: TrendingUp, label: "AVG. PERFORMANCE", value: "78%", sub: "Above target threshold", color: "text-success", bg: "bg-success/10", trend: "+5" },
-];
+const API_BASE_URL = "http://localhost:8000/api";
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("accessToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 const quickActions = [
   { icon: ClipboardCheck, label: "Input Grades", desc: "Grade students on performance criteria", to: "/faculty/assessments", color: "bg-primary/10 text-primary" },
@@ -17,21 +19,216 @@ const quickActions = [
   { icon: Target, label: "SO Overview", desc: "View mapped student outcomes", to: "/faculty/classes", color: "bg-purple-500/10 text-purple-400" },
 ];
 
-const mySections = [
-  { code: "CPE 401", section: "CPE41S1", students: 38, schedule: "MWF 8:00-9:30", completion: 75 },
-  { code: "CPE 312", section: "CPE31S2", students: 35, schedule: "TTh 10:00-11:30", completion: 40 },
-  { code: "CPE 203", section: "CPE20S1", students: 42, schedule: "MWF 1:00-2:30", completion: 90 },
-  { code: "CPE 105", section: "CPE10S3", students: 27, schedule: "TTh 3:00-4:30", completion: 10 },
-];
+const formatRelativeTime = (value) => {
+  if (!value) return "Not yet assessed";
 
-const recentActivity = [
-  { icon: CheckCircle2, color: "text-success", title: "Grades Submitted", desc: "CPE 401 - SO 1 Assessment completed", time: "2 hours ago" },
-  { icon: AlertCircle, color: "text-warning", title: "Pending Assessment", desc: "CPE 312 - Digital Systems requires rubric scores", time: "5 hours ago" },
-  { icon: Bell, color: "text-info", title: "Deadline Reminder", desc: "CPE 203 assessment due in 3 days", time: "1 day ago" },
-  { icon: Clock, color: "text-destructive", title: "Overdue", desc: "CPE 105 - SO 3 grading past deadline", time: "2 days ago" },
-];
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not yet assessed";
+
+  const diffMs = Date.now() - date.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+  if (diffHours < 1) return "Just now";
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+
+  return date.toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
 
 const FacultyDashboard = () => {
+  const [facultyDisplayName, setFacultyDisplayName] = useState("Faculty");
+  const [sections, setSections] = useState([]);
+  const [reportData, setReportData] = useState(null);
+
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    const token = localStorage.getItem("accessToken");
+
+    if (!userId || !token) return;
+
+    const loadFacultyDashboardData = async () => {
+      try {
+        const [profileResponse, sectionsResponse, reportsResponse] = await Promise.all([
+          axios.get(`${API_BASE_URL}/users/${userId}/`, {
+            headers: getAuthHeaders(),
+          }),
+          axios.get(`${API_BASE_URL}/sections/`, {
+            headers: getAuthHeaders(),
+          }),
+          axios
+            .get(`${API_BASE_URL}/reports/dashboard/`, {
+              headers: getAuthHeaders(),
+            })
+            .catch(() => null),
+        ]);
+
+        const firstName = String(profileResponse.data?.first_name || "").trim();
+        const lastName = String(profileResponse.data?.last_name || "").trim();
+        const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+
+        if (fullName) {
+          setFacultyDisplayName(fullName);
+        }
+
+        const rawSections = Array.isArray(sectionsResponse.data)
+          ? sectionsResponse.data
+          : sectionsResponse.data?.results || [];
+
+        const assignedSections = rawSections.filter((section) => section.is_active !== false);
+        setSections(assignedSections);
+
+        if (reportsResponse?.data) {
+          setReportData(reportsResponse.data);
+        }
+      } catch (error) {
+        console.error("Failed to load faculty dashboard data:", error);
+      }
+    };
+
+    loadFacultyDashboardData();
+  }, []);
+
+  const courseSummary = useMemo(() => reportData?.course_summary || [], [reportData]);
+
+  const courseCompletionByCode = useMemo(() => {
+    return courseSummary.reduce((acc, course) => {
+      const code = String(course.code || "").trim();
+      const total = Number(course.sections_total || 0);
+      const assessed = Number(course.sections_assessed || 0);
+      const completion = total > 0 ? Math.round((assessed / total) * 100) : 0;
+
+      if (code) {
+        acc[code] = completion;
+      }
+
+      return acc;
+    }, {});
+  }, [courseSummary]);
+
+  const totalStudents = useMemo(
+    () => sections.reduce((sum, section) => sum + Number(section.student_count || 0), 0),
+    [sections]
+  );
+
+  const pendingAssessments = useMemo(
+    () =>
+      courseSummary.reduce((sum, course) => {
+        const total = Number(course.sections_total || 0);
+        const assessed = Number(course.sections_assessed || 0);
+        return sum + Math.max(total - assessed, 0);
+      }, 0),
+    [courseSummary]
+  );
+
+  const avgPerformance = useMemo(() => {
+    const metricsAvg = Number(reportData?.metrics?.avg_performance);
+    if (Number.isFinite(metricsAvg)) {
+      return Math.round(metricsAvg);
+    }
+
+    if (courseSummary.length === 0) {
+      return 0;
+    }
+
+    const average =
+      courseSummary.reduce((sum, course) => sum + Number(course.avg || 0), 0) / courseSummary.length;
+    return Math.round(average);
+  }, [reportData, courseSummary]);
+
+  const statCards = useMemo(
+    () => [
+      {
+        icon: BookOpen,
+        label: "MY SECTIONS",
+        value: String(sections.length),
+        sub: "Active assigned sections",
+        color: "text-primary",
+        bg: "bg-primary/10",
+      },
+      {
+        icon: Users,
+        label: "TOTAL STUDENTS",
+        value: String(totalStudents),
+        sub: "Across all assigned sections",
+        color: "text-info",
+        bg: "bg-info/10",
+      },
+      {
+        icon: ClipboardCheck,
+        label: "ASSESSMENTS",
+        value: String(pendingAssessments),
+        sub: "Pending completion",
+        color: "text-warning",
+        bg: "bg-warning/10",
+      },
+      {
+        icon: TrendingUp,
+        label: "AVG. PERFORMANCE",
+        value: `${avgPerformance}%`,
+        sub: "Based on current report data",
+        color: "text-success",
+        bg: "bg-success/10",
+      },
+    ],
+    [sections.length, totalStudents, pendingAssessments, avgPerformance]
+  );
+
+  const mySections = useMemo(
+    () =>
+      sections.map((section) => {
+        const code = String(section.course_code || "No Code");
+        const semester = String(section.semester || "Semester not set");
+        const academicYear = String(section.academic_year || "School year not set");
+
+        return {
+          code,
+          section: String(section.name || "Unnamed section"),
+          students: Number(section.student_count || 0),
+          schedule: `${semester} • ${academicYear}`,
+          completion: Number(courseCompletionByCode[code] ?? 0),
+        };
+      }),
+    [sections, courseCompletionByCode]
+  );
+
+  const recentActivity = useMemo(() => {
+    if (courseSummary.length === 0) {
+      return [
+        {
+          icon: Clock,
+          color: "text-info",
+          title: "No recent assessments",
+          desc: "Assessment activity will appear here once sections are assessed.",
+          time: "-",
+        },
+      ];
+    }
+
+    return courseSummary
+      .slice()
+      .sort((left, right) => new Date(right.last_assessed || 0) - new Date(left.last_assessed || 0))
+      .slice(0, 4)
+      .map((course) => {
+        const target = Number(course.target || 80);
+        const average = Number(course.avg || 0);
+        const isAttained = average >= target;
+
+        return {
+          icon: isAttained ? CheckCircle2 : AlertCircle,
+          color: isAttained ? "text-success" : "text-warning",
+          title: `${course.code || "Course"} updated`,
+          desc: `${course.sections_assessed || 0}/${course.sections_total || 0} sections assessed`,
+          time: formatRelativeTime(course.last_assessed),
+        };
+      });
+  }, [courseSummary]);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
@@ -46,7 +243,7 @@ const FacultyDashboard = () => {
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
             <span className="text-white">Welcome,</span>
             <br />
-            <span className="text-[#FFC20E]">Prof. Ferrer</span>
+            <span className="text-[#FFC20E]">{facultyDisplayName}</span>
           </h1>
           <p className="text-sm sm:text-base text-[#A5A8AB] max-w-xl mb-6 sm:mb-8">
             Manage your sections, input assessment scores, and track student performance across your assigned courses.
@@ -122,10 +319,10 @@ const FacultyDashboard = () => {
           <div className="glass-card p-5 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-[#231F20]">My Sections</h2>
-              <span className="text-[11px] uppercase tracking-wider text-[#6B6B6B]">1st Semester 2024</span>
+              <span className="text-[11px] uppercase tracking-wider text-[#6B6B6B]">{sections.length} Assigned</span>
             </div>
             <div className="space-y-3">
-              {mySections.map((sec) => (
+              {mySections.length > 0 ? mySections.map((sec) => (
                 <div key={sec.section} className="flex items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -147,7 +344,11 @@ const FacultyDashboard = () => {
                     <p className="text-[11px] text-[#6B6B6B] mt-1">{sec.schedule}</p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="rounded-lg border border-dashed border-[#D1D5DB] p-4 text-sm text-[#6B6B6B]">
+                  No active sections assigned to this faculty account.
+                </div>
+              )}
             </div>
           </div>
 

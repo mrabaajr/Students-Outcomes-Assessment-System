@@ -1,4 +1,4 @@
-import { BookOpen, CheckCircle, Link, BarChart3 } from 'lucide-react';
+import { BookOpen, Link, BarChart3 } from 'lucide-react';
 
 const StatCard = ({ icon: Icon, label, value, subtext, iconColor }) => (
   <div className="glass-card p-5 hover-lift">
@@ -15,7 +15,6 @@ const StatCard = ({ icon: Icon, label, value, subtext, iconColor }) => (
 
 const CourseStats = ({ courses, studentOutcomes = [] }) => {
   const totalCourses = courses.length || 1; // Avoid division by zero
-  const activeCourses = courses.filter(c => (c.status || 'active') === 'active').length;
   const mappedCourses = courses.filter(c => c.mappedSOs.length > 0).length;
   
   // Use actual count of student outcomes, fallback to 7 if none available
@@ -27,20 +26,13 @@ const CourseStats = ({ courses, studentOutcomes = [] }) => {
     : 0;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
       <StatCard
         icon={BookOpen}
         label="TOTAL COURSES"
         value={totalCourses}
         subtext="All registered courses"
         iconColor="text-primary"
-      />
-      <StatCard
-        icon={CheckCircle}
-        label="ACTIVE COURSES"
-        value={activeCourses}
-        subtext={`${totalCourses - activeCourses} inactive`}
-        iconColor="text-success"
       />
       <StatCard
         icon={Link}

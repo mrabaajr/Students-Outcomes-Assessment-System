@@ -12,15 +12,74 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, BookOpen, FileDown, History, Loader2, Tag } from "lucide-react";
 
 const API_BASE_URL = "http://localhost:8000/api";
-const getAuthHeaders = () => {
-  const token = localStorage.getItem("accessToken");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+const AUTH_STORAGE_KEYS = ["accessToken", "refreshToken", "userRole"];
+
+const getStoredToken = (key) => {
+  const value = localStorage.getItem(key);
+  if (!value || value === "undefined" || value === "null") {
+    return null;
+  }
+  return value;
+};
+
+const parseJwtPayload = (token) => {
+  try {
+    const tokenParts = token.split(".");
+    if (tokenParts.length !== 3) {
+      return null;
+    }
+
+    const base64 = tokenParts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = window.atob(base64);
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+};
+
+const isTokenExpired = (token) => {
+  const payload = parseJwtPayload(token);
+  if (!payload?.exp) {
+    return true;
+  }
+
+  // Refresh a few seconds early to avoid race conditions between check and request.
+  const expiresAt = payload.exp * 1000;
+  return expiresAt <= Date.now() + 5000;
+};
+
+const refreshAccessToken = async () => {
+  const refreshToken = getStoredToken("refreshToken");
+  if (!refreshToken) {
+    return null;
+  }
+
+  try {
+    const response = await axios.post(`${API_BASE_URL}/token/refresh/`, {
+      refresh: refreshToken,
+    });
+
+    const nextAccessToken = response.data?.access;
+    if (!nextAccessToken) {
+      return null;
+    }
+
+    localStorage.setItem("accessToken", nextAccessToken);
+    return nextAccessToken;
+  } catch {
+    return null;
+  }
+};
+
+const clearAuthSession = () => {
+  AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 };
 
 export default function Reports() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const reportContentRef = useRef(null);
+  const hasHandledAuthFailureRef = useRef(false);
   const [reportMode, setReportMode] = useState("so");
   const [filters, setFilters] = useState({
     schoolYear: "",
@@ -35,6 +94,59 @@ export default function Reports() {
   const [countdown, setCountdown] = useState(10);
   const [isFinalizing, setIsFinalizing] = useState(false);
 
+  const handleSessionExpired = useCallback(
+    (description) => {
+      if (hasHandledAuthFailureRef.current) {
+        return;
+      }
+
+      hasHandledAuthFailureRef.current = true;
+      clearAuthSession();
+      toast({
+        title: "Session expired",
+        description: description || "Please sign in again to continue.",
+        variant: "destructive",
+      });
+      navigate("/");
+    },
+    [navigate, toast]
+  );
+
+  const makeAuthorizedRequest = useCallback(async (requestConfig) => {
+    let accessToken = getStoredToken("accessToken");
+    if (!accessToken || isTokenExpired(accessToken)) {
+      accessToken = await refreshAccessToken();
+    }
+
+    if (!accessToken) {
+      const authError = new Error("Authentication required");
+      authError.code = "AUTH_REQUIRED";
+      throw authError;
+    }
+
+    const executeRequest = (token) =>
+      axios({
+        ...requestConfig,
+        headers: {
+          ...(requestConfig.headers || {}),
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+    try {
+      return await executeRequest(accessToken);
+    } catch (error) {
+      if (error.response?.status === 401) {
+        const refreshedToken = await refreshAccessToken();
+        if (refreshedToken) {
+          return executeRequest(refreshedToken);
+        }
+      }
+
+      throw error;
+    }
+  }, []);
+
   const fetchReport = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -44,60 +156,89 @@ export default function Reports() {
       if (filters.section) params.section = filters.section;
       if (filters.outcome) params.so = filters.outcome;
 
-      const res = await axios.get(`${API_BASE_URL}/reports/dashboard/`, {
+      const res = await makeAuthorizedRequest({
+        method: "get",
+        url: `${API_BASE_URL}/reports/dashboard/`,
         params,
-        headers: getAuthHeaders(),
       });
       setData(res.data);
     } catch (err) {
       console.error("Error loading report data:", err);
+
+      if (err.code === "AUTH_REQUIRED" || err.response?.status === 401) {
+        handleSessionExpired("Please sign in again to load the latest report data.");
+        return;
+      }
+
+      toast({
+        title: "Unable to load reports",
+        description: err.response?.data?.detail || "Please try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  }, [filters]);
+  }, [filters, handleSessionExpired, makeAuthorizedRequest, toast]);
 
   const handleSaveSummaryTable = useCallback(
     async (tablePayload) => {
-      const payload = {
-        so_id: tablePayload.so_id,
-        school_year: filters.schoolYear || "",
-        course_id: filters.course || null,
-        section_id: filters.section || null,
-        formula: tablePayload.formula,
-        variables: tablePayload.variables,
-        table_data: tablePayload.table_data,
-      };
-
-      const res = await axios.post(`${API_BASE_URL}/reports/save_summary_table/`, payload, {
-        headers: getAuthHeaders(),
-      });
-      const savedTemplate = res.data?.report_template;
-
-      setData((current) => {
-        if (!current) return current;
-        return {
-          ...current,
-          so_summary_tables: (current.so_summary_tables || []).map((table) =>
-            table.so_id === tablePayload.so_id
-              ? {
-                  ...tablePayload.table_data,
-                  so_id: tablePayload.so_id,
-                  report_config_id: savedTemplate?.id ?? table.report_config_id ?? null,
-                  formula: tablePayload.formula,
-                  variables: tablePayload.variables,
-                }
-              : table
-          ),
+      try {
+        const payload = {
+          so_id: tablePayload.so_id,
+          school_year: filters.schoolYear || "",
+          course_id: filters.course || null,
+          section_id: filters.section || null,
+          formula: tablePayload.formula,
+          variables: tablePayload.variables,
+          table_data: tablePayload.table_data,
         };
-      });
 
-      toast({
-        title: "Report summary saved",
-        description: `SO ${tablePayload.so_number} customizations are now stored in the backend.`,
-      });
+        const res = await makeAuthorizedRequest({
+          method: "post",
+          url: `${API_BASE_URL}/reports/save_summary_table/`,
+          data: payload,
+        });
+        const savedTemplate = res.data?.report_template;
 
-      return savedTemplate;
+        setData((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            so_summary_tables: (current.so_summary_tables || []).map((table) =>
+              table.so_id === tablePayload.so_id
+                ? {
+                    ...tablePayload.table_data,
+                    so_id: tablePayload.so_id,
+                    report_config_id: savedTemplate?.id ?? table.report_config_id ?? null,
+                    formula: tablePayload.formula,
+                    variables: tablePayload.variables,
+                  }
+                : table
+            ),
+          };
+        });
+
+        toast({
+          title: "Report summary saved",
+          description: `SO ${tablePayload.so_number} customizations are now stored in the backend.`,
+        });
+
+        return savedTemplate;
+      } catch (err) {
+        if (err.code === "AUTH_REQUIRED" || err.response?.status === 401) {
+          handleSessionExpired("Please sign in again before saving summary table changes.");
+          return null;
+        }
+
+        toast({
+          title: "Save failed",
+          description: err.response?.data?.detail || "Unable to save summary table changes right now.",
+          variant: "destructive",
+        });
+        throw err;
+      }
     },
-    [filters.course, filters.schoolYear, filters.section, toast]
+    [filters.course, filters.schoolYear, filters.section, handleSessionExpired, makeAuthorizedRequest, toast]
   );
 
   useEffect(() => {
@@ -265,11 +406,11 @@ export default function Reports() {
   const handleFinalizeSemester = useCallback(async () => {
     setIsFinalizing(true);
     try {
-      await axios.post(
-        `${API_BASE_URL}/reports/finalize_semester/`,
-        {},
-        { headers: getAuthHeaders() }
-      );
+      await makeAuthorizedRequest({
+        method: "post",
+        url: `${API_BASE_URL}/reports/finalize_semester/`,
+        data: {},
+      });
 
       setShowFinalizeModal(false);
       await fetchReport();
@@ -279,6 +420,11 @@ export default function Reports() {
       });
       navigate("/programchair/past-reports");
     } catch (err) {
+      if (err.code === "AUTH_REQUIRED" || err.response?.status === 401) {
+        handleSessionExpired("Please sign in again before finalizing the semester.");
+        return;
+      }
+
       toast({
         title: "Finalization failed",
         description: err.response?.data?.detail || "Unable to finalize the semester right now.",
@@ -287,7 +433,7 @@ export default function Reports() {
     } finally {
       setIsFinalizing(false);
     }
-  }, [fetchReport, navigate, toast]);
+  }, [fetchReport, handleSessionExpired, makeAuthorizedRequest, navigate, toast]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
