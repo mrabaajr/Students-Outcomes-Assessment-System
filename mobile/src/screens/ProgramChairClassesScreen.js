@@ -384,6 +384,8 @@ export default function ProgramChairClassesScreen() {
   const [sectionCourse, setSectionCourse] = useState("All Courses");
   const [sectionYear, setSectionYear] = useState("All School Years");
   const [sectionSemester, setSectionSemester] = useState("All Semesters");
+  const [sectionFilterPickerVisible, setSectionFilterPickerVisible] = useState(false);
+  const [activeSectionFilter, setActiveSectionFilter] = useState("status");
 
   useEffect(() => {
     let cancelled = false;
@@ -433,6 +435,36 @@ export default function ProgramChairClassesScreen() {
 
     return { courses, schoolYears, semesters };
   }, [payload.sections]);
+
+  const sectionFilterConfigs = useMemo(
+    () => ({
+      status: {
+        label: "Status",
+        value: sectionStatus,
+        options: ["All Statuses", "Active", "Inactive"],
+        setter: setSectionStatus,
+      },
+      course: {
+        label: "Course",
+        value: sectionCourse,
+        options: sectionFilterOptions.courses,
+        setter: setSectionCourse,
+      },
+      schoolYear: {
+        label: "School Year",
+        value: sectionYear,
+        options: sectionFilterOptions.schoolYears,
+        setter: setSectionYear,
+      },
+      semester: {
+        label: "Semester",
+        value: sectionSemester,
+        options: sectionFilterOptions.semesters,
+        setter: setSectionSemester,
+      },
+    }),
+    [sectionCourse, sectionFilterOptions.courses, sectionFilterOptions.schoolYears, sectionFilterOptions.semesters, sectionSemester, sectionStatus, sectionYear]
+  );
 
   const facultyFilterOptions = useMemo(() => {
     const courses = [
@@ -504,6 +536,19 @@ export default function ProgramChairClassesScreen() {
   const resetFacultyFilters = () => {
     setFacultyQuery("");
   };
+
+  function openSectionFilterPicker(key) {
+    setActiveSectionFilter(key);
+    setSectionFilterPickerVisible(true);
+  }
+
+  function handleSectionFilterSelect(value) {
+    const config = sectionFilterConfigs[activeSectionFilter];
+    if (config?.setter) {
+      config.setter(value);
+    }
+    setSectionFilterPickerVisible(false);
+  }
 
   function handleUnavailableAction(actionLabel) {
     Alert.alert("Mobile UI only", `${actionLabel} is not wired in the mobile app yet.`);
@@ -861,90 +906,34 @@ export default function ProgramChairClassesScreen() {
 
             <View style={styles.filterBlock}>
               <Text style={styles.filterLabel}>Status</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                {[
-                  { key: "All Statuses", label: "All statuses" },
-                  { key: "Active", label: "Active" },
-                  { key: "Inactive", label: "Inactive" },
-                ].map((option) => {
-                  const selected = sectionStatus === option.key;
-
-                  return (
-                    <Pressable
-                      key={option.key}
-                      onPress={() => setSectionStatus(option.key)}
-                      style={[styles.chip, selected ? styles.chipActive : null]}
-                    >
-                      <Text style={[styles.chipText, selected ? styles.chipTextActive : null]}>
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              <Pressable style={styles.dropdownButton} onPress={() => openSectionFilterPicker("status")}>
+                <Text style={styles.dropdownButtonText}>{sectionStatus}</Text>
+                <Text style={styles.dropdownChevron}>▾</Text>
+              </Pressable>
             </View>
 
             <View style={styles.filterBlock}>
               <Text style={styles.filterLabel}>Course</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                {sectionFilterOptions.courses.map((course) => {
-                  const selected = sectionCourse === course;
-
-                  return (
-                    <Pressable
-                      key={course}
-                      onPress={() => setSectionCourse(course)}
-                      style={[styles.chip, selected ? styles.chipActive : null]}
-                    >
-                      <Text style={[styles.chipText, selected ? styles.chipTextActive : null]}>
-                        {course}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              <Pressable style={styles.dropdownButton} onPress={() => openSectionFilterPicker("course")}>
+                <Text style={styles.dropdownButtonText}>{sectionCourse}</Text>
+                <Text style={styles.dropdownChevron}>▾</Text>
+              </Pressable>
             </View>
 
             <View style={styles.filterBlock}>
               <Text style={styles.filterLabel}>School year</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                {sectionFilterOptions.schoolYears.map((schoolYear) => {
-                  const selected = sectionYear === schoolYear;
-
-                  return (
-                    <Pressable
-                      key={schoolYear}
-                      onPress={() => setSectionYear(schoolYear)}
-                      style={[styles.chip, selected ? styles.chipActive : null]}
-                    >
-                      <Text style={[styles.chipText, selected ? styles.chipTextActive : null]}>
-                        {schoolYear}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              <Pressable style={styles.dropdownButton} onPress={() => openSectionFilterPicker("schoolYear")}>
+                <Text style={styles.dropdownButtonText}>{sectionYear}</Text>
+                <Text style={styles.dropdownChevron}>▾</Text>
+              </Pressable>
             </View>
 
             <View style={styles.filterBlock}>
               <Text style={styles.filterLabel}>Semester</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                {sectionFilterOptions.semesters.map((semester) => {
-                  const selected = sectionSemester === semester;
-
-                  return (
-                    <Pressable
-                      key={semester}
-                      onPress={() => setSectionSemester(semester)}
-                      style={[styles.chip, selected ? styles.chipActive : null]}
-                    >
-                      <Text style={[styles.chipText, selected ? styles.chipTextActive : null]}>
-                        {semester}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              <Pressable style={styles.dropdownButton} onPress={() => openSectionFilterPicker("semester")}>
+                <Text style={styles.dropdownButtonText}>{sectionSemester}</Text>
+                <Text style={styles.dropdownChevron}>▾</Text>
+              </Pressable>
             </View>
 
             <View style={styles.filterFooter}>
@@ -1121,6 +1110,36 @@ export default function ProgramChairClassesScreen() {
           )}
         </View>
       )}
+
+      <Modal animationType="fade" transparent visible={sectionFilterPickerVisible}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerCard}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>{sectionFilterConfigs[activeSectionFilter]?.label || "Select"}</Text>
+              <Pressable onPress={() => setSectionFilterPickerVisible(false)} style={styles.pickerCloseButton}>
+                <Text style={styles.pickerCloseText}>Close</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.pickerList}>
+              {(sectionFilterConfigs[activeSectionFilter]?.options || []).map((option) => {
+                const selected = sectionFilterConfigs[activeSectionFilter]?.value === option;
+                return (
+                  <Pressable
+                    key={`${activeSectionFilter}-${option}`}
+                    onPress={() => handleSectionFilterSelect(option)}
+                    style={[styles.pickerOption, selected ? styles.pickerOptionSelected : null]}
+                  >
+                    <Text style={[styles.pickerOptionText, selected ? styles.pickerOptionTextSelected : null]}>
+                      {option}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <SectionFormModal
         visible={sectionFormVisible}
@@ -1502,6 +1521,59 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   dropdownItemTextSelected: {
+    color: colors.yellow,
+  },
+  pickerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.graySoft,
+    padding: 14,
+    maxHeight: "70%",
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  pickerTitle: {
+    color: colors.dark,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  pickerCloseButton: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pickerCloseText: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  pickerList: {
+    marginTop: 4,
+  },
+  pickerOption: {
+    borderColor: colors.graySoft,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  pickerOptionSelected: {
+    backgroundColor: colors.dark,
+    borderColor: colors.dark,
+  },
+  pickerOptionText: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  pickerOptionTextSelected: {
     color: colors.yellow,
   },
   modalActions: {

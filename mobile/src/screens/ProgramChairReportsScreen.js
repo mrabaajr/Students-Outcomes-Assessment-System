@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import AppScreen from "../components/layout/AppScreen";
 import InfoCard from "../components/ui/InfoCard";
@@ -7,34 +7,15 @@ import StatCard from "../components/ui/StatCard";
 import { fetchReportsDashboard } from "../services/reportsMobile";
 import { colors } from "../theme/colors";
 
-function FilterRow({ label, value, options, onChange, getLabel }) {
+function FilterRow({ label, value, onPress }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      <View style={styles.filterRow}>
-        <Text style={styles.filterLabel}>{label}</Text>
-        <Pressable
-          onPress={() => onChange("")}
-          style={[styles.filterChip, !value ? styles.filterChipActive : null]}
-        >
-          <Text style={[styles.filterChipText, !value ? styles.filterChipTextActive : null]}>All</Text>
-        </Pressable>
-        {options.map((option) => {
-          const optionValue = String(option.id ?? option);
-          const active = String(value) === optionValue;
-          return (
-            <Pressable
-              key={`${label}-${optionValue}`}
-              onPress={() => onChange(optionValue)}
-              style={[styles.filterChip, active ? styles.filterChipActive : null]}
-            >
-              <Text style={[styles.filterChipText, active ? styles.filterChipTextActive : null]}>
-                {getLabel ? getLabel(option) : option}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </ScrollView>
+    <View style={styles.filterRow}>
+      <Text style={styles.filterLabel}>{label}</Text>
+      <Pressable style={styles.dropdownButton} onPress={onPress}>
+        <Text style={styles.dropdownValue}>{value}</Text>
+        <Text style={styles.dropdownChevron}>▾</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -49,6 +30,8 @@ export default function ProgramChairReportsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
+  const [filterPickerVisible, setFilterPickerVisible] = useState(false);
+  const [activeFilterKey, setActiveFilterKey] = useState("schoolYear");
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +89,76 @@ export default function ProgramChairReportsScreen() {
     ];
   }, [data]);
 
+  const reportFilterConfigs = useMemo(
+    () => ({
+      schoolYear: {
+        label: "School Year",
+        value: filters.schoolYear,
+        displayValue: filters.schoolYear || "All School Years",
+        options: [{ label: "All School Years", value: "" }].concat(
+          (data?.filter_options?.school_years || []).map((item) => ({ label: item, value: item }))
+        ),
+      },
+      course: {
+        label: "Course",
+        value: filters.course,
+        displayValue:
+          filters.course
+            ? (data?.filter_options?.courses || []).find((item) => String(item.id) === String(filters.course))?.code ||
+              "Selected Course"
+            : "All Courses",
+        options: [{ label: "All Courses", value: "" }].concat(
+          (data?.filter_options?.courses || []).map((item) => ({
+            label: `${item.code} - ${item.name}`,
+            value: String(item.id),
+          }))
+        ),
+      },
+      section: {
+        label: "Section",
+        value: filters.section,
+        displayValue:
+          filters.section
+            ? (data?.filter_options?.sections || []).find((item) => String(item.id) === String(filters.section))?.name ||
+              "Selected Section"
+            : "All Sections",
+        options: [{ label: "All Sections", value: "" }].concat(
+          (data?.filter_options?.sections || []).map((item) => ({
+            label: item.name,
+            value: String(item.id),
+          }))
+        ),
+      },
+      outcome: {
+        label: "Outcome",
+        value: filters.outcome,
+        displayValue:
+          filters.outcome
+            ? `SO ${(data?.filter_options?.student_outcomes || []).find(
+                (item) => String(item.id) === String(filters.outcome)
+              )?.number || ""}`
+            : "All Outcomes",
+        options: [{ label: "All Outcomes", value: "" }].concat(
+          (data?.filter_options?.student_outcomes || []).map((item) => ({
+            label: `SO ${item.number}`,
+            value: String(item.id),
+          }))
+        ),
+      },
+    }),
+    [data, filters.course, filters.outcome, filters.schoolYear, filters.section]
+  );
+
+  function openFilterPicker(key) {
+    setActiveFilterKey(key);
+    setFilterPickerVisible(true);
+  }
+
+  function handleFilterSelect(value) {
+    setFilters((prev) => ({ ...prev, [activeFilterKey]: value }));
+    setFilterPickerVisible(false);
+  }
+
   return (
     <AppScreen
       eyebrow="Reports & Analytics"
@@ -136,32 +189,24 @@ export default function ProgramChairReportsScreen() {
       <InfoCard title="Filters">
         <View style={styles.filterStack}>
           <FilterRow
-            getLabel={(item) => item}
             label="School Year"
-            onChange={(value) => setFilters((prev) => ({ ...prev, schoolYear: value }))}
-            options={data?.filter_options?.school_years || []}
-            value={filters.schoolYear}
+            onPress={() => openFilterPicker("schoolYear")}
+            value={reportFilterConfigs.schoolYear.displayValue}
           />
           <FilterRow
-            getLabel={(item) => item.code}
             label="Course"
-            onChange={(value) => setFilters((prev) => ({ ...prev, course: value }))}
-            options={data?.filter_options?.courses || []}
-            value={filters.course}
+            onPress={() => openFilterPicker("course")}
+            value={reportFilterConfigs.course.displayValue}
           />
           <FilterRow
-            getLabel={(item) => item.name}
             label="Section"
-            onChange={(value) => setFilters((prev) => ({ ...prev, section: value }))}
-            options={data?.filter_options?.sections || []}
-            value={filters.section}
+            onPress={() => openFilterPicker("section")}
+            value={reportFilterConfigs.section.displayValue}
           />
           <FilterRow
-            getLabel={(item) => `SO ${item.number}`}
             label="Outcome"
-            onChange={(value) => setFilters((prev) => ({ ...prev, outcome: value }))}
-            options={data?.filter_options?.student_outcomes || []}
-            value={filters.outcome}
+            onPress={() => openFilterPicker("outcome")}
+            value={reportFilterConfigs.outcome.displayValue}
           />
         </View>
       </InfoCard>
@@ -258,6 +303,36 @@ export default function ProgramChairReportsScreen() {
           <Text style={styles.mutedText}>No report data available.</Text>
         </InfoCard>
       )}
+
+      <Modal animationType="fade" transparent visible={filterPickerVisible}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerCard}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>{reportFilterConfigs[activeFilterKey]?.label || "Select"}</Text>
+              <Pressable onPress={() => setFilterPickerVisible(false)} style={styles.pickerCloseButton}>
+                <Text style={styles.pickerCloseText}>Close</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.pickerList}>
+              {(reportFilterConfigs[activeFilterKey]?.options || []).map((option) => {
+                const selected = String(reportFilterConfigs[activeFilterKey]?.value || "") === String(option.value);
+                return (
+                  <Pressable
+                    key={`${activeFilterKey}-${option.value}`}
+                    onPress={() => handleFilterSelect(option.value)}
+                    style={[styles.pickerOption, selected && styles.pickerOptionActive]}
+                  >
+                    <Text style={[styles.pickerOptionText, selected && styles.pickerOptionTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </AppScreen>
   );
 }
@@ -289,35 +364,93 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   filterRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
-    paddingRight: 8,
+    gap: 6,
   },
   filterLabel: {
-    color: colors.gray,
-    fontSize: 12,
+    color: colors.dark,
+    fontSize: 13,
     fontWeight: "700",
-    width: 78,
   },
-  filterChip: {
+  dropdownButton: {
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.graySoft,
-    borderRadius: 999,
+    borderRadius: 12,
     borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
-  filterChipActive: {
-    backgroundColor: colors.dark,
-    borderColor: colors.dark,
+  dropdownValue: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+    marginRight: 8,
   },
-  filterChipText: {
+  dropdownChevron: {
+    color: colors.gray,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    padding: 18,
+  },
+  pickerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.graySoft,
+    padding: 14,
+    maxHeight: "70%",
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  pickerTitle: {
+    color: colors.dark,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  pickerCloseButton: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pickerCloseText: {
     color: colors.dark,
     fontSize: 12,
     fontWeight: "700",
   },
-  filterChipTextActive: {
+  pickerList: {
+    marginTop: 4,
+  },
+  pickerOption: {
+    borderColor: colors.graySoft,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  pickerOptionActive: {
+    backgroundColor: colors.dark,
+    borderColor: colors.dark,
+  },
+  pickerOptionText: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  pickerOptionTextActive: {
     color: colors.yellow,
   },
   loadingRow: {

@@ -381,6 +381,7 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
         title={"Student\nOutcomes"}
         subtitle="Define and manage student outcomes, performance indicators, and evaluation criteria for your program assessment."
         showMeta={false}
+        enableScrollTopButton={true}
       >
         <InfoCard>
           <View style={styles.controlCard}>
