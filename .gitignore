@@ -1,6 +1,7 @@
 node_modules/
 **/node_modules/
 **/.vite/
+.npm-cache/
 
 # IDE
 .idea/
