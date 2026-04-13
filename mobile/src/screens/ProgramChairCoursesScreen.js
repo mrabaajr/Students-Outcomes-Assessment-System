@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import AppScreen from "../components/layout/AppScreen";
 import InfoCard from "../components/ui/InfoCard";
+import { apiClient } from "../services/apiClient";
 import { fetchProgramChairCourses } from "../services/mobileData";
 import { fetchStudentOutcomesMobile } from "../services/studentOutcomes";
 import { colors } from "../theme/colors";
@@ -20,6 +21,10 @@ export default function ProgramChairCoursesScreen() {
   const [customAcademicYears, setCustomAcademicYears] = useState([]);
   const [studentOutcomes, setStudentOutcomes] = useState([]);
   const [loadingOutcomes, setLoadingOutcomes] = useState(false);
+  const [savingCourse, setSavingCourse] = useState(false);
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [courseDetailVisible, setCourseDetailVisible] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState(null);
 
   const [courseModalVisible, setCourseModalVisible] = useState(false);
   const [curriculumModalVisible, setCurriculumModalVisible] = useState(false);
@@ -41,6 +46,25 @@ export default function ProgramChairCoursesScreen() {
     yearLevel: "",
     mappedSOs: [],
   });
+
+  function normalizeMappedSOs(values) {
+    if (!Array.isArray(values)) return [];
+    return values
+      .map((value) => String(value))
+      .filter((value, index, list) => value && list.indexOf(value) === index);
+  }
+
+  const selectedCourseOutcomes = useMemo(() => {
+    if (!selectedCourse) return [];
+
+    return normalizeMappedSOs(selectedCourse.mappedSOs)
+      .map((mappedId) =>
+        studentOutcomes.find(
+          (outcome) => String(outcome.id) === String(mappedId) || String(outcome.number) === String(mappedId)
+        )
+      )
+      .filter(Boolean);
+  }, [selectedCourse, studentOutcomes]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +91,7 @@ export default function ProgramChairCoursesScreen() {
   }, []);
 
   useEffect(() => {
-    if (!courseModalVisible) return;
+    if (!courseModalVisible && !courseDetailVisible) return;
 
     let cancelled = false;
 
@@ -93,7 +117,7 @@ export default function ProgramChairCoursesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [courseModalVisible]);
+  }, [courseDetailVisible, courseModalVisible]);
 
   const semesters = useMemo(
     () => ["All Semesters", ...new Set(courses.map((course) => course.semester).filter(Boolean))],
@@ -187,8 +211,9 @@ export default function ProgramChairCoursesScreen() {
       : false;
   }
 
-  function showSoon(message) {
-    Alert.alert("Coming soon", message);
+  function openCourseDetails(course) {
+    setSelectedCourse(course);
+    setCourseDetailVisible(true);
   }
 
   function openFilterPicker(type) {
@@ -305,33 +330,76 @@ export default function ProgramChairCoursesScreen() {
 
   function toggleMappedOutcome(number) {
     setCourseForm((prev) => {
-      const exists = prev.mappedSOs.includes(number);
+      const normalized = normalizeMappedSOs(prev.mappedSOs);
+      const key = String(number);
+      const exists = normalized.includes(key);
       return {
         ...prev,
         mappedSOs: exists
-          ? prev.mappedSOs.filter((item) => item !== number)
-          : [...prev.mappedSOs, number],
+          ? normalized.filter((item) => item !== key)
+          : [...normalized, key],
       };
     });
   }
 
-  function toggleMatrixCell(courseId, outcomeNumber) {
+  async function toggleMatrixCell(courseId, outcomeNumber) {
+    const target = courses.find((course) => String(course.id) === String(courseId));
+    if (!target) {
+      return;
+    }
+
+    const mapped = normalizeMappedSOs(target.mappedSOs);
+    const key = String(outcomeNumber);
+    const exists = mapped.includes(key);
+    const nextMapped = exists ? mapped.filter((value) => value !== key) : [...mapped, key];
+
     setCourses((prev) =>
-      prev.map((course) => {
-        if (course.id !== courseId) return course;
-
-        const mapped = Array.isArray(course.mappedSOs) ? [...course.mappedSOs] : [];
-        const normalized = mapped.map((value) => Number(value));
-        const exists = normalized.includes(Number(outcomeNumber));
-
-        return {
-          ...course,
-          mappedSOs: exists
-            ? mapped.filter((value) => Number(value) !== Number(outcomeNumber))
-            : [...mapped, Number(outcomeNumber)],
-        };
-      })
+      prev.map((course) =>
+        String(course.id) === String(courseId)
+          ? {
+              ...course,
+              mappedSOs: nextMapped,
+            }
+          : course
+      )
     );
+
+    try {
+      await apiClient.patch(`/course-so-mappings/${courseId}/`, {
+        mappedSOs: nextMapped,
+      });
+    } catch (saveError) {
+      setCourses((prev) =>
+        prev.map((course) =>
+          String(course.id) === String(courseId)
+            ? {
+                ...course,
+                mappedSOs: mapped,
+              }
+            : course
+        )
+      );
+
+      Alert.alert(
+        "Unable to save mapping",
+        saveError.response?.data?.detail || saveError.message || "Please try again."
+      );
+    }
+  }
+
+  function openEditCourse(course) {
+    setEditingCourse(course);
+    setCourseForm({
+      sourceCourseId: String(course?.course || ""),
+      code: course?.code || "",
+      name: course?.name || "",
+      curriculum: String(course?.curriculum || ""),
+      academicYear: String(course?.academicYear || ""),
+      semester: course?.semester || "1st Semester",
+      yearLevel: String(course?.yearLevel || ""),
+      mappedSOs: normalizeMappedSOs(course?.mappedSOs),
+    });
+    setCourseModalVisible(true);
   }
 
   function handleAddCurriculum() {
@@ -368,7 +436,7 @@ export default function ProgramChairCoursesScreen() {
     setSchoolYearModalVisible(false);
   }
 
-  function handleAddCourse() {
+  async function handleAddCourse() {
     const next = {
       code: courseForm.code.trim(),
       name: courseForm.name.trim(),
@@ -376,6 +444,7 @@ export default function ProgramChairCoursesScreen() {
       academicYear: courseForm.academicYear.trim(),
       semester: courseForm.semester,
       yearLevel: courseForm.yearLevel.trim(),
+      mappedSOs: normalizeMappedSOs(courseForm.mappedSOs),
     };
 
     if (!next.code || !next.name || !next.curriculum || !next.academicYear || !next.yearLevel) {
@@ -383,28 +452,50 @@ export default function ProgramChairCoursesScreen() {
       return;
     }
 
-    setCourses((prev) => [
-      {
-        id: `local_${Date.now()}`,
-        ...next,
-        mappedSOs: courseForm.mappedSOs,
-      },
-      ...prev,
-    ]);
-
-    setCourseForm({
-      sourceCourseId: "",
-      code: "",
-      name: "",
+    const payload = {
+      code: next.code,
+      name: next.name,
       curriculum: next.curriculum,
-      academicYear: next.academicYear,
-      semester: "1st Semester",
-      yearLevel: "",
-      mappedSOs: [],
-    });
-    setSelectedCurriculum(next.curriculum);
-    setSelectedAcademicYear(next.academicYear);
-    setCourseModalVisible(false);
+      academic_year: next.academicYear,
+      semester: next.semester,
+      year_level: next.yearLevel,
+      mappedSOs: next.mappedSOs,
+    };
+
+    try {
+      setSavingCourse(true);
+
+      if (editingCourse?.id) {
+        await apiClient.patch(`/course-so-mappings/${editingCourse.id}/`, payload);
+      } else {
+        await apiClient.post("/course-so-mappings/", payload);
+      }
+
+      const data = await fetchProgramChairCourses();
+      setCourses(data);
+
+      setCourseForm({
+        sourceCourseId: "",
+        code: "",
+        name: "",
+        curriculum: next.curriculum,
+        academicYear: next.academicYear,
+        semester: "1st Semester",
+        yearLevel: "",
+        mappedSOs: [],
+      });
+      setSelectedCurriculum(next.curriculum);
+      setSelectedAcademicYear(next.academicYear);
+      setCourseModalVisible(false);
+      setEditingCourse(null);
+    } catch (saveError) {
+      Alert.alert(
+        editingCourse?.id ? "Unable to update course" : "Unable to save course",
+        saveError.response?.data?.detail || saveError.message || "Please try again."
+      );
+    } finally {
+      setSavingCourse(false);
+    }
   }
 
   return (
@@ -418,7 +509,23 @@ export default function ProgramChairCoursesScreen() {
       >
       <InfoCard>
         <View style={styles.toolbarTop}>
-          <Pressable onPress={() => setCourseModalVisible(true)} style={styles.primaryActionButton}>
+          <Pressable
+            onPress={() => {
+              setEditingCourse(null);
+              setCourseForm({
+                sourceCourseId: "",
+                code: "",
+                name: "",
+                curriculum: "",
+                academicYear: "",
+                semester: "1st Semester",
+                yearLevel: "",
+                mappedSOs: [],
+              });
+              setCourseModalVisible(true);
+            }}
+            style={styles.primaryActionButton}
+          >
             <Text style={styles.primaryActionButtonText}>+ Add Course</Text>
           </Pressable>
           <Pressable onPress={() => setCurriculumModalVisible(true)} style={styles.secondaryActionButton}>
@@ -579,10 +686,10 @@ export default function ProgramChairCoursesScreen() {
               ) : null}
 
               <View style={styles.rowActions}>
-                <Pressable style={styles.cardActionButton} onPress={() => showSoon(`View details for ${course.code} is not available yet.`)}>
+                <Pressable style={styles.cardActionButton} onPress={() => openCourseDetails(course)}>
                   <Text style={styles.cardActionText}>View</Text>
                 </Pressable>
-                <Pressable style={styles.cardActionButton} onPress={() => showSoon(`Edit ${course.code} from mobile is not enabled yet.`)}>
+                <Pressable style={styles.cardActionButton} onPress={() => openEditCourse(course)}>
                   <Text style={styles.cardActionText}>Edit</Text>
                 </Pressable>
               </View>
@@ -646,12 +753,88 @@ export default function ProgramChairCoursesScreen() {
         </View>
       </Modal>
 
+      <Modal
+        animationType="fade"
+        transparent
+        visible={courseDetailVisible}
+        onRequestClose={() => setCourseDetailVisible(false)}
+      >
+        <View style={styles.detailOverlay}>
+          <View style={styles.detailCard}>
+            <View style={styles.detailHeaderRow}>
+              <View style={styles.detailHeaderGroup}>
+                <View style={styles.detailIconWrap}>
+                  <View style={styles.detailBookIcon}>
+                    <View style={[styles.detailBookPage, styles.detailBookPageLeft]} />
+                    <View style={styles.detailBookSpine} />
+                    <View style={[styles.detailBookPage, styles.detailBookPageRight]} />
+                  </View>
+                </View>
+                <View style={styles.detailHeaderTextWrap}>
+                  <Text style={styles.detailTitle}>{selectedCourse?.code || "Course"}</Text>
+                  <Text style={styles.detailSubtitle}>{selectedCourse?.name || "Untitled course"}</Text>
+                </View>
+              </View>
+
+              <Pressable onPress={() => setCourseDetailVisible(false)} style={styles.detailCloseButton}>
+                <Text style={styles.detailCloseText}>×</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.detailMetaRow}>
+              <View style={styles.detailMetaItem}>
+                <Text style={styles.detailMetaLabel}>Semester</Text>
+                <Text style={styles.detailMetaValue}>{selectedCourse?.semester || "Not set"}</Text>
+              </View>
+              <View style={styles.detailMetaItem}>
+                <Text style={styles.detailMetaLabel}>Academic Year</Text>
+                <Text style={styles.detailMetaValue}>{selectedCourse?.academicYear || "Not set"}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.detailSectionTitle}>Mapped Student Outcomes</Text>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailScrollContent}>
+              {loadingOutcomes ? (
+                <View style={styles.detailLoadingRow}>
+                  <ActivityIndicator size="small" color={colors.yellow} />
+                  <Text style={styles.detailLoadingText}>Loading outcomes...</Text>
+                </View>
+              ) : selectedCourseOutcomes.length > 0 ? (
+                selectedCourseOutcomes.map((outcome) => (
+                  <View key={outcome.id} style={styles.detailOutcomeCard}>
+                    <View style={styles.detailOutcomeBadge}>
+                      <Text style={styles.detailOutcomeBadgeText}>{`SO ${outcome.number}`}</Text>
+                    </View>
+                    <View style={styles.detailOutcomeContent}>
+                      <Text style={styles.detailOutcomeTitle}>{outcome.title}</Text>
+                      <Text style={styles.detailOutcomeDescription}>{outcome.description}</Text>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.detailEmptyState}>
+                  <Text style={styles.detailEmptyTitle}>No mapped outcomes yet.</Text>
+                  <Text style={styles.detailEmptyText}>This course has not been linked to any student outcomes.</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <Modal animationType="slide" transparent visible={courseModalVisible}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCardLarge}>
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>Add New Course</Text>
-              <Pressable onPress={() => setCourseModalVisible(false)} style={styles.closeModalButton}>
+              <Text style={styles.modalTitle}>{editingCourse ? "Edit Course" : "Add New Course"}</Text>
+              <Pressable
+                onPress={() => {
+                  setCourseModalVisible(false);
+                  setEditingCourse(null);
+                }}
+                style={styles.closeModalButton}
+              >
                 <Text style={styles.closeModalText}>×</Text>
               </Pressable>
             </View>
@@ -731,7 +914,7 @@ export default function ProgramChairCoursesScreen() {
               ) : (
                 <View style={styles.soChecklist}>
                   {studentOutcomes.map((outcome) => {
-                    const checked = courseForm.mappedSOs.includes(outcome.number);
+                    const checked = normalizeMappedSOs(courseForm.mappedSOs).includes(String(outcome.number));
                     return (
                       <Pressable
                         key={outcome.id}
@@ -753,11 +936,20 @@ export default function ProgramChairCoursesScreen() {
             </ScrollView>
 
             <View style={styles.modalActions}>
-              <Pressable onPress={() => setCourseModalVisible(false)} style={styles.secondaryActionButton}>
+              <Pressable
+                onPress={() => {
+                  setCourseModalVisible(false);
+                  setEditingCourse(null);
+                }}
+                style={styles.secondaryActionButton}
+                disabled={savingCourse}
+              >
                 <Text style={styles.secondaryActionButtonText}>Cancel</Text>
               </Pressable>
-              <Pressable onPress={handleAddCourse} style={styles.primaryActionButton}>
-                <Text style={styles.primaryActionButtonText}>Save Course</Text>
+              <Pressable onPress={handleAddCourse} style={styles.primaryActionButton} disabled={savingCourse}>
+                <Text style={styles.primaryActionButtonText}>
+                  {savingCourse ? "Saving..." : editingCourse ? "Update Course" : "Save Course"}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -1112,6 +1304,193 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: 12,
     fontWeight: "700",
+  },
+  detailOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    padding: 16,
+  },
+  detailCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+    maxHeight: "85%",
+  },
+  detailHeaderRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  detailHeaderGroup: {
+    alignItems: "center",
+    flexDirection: "row",
+    flex: 1,
+    gap: 12,
+    paddingRight: 10,
+  },
+  detailIconWrap: {
+    alignItems: "center",
+    backgroundColor: "#FFF7D6",
+    borderRadius: 14,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  detailBookIcon: {
+    height: 20,
+    position: "relative",
+    width: 22,
+  },
+  detailBookPage: {
+    borderColor: colors.yellow,
+    borderRadius: 2,
+    borderWidth: 1.5,
+    height: 16,
+    position: "absolute",
+    top: 1,
+    width: 9,
+  },
+  detailBookPageLeft: {
+    borderRightWidth: 0,
+    left: 0,
+  },
+  detailBookPageRight: {
+    borderLeftWidth: 0,
+    left: 11,
+  },
+  detailBookSpine: {
+    backgroundColor: colors.yellow,
+    borderRadius: 1,
+    height: 16,
+    left: 10,
+    position: "absolute",
+    top: 1,
+    width: 2,
+  },
+  detailHeaderTextWrap: {
+    flex: 1,
+  },
+  detailTitle: {
+    color: colors.dark,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  detailSubtitle: {
+    color: colors.gray,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  detailCloseButton: {
+    alignItems: "center",
+    borderColor: colors.yellow,
+    borderRadius: 10,
+    borderWidth: 1,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  detailCloseText: {
+    color: colors.dark,
+    fontSize: 18,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
+  detailMetaRow: {
+    flexDirection: "row",
+    gap: 18,
+    marginBottom: 16,
+  },
+  detailMetaItem: {
+    flex: 1,
+  },
+  detailMetaLabel: {
+    color: colors.gray,
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  detailMetaValue: {
+    color: colors.dark,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  detailSectionTitle: {
+    color: colors.dark,
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 10,
+  },
+  detailScrollContent: {
+    paddingBottom: 4,
+  },
+  detailLoadingRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 10,
+  },
+  detailLoadingText: {
+    color: colors.gray,
+    fontSize: 13,
+  },
+  detailOutcomeCard: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: "#F6D46B",
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 10,
+    padding: 10,
+  },
+  detailOutcomeBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.yellow,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  detailOutcomeBadgeText: {
+    color: colors.dark,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  detailOutcomeContent: {
+    flex: 1,
+  },
+  detailOutcomeTitle: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  detailOutcomeDescription: {
+    color: colors.gray,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  detailEmptyState: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.graySoft,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  detailEmptyTitle: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  detailEmptyText: {
+    color: colors.gray,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
   },
   modalOverlay: {
     flex: 1,

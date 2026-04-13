@@ -347,38 +347,51 @@ export default function FacultyAssessmentsScreen({ navigation }) {
     };
   }, [coursesForGrid.length, filteredSections.length, sectionRequests, summaryMap]);
 
+  const exportRows = useMemo(() => {
+    if (!selectedCourseCode) {
+      return [];
+    }
+
+    const courseSections = filteredSections.filter((section) => section.courseCode === selectedCourseCode);
+
+    return courseSections.flatMap((section) => {
+      const mappedSOs = courseMappings[section.courseCode] || [];
+      const relevantIds = selectedSOIds.length > 0 ? selectedSOIds : mappedSOs;
+
+      return relevantIds.map((soId) => {
+        const summary = summaryMap[`${section.id}:${soId}:${section.schoolYear || ""}`];
+        const studentOutcome = studentOutcomes.find((item) => String(item.id) === String(soId));
+
+        return {
+          courseCode: section.courseCode,
+          courseName: section.courseName,
+          sectionName: section.name,
+          semester: section.semester,
+          schoolYear: section.schoolYear,
+          soCode: studentOutcome?.code || `SO ${soId}`,
+          statusLabel: statusColors(summary?.status).label,
+          gradedStudents: summary?.graded_students ?? 0,
+          totalStudents: summary?.total_students ?? section.studentCount ?? 0,
+          facultyName: section.facultyName || "",
+        };
+      });
+    });
+  }, [courseMappings, filteredSections, selectedCourseCode, selectedSOIds, studentOutcomes, summaryMap]);
+
   async function handleExportCsv() {
     try {
-      const rows = filteredSections.flatMap((section) => {
-        const mappedSOs = courseMappings[section.courseCode] || [];
-        const relevantIds = selectedSOIds.length > 0 ? selectedSOIds : mappedSOs;
-
-        return relevantIds.map((soId) => {
-          const summary = summaryMap[`${section.id}:${soId}:${section.schoolYear || ""}`];
-          const studentOutcome = studentOutcomes.find((item) => String(item.id) === String(soId));
-
-          return {
-            courseCode: section.courseCode,
-            courseName: section.courseName,
-            sectionName: section.name,
-            semester: section.semester,
-            schoolYear: section.schoolYear,
-            soCode: studentOutcome?.code || `SO ${soId}`,
-            statusLabel: statusColors(summary?.status).label,
-            gradedStudents: summary?.graded_students ?? 0,
-            totalStudents: summary?.total_students ?? section.studentCount ?? 0,
-            facultyName: section.facultyName || "",
-          };
-        });
-      });
-
-      if (!rows.length) {
-        Alert.alert("No data to export", "Use filters that return assessment rows before exporting.");
+      if (!selectedCourseCode) {
+        Alert.alert("Select a course", "Choose a course before exporting the CSV.");
         return;
       }
 
-      const csv = buildAssessmentCsv(rows);
-      const fileUri = `${FileSystem.cacheDirectory}faculty-assessments-${Date.now()}.csv`;
+      if (!exportRows.length) {
+        Alert.alert("No data to export", "No assessment rows are available for the selected course.");
+        return;
+      }
+
+      const csv = buildAssessmentCsv(exportRows);
+      const fileUri = `${FileSystem.cacheDirectory}faculty-assessments-${String(selectedCourseCode).replace(/[^a-z0-9_-]/gi, "-")}-${Date.now()}.csv`;
       await FileSystem.writeAsStringAsync(fileUri, csv, {
         encoding: FileSystem.EncodingType.UTF8,
       });
@@ -401,10 +414,26 @@ export default function FacultyAssessmentsScreen({ navigation }) {
     <AppScreen
       title={"SO\nAssessment"}
       subtitle="Filter by outcome, course, section, and term before opening a class for grading."
+      showMeta={false}
+      enableScrollTopButton={true}
       heroFooter={
-        <Pressable onPress={handleExportCsv} style={styles.exportButton}>
-          <Text style={styles.exportButtonText}>Export CSV</Text>
-        </Pressable>
+        <View style={styles.heroFooterWrap}>
+          <View style={styles.heroActionRow}>
+            <Pressable onPress={() => openFilterPicker("course")} style={styles.chooseCourseButton}>
+              <Text style={styles.chooseCourseButtonText}>
+                {selectedCourseCode ? `Selected: ${selectedCourseCode}` : "Choose Course"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleExportCsv}
+              style={[styles.exportButton, !selectedCourseCode ? styles.exportButtonDisabled : null]}
+              disabled={!selectedCourseCode}
+            >
+              <Text style={styles.exportButtonText}>Export Course CSV</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.heroHelperText}>Pick a course first, then export its assessment rows.</Text>
+        </View>
       }
     >
       {loading ? (
@@ -492,8 +521,6 @@ export default function FacultyAssessmentsScreen({ navigation }) {
                 ) {
                   aggregateStatus = "assessed";
                 }
-
-                const badge = statusColors(aggregateStatus);
 
                 return (
                   <Pressable
@@ -716,7 +743,13 @@ export function FacultyAssessmentEntryScreen({ route, navigation }) {
       : null;
 
   return (
-    <AppScreen eyebrow="Assessment Entry" title={course.courseCode} subtitle={course.courseName}>
+    <AppScreen
+      eyebrow="Assessment Entry"
+      title={course.courseCode}
+      subtitle={course.courseName}
+      showMeta={false}
+      enableScrollTopButton={true}
+    >
       <InfoCard title="Selection">
         <View style={styles.entryTopRow}>
           <Pressable onPress={() => navigation.goBack()} style={styles.entryBackButton}>

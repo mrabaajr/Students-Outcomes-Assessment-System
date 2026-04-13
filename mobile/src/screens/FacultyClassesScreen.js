@@ -325,6 +325,8 @@ export default function FacultyClassesScreen() {
       eyebrow="Faculty Portal"
       title="My Classes"
       subtitle="View only the sections assigned to you. Active classes are actionable, while inactive classes stay visible for reference only."
+      showMeta={false}
+      enableScrollTopButton={true}
     >
       <InfoCard title="View Mode">
         <View style={styles.segmentedControl}>
@@ -729,8 +731,10 @@ function FilterChip({ label, onPress, selected }) {
 
 const styles = StyleSheet.create({
   segmentedControl: {
-    backgroundColor: colors.darkAlt,
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 14,
+    borderWidth: 1,
     flexDirection: "row",
     padding: 4,
   },
@@ -741,7 +745,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   segmentActive: {
-    backgroundColor: colors.yellow,
+    backgroundColor: colors.dark,
   },
   segmentText: {
     color: colors.gray,
@@ -749,10 +753,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   segmentTextActive: {
-    color: colors.dark,
+    color: colors.yellow,
   },
   input: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceMuted,
     borderColor: colors.graySoft,
     borderRadius: 16,
     borderWidth: 1,
@@ -778,7 +782,7 @@ const styles = StyleSheet.create({
     paddingRight: 6,
   },
   chip: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
     borderColor: colors.graySoft,
     borderRadius: 999,
     borderWidth: 1,
@@ -786,8 +790,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   chipSelected: {
-    backgroundColor: colors.yellow,
-    borderColor: colors.yellow,
+    backgroundColor: colors.dark,
+    borderColor: colors.dark,
   },
   chipText: {
     color: colors.darkAlt,
@@ -795,7 +799,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   chipTextSelected: {
-    color: colors.dark,
+    color: colors.yellow,
   },
   statRow: {
     gap: 4,
@@ -811,14 +815,13 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     alignItems: "center",
-    borderColor: colors.graySoft,
-    borderRadius: 12,
-    borderWidth: 1,
+    backgroundColor: colors.dark,
+    borderRadius: 999,
     marginTop: 12,
     paddingVertical: 10,
   },
   resetButtonText: {
-    color: colors.dark,
+    color: colors.yellow,
     fontSize: 13,
     fontWeight: "700",
   },
@@ -835,6 +838,11 @@ const styles = StyleSheet.create({
   cardHeader: {
     gap: 4,
     marginBottom: 12,
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.graySoft,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 10,
   },
   badgeRow: {
     alignItems: "center",
@@ -892,8 +900,8 @@ const styles = StyleSheet.create({
   },
   importButton: {
     alignItems: "center",
-    backgroundColor: colors.yellow,
-    borderRadius: 10,
+    backgroundColor: colors.dark,
+    borderRadius: 999,
     marginBottom: 10,
     paddingVertical: 11,
   },
@@ -904,7 +912,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   importButtonText: {
-    color: colors.dark,
+    color: colors.yellow,
     fontSize: 13,
     fontWeight: "700",
   },
@@ -917,7 +925,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     marginHorizontal: -18,
     paddingHorizontal: 18,
-    paddingTop: 10,
+    paddingTop: 12,
   },
   viewStudentsText: {
     color: "#B26B00",
@@ -958,9 +966,9 @@ const styles = StyleSheet.create({
   listToggleButton: {
     alignSelf: "flex-start",
     backgroundColor: "#FFF7D6",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   listToggleButtonText: {
     color: "#B26B00",
@@ -968,8 +976,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   roster: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
     borderRadius: 18,
+    borderWidth: 1,
     gap: 10,
     marginTop: 14,
     padding: 14,
@@ -1012,7 +1022,9 @@ const styles = StyleSheet.create({
   },
   choiceCard: {
     backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
     borderRadius: 18,
+    borderWidth: 1,
     padding: 18,
     width: "100%",
   },
@@ -1032,20 +1044,20 @@ const styles = StyleSheet.create({
   },
   choicePrimaryButton: {
     alignItems: "center",
-    backgroundColor: colors.yellow,
-    borderRadius: 12,
+    backgroundColor: colors.dark,
+    borderRadius: 999,
     paddingVertical: 13,
   },
   choicePrimaryButtonText: {
-    color: colors.dark,
+    color: colors.yellow,
     fontSize: 14,
     fontWeight: "800",
   },
   choiceSecondaryButton: {
     alignItems: "center",
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
     borderColor: colors.graySoft,
-    borderRadius: 12,
+    borderRadius: 999,
     borderWidth: 1,
     paddingVertical: 13,
   },
@@ -1066,8 +1078,10 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
+    borderWidth: 1,
     maxHeight: "88%",
     paddingBottom: 20,
     paddingHorizontal: 18,
@@ -1094,7 +1108,7 @@ const styles = StyleSheet.create({
   modalInput: {
     backgroundColor: colors.surfaceMuted,
     borderColor: colors.graySoft,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     color: colors.dark,
     fontSize: 14,
@@ -1104,7 +1118,7 @@ const styles = StyleSheet.create({
   modalMultilineInput: {
     backgroundColor: colors.surfaceMuted,
     borderColor: colors.graySoft,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     color: colors.dark,
     fontSize: 14,
@@ -1127,8 +1141,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   yearChipSelected: {
-    backgroundColor: colors.yellow,
-    borderColor: colors.yellow,
+    backgroundColor: colors.dark,
+    borderColor: colors.dark,
   },
   yearChipText: {
     color: colors.darkAlt,
@@ -1136,7 +1150,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   yearChipTextSelected: {
-    color: colors.dark,
+    color: colors.yellow,
   },
   modalButtonRow: {
     flexDirection: "row",
@@ -1145,9 +1159,9 @@ const styles = StyleSheet.create({
   },
   modalSecondaryButton: {
     alignItems: "center",
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
     borderColor: colors.graySoft,
-    borderRadius: 10,
+    borderRadius: 999,
     borderWidth: 1,
     flex: 1,
     paddingVertical: 11,
@@ -1159,13 +1173,13 @@ const styles = StyleSheet.create({
   },
   modalPrimaryButton: {
     alignItems: "center",
-    backgroundColor: colors.yellow,
-    borderRadius: 10,
+    backgroundColor: colors.dark,
+    borderRadius: 999,
     flex: 1,
     paddingVertical: 11,
   },
   modalPrimaryButtonText: {
-    color: colors.dark,
+    color: colors.yellow,
     fontSize: 13,
     fontWeight: "800",
   },

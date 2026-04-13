@@ -7,13 +7,17 @@
     <list default="true" id="040b285d-bf81-4640-8fdd-432f454e50ac" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/db.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/backend/db.sqlite3" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobile/src/components/layout/AppScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/components/layout/AppScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/components/navigation/AppSidebar.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/components/navigation/AppSidebar.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/navigation/RootNavigator.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/navigation/RootNavigator.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/screens/FacultyAssessmentsScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/FacultyAssessmentsScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/screens/FacultyClassesScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/FacultyClassesScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/screens/FacultyReportsScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/FacultyReportsScreen.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/screens/ProgramChairAssessmentsScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/ProgramChairAssessmentsScreen.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/screens/ProgramChairClassesScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/ProgramChairClassesScreen.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/screens/ProgramChairCoursesScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/ProgramChairCoursesScreen.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/screens/ProgramChairReportsScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/ProgramChairReportsScreen.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/screens/ProgramChairStudentOutcomesScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/ProgramChairStudentOutcomesScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/services/usersMobile.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/services/usersMobile.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

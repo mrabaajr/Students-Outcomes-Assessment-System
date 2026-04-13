@@ -15,6 +15,7 @@ import {
   fetchStudentOutcomesMobile,
   saveStudentOutcomesMobile,
 } from "../services/studentOutcomes";
+import { colors } from "../theme/colors";
 
 const BLACK = "#000000";
 const WHITE = "#FFFFFF";
@@ -250,7 +251,18 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
   const [formVisible, setFormVisible] = useState(false);
   const [editingOutcome, setEditingOutcome] = useState(null);
   const [query, setQuery] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState("all");
+  const [filterPickerVisible, setFilterPickerVisible] = useState(false);
   const [deletingOutcome, setDeletingOutcome] = useState(null);
+
+  const filterOptions = useMemo(
+    () => [
+      { label: "All Outcomes", value: "all" },
+      { label: "With Indicators", value: "withIndicators" },
+      { label: "Without Indicators", value: "withoutIndicators" },
+    ],
+    []
+  );
 
   async function loadOutcomes(refresh = false) {
     try {
@@ -300,13 +312,21 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
 
   const filteredOutcomes = useMemo(() => {
     const text = query.trim().toLowerCase();
-    if (!text) return outcomes;
-
     return outcomes.filter((item) => {
       const haystack = `${item.title} ${item.description} SO ${item.number}`.toLowerCase();
-      return haystack.includes(text);
+      const matchesText = !text || haystack.includes(text);
+      const indicatorsCount = item.indicators?.length || 0;
+      const matchesFilter =
+        selectedFilter === "all" ||
+        (selectedFilter === "withIndicators" && indicatorsCount > 0) ||
+        (selectedFilter === "withoutIndicators" && indicatorsCount === 0);
+
+      return matchesText && matchesFilter;
     });
-  }, [outcomes, query]);
+  }, [outcomes, query, selectedFilter]);
+
+  const activeFilterLabel =
+    filterOptions.find((option) => option.value === selectedFilter)?.label || "All Outcomes";
 
   const nextNumber = useMemo(() => {
     const usedNumbers = new Set(outcomes.map((item) => item.number));
@@ -382,6 +402,17 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
         subtitle="Define and manage student outcomes, performance indicators, and evaluation criteria for your program assessment."
         showMeta={false}
         enableScrollTopButton={true}
+        heroFooter={
+          <Pressable
+            onPress={() => {
+              setEditingOutcome(null);
+              setFormVisible(true);
+            }}
+            style={styles.addButton}
+          >
+            <Text style={styles.addButtonText}>+ ADD NEW SO</Text>
+          </Pressable>
+        }
       >
         <InfoCard>
           <View style={styles.controlCard}>
@@ -422,17 +453,17 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
               </Pressable>
             </View>
 
-            <View style={styles.actionRow}>
+            <View style={styles.toolbarRow}>
               <Pressable
-                onPress={() => {
-                  setEditingOutcome(null);
-                  setFormVisible(true);
-                }}
-                style={styles.addButton}
+                onPress={() => setFilterPickerVisible(true)}
+                style={styles.filterDropdownButton}
               >
-                <Text style={styles.addButtonText}>+ ADD NEW SO</Text>
+                <Text style={styles.filterDropdownButtonText}>Filters: {activeFilterLabel}</Text>
+                <Text style={styles.filterDropdownChevron}>▾</Text>
               </Pressable>
+            </View>
 
+            <View style={[styles.actionRow, styles.saveRow]}>
               {hasUnsavedChanges ? (
                 <Pressable
                   onPress={handleSaveBackend}
@@ -581,6 +612,41 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
         onCancel={() => setDeletingOutcome(null)}
         onConfirm={confirmDeleteOutcome}
       />
+
+      <Modal animationType="fade" transparent visible={filterPickerVisible}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Filters</Text>
+            <Text style={styles.modalSubtitle}>Choose which outcomes to show.</Text>
+
+            <View style={styles.filterOptionList}>
+              {filterOptions.map((option) => {
+                const selected = selectedFilter === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => {
+                      setSelectedFilter(option.value);
+                      setFilterPickerVisible(false);
+                    }}
+                    style={[styles.filterOptionButton, selected ? styles.filterOptionButtonActive : null]}
+                  >
+                    <Text style={[styles.filterOptionText, selected ? styles.filterOptionTextActive : null]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable onPress={() => setFilterPickerVisible(false)} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -815,95 +881,154 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
 
 const styles = StyleSheet.create({
   controlCard: {
-    backgroundColor: BLACK,
-    borderRadius: 16,
-    padding: 12,
+    backgroundColor: WHITE,
+    borderColor: "rgba(0,0,0,0.12)",
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
   },
   controlHeaderRow: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 14,
   },
   controlEyebrow: {
-    color: YELLOW,
+    color: "#B26B00",
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.6,
     textTransform: "uppercase",
   },
   controlStatus: {
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
+    backgroundColor: "#FFF7D6",
     borderRadius: 999,
-    color: "rgba(255,255,255,0.92)",
+    color: BLACK,
     fontSize: 11,
     fontWeight: "700",
     overflow: "hidden",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
   },
   metricsRow: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 10,
+    gap: 10,
+    marginBottom: 14,
   },
   metricChip: {
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 14,
     borderWidth: 1,
     flex: 1,
-    minHeight: 56,
-    padding: 8,
+    minHeight: 64,
+    padding: 10,
   },
   metricValue: {
-    color: WHITE,
+    color: BLACK,
     fontSize: 18,
     fontWeight: "800",
   },
   metricLabel: {
-    color: "rgba(255,255,255,0.82)",
+    color: colors.gray,
     fontSize: 11,
-    marginTop: 2,
+    marginTop: 4,
   },
   toolbarRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
+    marginTop: 10,
   },
   searchInput: {
-    backgroundColor: "rgba(255, 255, 255, 0.96)",
-    borderColor: "rgba(255, 255, 255, 0.4)",
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
     borderRadius: 12,
     borderWidth: 1,
     color: BLACK,
     flex: 1,
     fontSize: 14,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   refreshButton: {
     alignItems: "center",
-    backgroundColor: YELLOW,
+    backgroundColor: BLACK,
     borderRadius: 12,
     justifyContent: "center",
-    minWidth: 86,
-    paddingHorizontal: 12,
+    minHeight: 46,
+    minWidth: 96,
+    paddingHorizontal: 14,
   },
   refreshButtonText: {
+    color: YELLOW,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  filterDropdownButton: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 12,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  filterDropdownButtonText: {
     color: BLACK,
     fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+    marginRight: 6,
+  },
+  filterDropdownChevron: {
+    color: BLACK,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  filterOptionList: {
+    gap: 10,
+    marginTop: 16,
+  },
+  filterOptionButton: {
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  filterOptionButtonActive: {
+    backgroundColor: BLACK,
+    borderColor: BLACK,
+  },
+  filterOptionText: {
+    color: BLACK,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  filterOptionTextActive: {
     fontWeight: "800",
   },
   actionRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    gap: 10,
-    marginTop: 12,
+    gap: 12,
+    marginTop: 16,
+  },
+  saveRow: {
+    justifyContent: "flex-end",
   },
   addButton: {
+    alignItems: "center",
     backgroundColor: YELLOW,
     borderRadius: 999,
+    justifyContent: "center",
+    minWidth: 170,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
@@ -931,6 +1056,7 @@ const styles = StyleSheet.create({
     backgroundColor: YELLOW,
     borderRadius: 999,
     justifyContent: "center",
+    minWidth: 170,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
@@ -940,7 +1066,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   resultsText: {
-    color: BLACK,
+    color: colors.gray,
     fontSize: 12,
     fontWeight: "600",
   },
@@ -948,12 +1074,12 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   errorText: {
-    color: BLACK,
+    color: colors.danger,
     fontSize: 14,
     lineHeight: 20,
   },
   mutedText: {
-    color: BLACK,
+    color: colors.gray,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -986,11 +1112,11 @@ const styles = StyleSheet.create({
   },
   outcomeTitle: {
     color: BLACK,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
   },
   outcomeDescription: {
-    color: BLACK,
+    color: colors.darkAlt,
     fontSize: 14,
     lineHeight: 20,
     marginTop: 6,
@@ -1002,8 +1128,8 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   ghostButton: {
-    backgroundColor: WHITE,
-    borderColor: YELLOW,
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 12,
@@ -1015,33 +1141,33 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   deleteButton: {
-    backgroundColor: WHITE,
-    borderColor: BLACK,
+    backgroundColor: "#FFF1F2",
+    borderColor: "#FECDD3",
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   deleteButtonText: {
-    color: BLACK,
+    color: "#E11D48",
     fontSize: 13,
     fontWeight: "700",
   },
   summaryBox: {
-    borderTopColor: "rgba(0,0,0,0.18)",
-    borderTopWidth: 1,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 14,
     marginTop: 16,
-    paddingTop: 14,
+    padding: 12,
   },
   summaryLabel: {
-    color: BLACK,
+    color: colors.dark,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.8,
     textTransform: "uppercase",
   },
   summaryText: {
-    color: BLACK,
+    color: colors.gray,
     fontSize: 13,
     marginTop: 6,
   },
@@ -1050,19 +1176,19 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   indicatorCard: {
-    backgroundColor: WHITE,
-    borderColor: YELLOW,
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
     borderRadius: 12,
     borderWidth: 1,
     padding: 10,
   },
   indicatorTitle: {
-    color: YELLOW,
+    color: "#B26B00",
     fontSize: 12,
     fontWeight: "800",
   },
   indicatorDescription: {
-    color: BLACK,
+    color: colors.dark,
     fontSize: 13,
     fontWeight: "600",
     lineHeight: 18,
@@ -1071,28 +1197,28 @@ const styles = StyleSheet.create({
   criteriaList: {
     marginTop: 8,
     paddingTop: 8,
-    borderTopColor: "rgba(255,194,14,0.45)",
+    borderTopColor: colors.graySoft,
     borderTopWidth: 1,
     gap: 4,
   },
   criteriaItem: {
-    color: BLACK,
+    color: colors.darkAlt,
     fontSize: 12,
     lineHeight: 16,
   },
   emptyBox: {
-    borderTopColor: "rgba(0,0,0,0.18)",
-    borderTopWidth: 1,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 14,
     marginTop: 16,
-    paddingTop: 14,
+    padding: 12,
   },
   emptyText: {
-    color: BLACK,
+    color: colors.gray,
     fontSize: 13,
     fontStyle: "italic",
   },
   modalOverlay: {
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.45)",
     flex: 1,
     justifyContent: "center",
     padding: 18,
@@ -1100,6 +1226,13 @@ const styles = StyleSheet.create({
   modalCard: {
     backgroundColor: WHITE,
     borderRadius: 24,
+    borderColor: colors.graySoft,
+    borderWidth: 1,
+    shadowColor: "#111827",
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
     padding: 20,
   },
   modalTitle: {
@@ -1122,8 +1255,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   modalInput: {
-    backgroundColor: WHITE,
-    borderColor: "rgba(0,0,0,0.2)",
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.graySoft,
     borderRadius: 12,
     borderWidth: 1,
     color: BLACK,
@@ -1141,8 +1274,8 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     alignItems: "center",
-    backgroundColor: WHITE,
-    borderColor: "rgba(0,0,0,0.2)",
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
     borderWidth: 1,
     borderRadius: 12,
     flex: 1,
@@ -1167,9 +1300,14 @@ const styles = StyleSheet.create({
   },
   confirmCard: {
     backgroundColor: WHITE,
-    borderColor: BLACK,
+    borderColor: colors.graySoft,
     borderRadius: 24,
     borderWidth: 1,
+    shadowColor: "#111827",
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
     padding: 20,
   },
   confirmIconWrap: {
@@ -1213,11 +1351,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   rubricCard: {
-    backgroundColor: WHITE,
-    borderColor: "rgba(0,0,0,0.18)",
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
     borderRadius: 12,
     borderWidth: 1,
-    borderBottomWidth: 1,
     marginTop: 10,
     paddingBottom: 16,
     paddingHorizontal: 10,

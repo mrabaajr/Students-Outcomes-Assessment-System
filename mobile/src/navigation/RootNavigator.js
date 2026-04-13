@@ -17,6 +17,7 @@ import ProgramChairAssessmentsScreen, {
 import ProgramChairClassesScreen from "../screens/ProgramChairClassesScreen";
 import ProgramChairCoursesScreen from "../screens/ProgramChairCoursesScreen";
 import ProgramChairDashboardScreen from "../screens/ProgramChairDashboardScreen";
+import ProgramChairPastReportsScreen from "../screens/ProgramChairPastReportsScreen";
 import ProgramChairReportsScreen from "../screens/ProgramChairReportsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import ProgramChairStudentOutcomesScreen, {
@@ -99,6 +100,11 @@ export default function RootNavigator() {
           <Stack.Screen
             name="ProgramChairReports"
             component={ProgramChairReportsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ProgramChairPastReports"
+            component={ProgramChairPastReportsScreen}
             options={{ headerShown: false }}
           />
           <Stack.Screen

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -8,6 +9,8 @@ import {
   Text,
   View,
 } from "react-native";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 
 import AppScreen from "../components/layout/AppScreen";
 import InfoCard from "../components/ui/InfoCard";
@@ -322,11 +325,136 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
     };
   }, [coursesForGrid.length, filteredSections.length, sectionRequests, summaryMap]);
 
+  const exportRows = useMemo(() => {
+    if (!selectedCourseCode) {
+      return [];
+    }
+
+    return coursesForGrid.map((course) => {
+      const mappedIds = courseMappings[course.courseCode] || [];
+      const courseSummaries = course.sections.flatMap((section) => {
+        const relevantIds = selectedSOIds.length > 0 ? selectedSOIds : mappedIds;
+        return relevantIds
+          .map((soId) => summaryMap[`${section.id}:${soId}:${section.schoolYear || ""}`])
+          .filter(Boolean);
+      });
+
+      let aggregateStatus = "not-yet";
+      if (courseSummaries.some((item) => item.status === "incomplete")) {
+        aggregateStatus = "incomplete";
+      } else if (courseSummaries.length > 0 && courseSummaries.every((item) => item.status === "assessed")) {
+        aggregateStatus = "assessed";
+      }
+
+      return {
+        courseCode: course.courseCode,
+        courseName: course.courseName,
+        sections: course.sections.length,
+        students: course.studentCount,
+        mappedSOs: mappedIds.length,
+        status: statusColors(aggregateStatus).label,
+        completion: assessmentSnapshot.courses > 0 ? `${Math.round((courseSummaries.filter((item) => item.status === "assessed").length / Math.max(courseSummaries.length, 1)) * 100)}%` : "0%",
+        sectionNames: course.sections.map((section) => section.name).join(" | "),
+      };
+    });
+  }, [assessmentSnapshot.courses, courseMappings, coursesForGrid, selectedCourseCode, selectedSOIds, summaryMap]);
+
+  function toCsvField(value) {
+    const text = value == null ? "" : String(value);
+    if (/[",\n\r]/.test(text)) {
+      return `"${text.replaceAll('"', '""')}"`;
+    }
+    return text;
+  }
+
+  function buildReportCsv(rows) {
+    const header = [
+      "Course Code",
+      "Course Name",
+      "Sections",
+      "Section Names",
+      "Students",
+      "Mapped SOs",
+      "Status",
+      "Completion",
+    ];
+
+    const body = rows.map((row) =>
+      [
+        row.courseCode,
+        row.courseName,
+        row.sections,
+        row.sectionNames,
+        row.students,
+        row.mappedSOs,
+        row.status,
+        row.completion,
+      ]
+        .map(toCsvField)
+        .join(",")
+    );
+
+    return `${header.map(toCsvField).join(",")}\n${body.join("\n")}`;
+  }
+
+  async function handleExportCsv() {
+    try {
+      if (!selectedCourseCode) {
+        Alert.alert("Select a course", "Choose a course filter before exporting the CSV.");
+        return;
+      }
+
+      if (!exportRows.length) {
+        Alert.alert("No data to export", "No assessment rows are available for the selected course.");
+        return;
+      }
+
+      const csv = buildReportCsv(exportRows);
+      const fileUri = `${FileSystem.cacheDirectory}program-chair-course-${String(selectedCourseCode).replace(/[^a-z0-9_-]/gi, "-")}-${Date.now()}.csv`;
+      await FileSystem.writeAsStringAsync(fileUri, csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "text/csv",
+          dialogTitle: "Export course CSV",
+          UTI: "public.comma-separated-values-text",
+        });
+      } else {
+        Alert.alert("Export ready", "CSV file was created, but sharing is not available on this device.");
+      }
+    } catch (exportError) {
+      Alert.alert("CSV export failed", exportError.message || "Unable to export course CSV.");
+    }
+  }
+
   return (
     <AppScreen
       eyebrow="Assessment"
       title={"SO\nAssessment"}
       subtitle="Filter by outcome, course, section, and term before opening a class for grading."
+      showMeta={false}
+      enableScrollTopButton={true}
+      heroFooter={
+        <View style={styles.heroFooterWrap}>
+          <View style={styles.heroActionRow}>
+            <Pressable onPress={() => openFilterPicker("course")} style={styles.chooseCourseButton}>
+              <Text style={styles.chooseCourseButtonText}>
+                {selectedCourseCode ? `Selected: ${selectedCourseCode}` : "Choose Course"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleExportCsv}
+              style={[styles.exportButton, !selectedCourseCode ? styles.exportButtonDisabled : null]}
+              disabled={!selectedCourseCode}
+            >
+              <Text style={styles.exportButtonText}>Export Course CSV</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.heroHelperText}>Pick a course first, then export its assessment data.</Text>
+        </View>
+      }
     >
       {loading ? (
         <InfoCard title="Loading">
@@ -365,11 +493,13 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
               <Text style={styles.mutedText}>
                 {activeFilterCount > 0 ? `${activeFilterCount} active filter(s)` : "No active filters"}
               </Text>
-              {activeFilterCount > 0 ? (
-                <Pressable onPress={clearAllFilters} style={styles.clearButton}>
-                  <Text style={styles.clearButtonText}>Clear All</Text>
-                </Pressable>
-              ) : null}
+              <View style={styles.filterFooterActions}>
+                {activeFilterCount > 0 ? (
+                  <Pressable onPress={clearAllFilters} style={styles.clearButton}>
+                    <Text style={styles.clearButtonText}>Clear All</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           </InfoCard>
 
@@ -635,7 +765,13 @@ export function ProgramChairAssessmentEntryScreen({ route, navigation }) {
       : null;
 
   return (
-    <AppScreen eyebrow="Assessment Entry" title={course.courseCode} subtitle={course.courseName}>
+    <AppScreen
+      eyebrow="Assessment Entry"
+      title={course.courseCode}
+      subtitle={course.courseName}
+      showMeta={false}
+      enableScrollTopButton={true}
+    >
       <InfoCard title="Selection">
         <View style={styles.entryTopRow}>
           <Pressable onPress={() => navigation.goBack()} style={styles.entryBackButton}>
@@ -974,6 +1110,62 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 16,
+  },
+  filterFooterActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  heroFooterWrap: {
+    gap: 10,
+  },
+  heroActionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  chooseCourseButton: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.graySoft,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexGrow: 1,
+    flexBasis: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  chooseCourseButtonText: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  exportButton: {
+    alignSelf: "flex-start",
+    alignItems: "center",
+    backgroundColor: colors.yellow,
+    borderColor: colors.yellowAlt,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexGrow: 1,
+    flexBasis: 0,
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  exportButtonDisabled: {
+    opacity: 0.55,
+  },
+  exportButtonText: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  heroHelperText: {
+    color: colors.yellow,
+    fontSize: 12,
+    lineHeight: 18,
   },
   snapshotGrid: {
     flexDirection: "row",

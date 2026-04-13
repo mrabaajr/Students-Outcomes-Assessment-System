@@ -383,6 +383,7 @@ export default function FacultyReportsScreen({ navigation }) {
       eyebrow="Faculty Reports"
       title={"Assessment Reports\n& Performance Summary"}
       subtitle="Review your class-level assessment performance and course summaries using the same reports data as the website."
+      enableScrollTopButton={true}
       heroFooter={
         <View style={styles.actionRow}>
           <Pressable onPress={handleViewPastReports} style={styles.secondaryAction}>
