@@ -62,10 +62,10 @@ gunicorn==21.2.0
    ```
    SECRET_KEY=generate-a-new-random-key-here
    DEBUG=False
-   ALLOWED_HOSTS=soas-backend.onrender.com
+   ALLOWED_HOSTS=soms-backend.onrender.com
    
    # Database (Render provides this)
-   DATABASE_URL=postgresql://user:password@host:5432/db
+   DATABASE_URL=postgresql://user:password@host:5432/db  
    
    # Email
    EMAIL_HOST=smtp-relay.brevo.com
