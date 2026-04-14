@@ -1,2 +1,2 @@
 web: cd backend && python -m gunicorn config.wsgi:application --log-file -
-release: cd backend && python manage.py migrate
+release: cd backend && python manage.py migrate && python manage.py collectstatic --noinput
