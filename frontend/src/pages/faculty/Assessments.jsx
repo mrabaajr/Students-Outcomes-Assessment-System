@@ -39,8 +39,11 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const API_BASE_URL = "http://localhost:8000/api";
-const FACULTY_ALLOWED_COURSE_CODES = new Set(["CPE401", "CPE312", "CPE203", "CPE105"]);
-const normalizeCourseCode = (value) => String(value || "").replace(/\s+/g, "").toUpperCase();
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("accessToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 const MOCK_STUDENT_OUTCOMES = [
   {
@@ -121,93 +124,42 @@ const MOCK_STUDENT_OUTCOMES = [
   },
 ];
 
-const MOCK_SECTIONS = [
-  {
-    id: 1,
-    name: "CPE41S1",
-    courseCode: "CPE401",
-    courseName: "Computer Networks",
-    semester: "1st Semester",
-    schoolYear: "2024-2025",
-    curriculum: "BS Computer Engineering",
-    facultyName: "Assigned Faculty",
-    students: [
-      { id: 1, studentId: "2021-00101", name: "Juan Dela Cruz", yearLevel: 4 },
-      { id: 2, studentId: "2021-00102", name: "Maria Santos", yearLevel: 4 },
-      { id: 3, studentId: "2021-00103", name: "Pedro Reyes", yearLevel: 4 },
-      { id: 4, studentId: "2021-00104", name: "Ana Garcia", yearLevel: 4 },
-      { id: 5, studentId: "2021-00105", name: "Carlos Ramos", yearLevel: 4 },
-    ],
-  },
-  {
-    id: 2,
-    name: "CPE31S2",
-    courseCode: "CPE312",
-    courseName: "Digital Systems",
-    semester: "1st Semester",
-    schoolYear: "2024-2025",
-    curriculum: "BS Computer Engineering",
-    facultyName: "Assigned Faculty",
-    students: [
-      { id: 6, studentId: "2022-00201", name: "Liza Fernandez", yearLevel: 3 },
-      { id: 7, studentId: "2022-00202", name: "Mark Villanueva", yearLevel: 3 },
-      { id: 8, studentId: "2022-00203", name: "Sofia Cruz", yearLevel: 3 },
-    ],
-  },
-  {
-    id: 3,
-    name: "CPE20S1",
-    courseCode: "CPE203",
-    courseName: "Data Structures",
-    semester: "1st Semester",
-    schoolYear: "2024-2025",
-    curriculum: "BS Computer Engineering",
-    facultyName: "Assigned Faculty",
-    students: [
-      { id: 9, studentId: "2023-00301", name: "James Mendoza", yearLevel: 2 },
-      { id: 10, studentId: "2023-00302", name: "Emma Tan", yearLevel: 2 },
-      { id: 11, studentId: "2023-00303", name: "Luis Aquino", yearLevel: 2 },
-      { id: 12, studentId: "2023-00304", name: "Grace Lim", yearLevel: 2 },
-    ],
-  },
-  {
-    id: 4,
-    name: "CPE10S3",
-    courseCode: "CPE105",
-    courseName: "Introduction to Computing",
-    semester: "1st Semester",
-    schoolYear: "2024-2025",
-    curriculum: "BS Computer Engineering",
-    facultyName: "Assigned Faculty",
-    students: [
-      { id: 13, studentId: "2024-00401", name: "Mia Rivera", yearLevel: 1 },
-      { id: 14, studentId: "2024-00402", name: "John Bautista", yearLevel: 1 },
-    ],
-  },
-];
+const buildFacultyAssignments = (sections) => {
+  const facultyMap = new Map();
 
-const COURSE_SO_NUMBER_MAP = {
-  CPE401: [1, 3, 5],
-  CPE312: [2, 4],
-  CPE203: [1, 2, 6],
-  CPE105: [1],
-};
+  sections.forEach((section) => {
+    const faculty = section.faculty;
+    if (!faculty?.id) {
+      return;
+    }
 
-const buildCourseMappingsFromOutcomes = (outcomes) => {
-  const soIdByNumber = new Map(outcomes.map((outcome) => [parseInt(outcome.number, 10), outcome.id]));
-  const mappings = {};
+    if (!facultyMap.has(faculty.id)) {
+      facultyMap.set(faculty.id, {
+        id: faculty.id,
+        name: [faculty.first_name, faculty.last_name].filter(Boolean).join(" ").trim() || faculty.email,
+        email: faculty.email || "",
+        department: faculty.department || "",
+        courses: [],
+      });
+    }
 
-  Object.entries(COURSE_SO_NUMBER_MAP).forEach(([courseCode, soNumbers]) => {
-    const mappedIds = soNumbers
-      .map((number) => soIdByNumber.get(number))
-      .filter((id) => typeof id === "number");
+    const currentFaculty = facultyMap.get(faculty.id);
+    let courseEntry = currentFaculty.courses.find((course) => course.code === section.course_code);
+    if (!courseEntry) {
+      courseEntry = {
+        code: section.course_code,
+        name: section.course_name,
+        sections: [],
+      };
+      currentFaculty.courses.push(courseEntry);
+    }
 
-    if (mappedIds.length > 0) {
-      mappings[courseCode] = mappedIds;
+    if (!courseEntry.sections.includes(section.name)) {
+      courseEntry.sections.push(section.name);
     }
   });
 
-  return mappings;
+  return Array.from(facultyMap.values());
 };
 
 // Icons mapping for SOs (cycles if more than 6)
@@ -312,7 +264,14 @@ export default function FacultyAssessments() {
     let outcomes = MOCK_STUDENT_OUTCOMES;
 
     try {
-      const soRes = await axios.get(`${API_BASE_URL}/student-outcomes/`);
+      const [soRes, sectionListRes, mappingRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/student-outcomes/`),
+        axios.get(`${API_BASE_URL}/sections/`, {
+          headers: getAuthHeaders(),
+        }),
+        axios.get(`${API_BASE_URL}/course-so-mappings/`).catch(() => ({ data: [] })),
+      ]);
+
       const soData = (Array.isArray(soRes.data) ? soRes.data : soRes.data.results || []).map((so) => ({
         id: so.id,
         number: so.number,
@@ -335,24 +294,85 @@ export default function FacultyAssessments() {
       if (soData.length > 0) {
         outcomes = soData;
       }
+
+      const rawSections = Array.isArray(sectionListRes.data)
+        ? sectionListRes.data
+        : sectionListRes.data.results || [];
+
+      const activeSections = rawSections.filter((section) => section.is_active !== false);
+      const detailedSections = await Promise.all(
+        activeSections.map(async (section) => {
+          const detailRes = await axios.get(`${API_BASE_URL}/sections/${section.id}/`, {
+            headers: getAuthHeaders(),
+          });
+          const detail = detailRes.data;
+          const facultyName =
+            [section.faculty?.first_name, section.faculty?.last_name].filter(Boolean).join(" ").trim() ||
+            section.faculty?.email ||
+            "Assigned Faculty";
+
+          return {
+            id: detail.id,
+            name: detail.name,
+            courseCode: detail.course_code,
+            courseName: detail.course_name,
+            semester: detail.semester || "",
+            schoolYear: detail.academic_year || "",
+            curriculum: "-",
+            faculty: section.faculty || null,
+            facultyName,
+            students: (detail.students || []).map((student) => ({
+              id: student.id,
+              studentId: student.student_id,
+              name: [student.first_name, student.last_name].filter(Boolean).join(" ").trim(),
+              yearLevel: student.year_level,
+              program: student.program || "",
+            })),
+          };
+        })
+      );
+
+      const mappings = {};
+      const courseMappingsPayload = Array.isArray(mappingRes.data)
+        ? mappingRes.data
+        : mappingRes.data.results || [];
+
+      courseMappingsPayload.forEach((course) => {
+        const soList =
+          course.mappedSOs ||
+          course.mapped_sos ||
+          course.mapped_sos_details?.map((item) => item.id) ||
+          [];
+
+        const soIds = (Array.isArray(soList) ? soList : [])
+          .map((item) => (typeof item === "object" ? item.id : parseInt(item, 10)))
+          .filter((item) => Number.isInteger(item));
+
+        if (course.code && soIds.length > 0) {
+          const existingIds = mappings[course.code] || [];
+          mappings[course.code] = [...new Set([...existingIds, ...soIds])];
+        }
+      });
+
+      setStudentOutcomes(outcomes);
+      setSectionsData(detailedSections);
+      setFacultyData(buildFacultyAssignments(activeSections));
+      setCourseMappings(mappings);
+      toast({
+        title: "Data Loaded",
+        description: "Faculty assessments are now using live backend section data.",
+        variant: "default",
+      });
     } catch (err) {
-      console.error("Failed to fetch SOs, using local fallback:", err);
-      toast({ title: "SO Fallback", description: "Using local Student Outcomes data.", variant: "default" });
+      console.error("Error loading faculty assessment data:", err);
+      toast({
+        title: "Error",
+        description: "Failed to load faculty assessment data from the backend.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-
-    const filteredSections = MOCK_SECTIONS
-      .filter((section) => FACULTY_ALLOWED_COURSE_CODES.has(normalizeCourseCode(section.courseCode)))
-      .map((section) => ({
-        ...section,
-        facultyName: section.facultyName || getFacultyForSection(section, []),
-      }));
-
-    setStudentOutcomes(outcomes);
-    setSectionsData(filteredSections);
-    setFacultyData([]);
-    setCourseMappings(buildCourseMappingsFromOutcomes(outcomes));
-    toast({ title: "Data Loaded", description: "Student Outcomes fetched and local classes synced.", variant: "default" });
-    setIsLoading(false);
   }, [toast]);
 
   // Load data on component mount
@@ -683,15 +703,29 @@ export default function FacultyAssessments() {
       return;
     }
 
-    const localSummaries = requests.map((request) => ({
-      section_id: request.section_id,
-      so_id: request.so_id,
-      status: "not-yet",
-      last_assessed: null,
-    }));
+    setIsStatusLoading(true);
 
-    setIsStatusLoading(false);
-    applyAssessmentSummaries(localSummaries, courses);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/assessments/summary/`, {
+        requests,
+      });
+
+      const summaries = Array.isArray(response.data?.summaries) ? response.data.summaries : [];
+      applyAssessmentSummaries(summaries, courses);
+    } catch (err) {
+      console.error("Error fetching assessment summaries:", err);
+
+      const fallbackSummaries = requests.map((request) => ({
+        section_id: request.section_id,
+        so_id: request.so_id,
+        status: "not-yet",
+        last_assessed: null,
+      }));
+
+      applyAssessmentSummaries(fallbackSummaries, courses);
+    } finally {
+      setIsStatusLoading(false);
+    }
   }, [applyAssessmentSummaries, buildAssessmentSummaryRequests]);
 
   // Function to trigger refresh of assessment status (called from modal after save)

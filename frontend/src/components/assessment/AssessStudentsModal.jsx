@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import axios from "axios";
 import {
   Dialog,
@@ -8,15 +8,25 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import {
   Lightbulb,
   UsersRound,
   Save,
   ArrowLeft,
+  Eraser,
   PenTool,
   MessageSquare,
   Scale,
   FlaskConical,
-  GripHorizontal,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -77,8 +87,18 @@ export function AssessStudentsModal({
   const [isLoadingAssessment, setIsLoadingAssessment] = useState(false);
   const [selectedAssessmentSO, setSelectedAssessmentSO] = useState(null);
   const [missingGradeMap, setMissingGradeMap] = useState({});
-  const [modalWidth, setModalWidth] = useState(85); // in vw
-  const [modalHeight, setModalHeight] = useState(90); // in vh
+  const [modalWidth, setModalWidth] = useState(95); // in vw
+  const [modalHeight, setModalHeight] = useState(96); // in vh
+  const headerRow1Ref = useRef(null);
+  const headerRow2Ref = useRef(null);
+  const [stickyHeaderTops, setStickyHeaderTops] = useState({ row2: 48, row3: 88 });
+  const [statusPopup, setStatusPopup] = useState({
+    open: false,
+    title: "",
+    description: "",
+    sectionStatus: null,
+  });
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
   // Initialize students state from selectedSection
   useEffect(() => {
@@ -118,6 +138,62 @@ export function AssessStudentsModal({
       loadGrades(selectedSection.id, selectedSOIds[0], selectedSection.schoolYear, initializedStudents, selectedSection.courseCode);
     }
   }, [selectedSOIds, selectedSection?.id, isOpen]);
+
+  useLayoutEffect(() => {
+    let rafId = null;
+    let timeoutId = null;
+
+    const updateStickyHeaderOffsets = () => {
+      const row1Height = headerRow1Ref.current?.getBoundingClientRect().height || 0;
+      const row2Height = headerRow2Ref.current?.getBoundingClientRect().height || 0;
+
+      if (row1Height > 0 || row2Height > 0) {
+        setStickyHeaderTops({
+          row2: row1Height,
+          row3: row1Height + row2Height,
+        });
+      }
+    };
+
+    const scheduleStickyHeaderOffsetsUpdate = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(updateStickyHeaderOffsets);
+    };
+
+    scheduleStickyHeaderOffsetsUpdate();
+    timeoutId = setTimeout(scheduleStickyHeaderOffsetsUpdate, 120);
+
+    const resizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(scheduleStickyHeaderOffsetsUpdate)
+      : null;
+
+    if (resizeObserver) {
+      if (headerRow1Ref.current) resizeObserver.observe(headerRow1Ref.current);
+      if (headerRow2Ref.current) resizeObserver.observe(headerRow2Ref.current);
+    }
+
+    window.addEventListener("resize", scheduleStickyHeaderOffsetsUpdate);
+
+    return () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", scheduleStickyHeaderOffsetsUpdate);
+    };
+  }, [
+    selectedAssessmentSO?.id,
+    selectedAssessmentSO?.performanceIndicators?.length,
+    students.length,
+    isLoadingAssessment,
+    modalWidth,
+    modalHeight,
+  ]);
 
   const loadGrades = async (sectionId, soId, schoolYear, initialStudents, courseCode) => {
     let resolvedSelectedSO = null;
@@ -265,8 +341,8 @@ export function AssessStudentsModal({
       const newWidth = startWidthCurrent + (deltaX / window.innerWidth) * 100;
       const newHeight = startHeightCurrent + (deltaY / window.innerHeight) * 100;
 
-      setModalWidth(Math.max(50, Math.min(95, newWidth)));
-      setModalHeight(Math.max(50, Math.min(95, newHeight)));
+      setModalWidth(Math.max(60, Math.min(98, newWidth)));
+      setModalHeight(Math.max(60, Math.min(98, newHeight)));
     };
 
     const handleMouseUp = () => {
@@ -295,8 +371,8 @@ export function AssessStudentsModal({
       const newWidth = startWidthCurrent + (deltaX / window.innerWidth) * 100;
       const newHeight = startHeightCurrent + (deltaY / window.innerHeight) * 100;
 
-      setModalWidth(Math.max(50, Math.min(95, newWidth)));
-      setModalHeight(Math.max(50, Math.min(95, newHeight)));
+      setModalWidth(Math.max(60, Math.min(98, newWidth)));
+      setModalHeight(Math.max(60, Math.min(98, newHeight)));
     };
 
     const handleTouchEnd = () => {
@@ -333,6 +409,53 @@ export function AssessStudentsModal({
     ));
   };
 
+  const handleClearAssessment = () => {
+    setStudents((prevStudents) =>
+      prevStudents.map((student) => ({
+        ...student,
+        grades: {},
+      }))
+    );
+    setMissingGradeMap({});
+    setIsClearConfirmOpen(false);
+    toast({
+      title: "Assessment fields cleared",
+      description: "All ratings in this table were cleared. Click Save Assessment to persist the change.",
+      duration: 2500,
+    });
+  };
+
+  const handleStatusPopupAcknowledge = () => {
+    const shouldCloseModal = statusPopup.sectionStatus === "assessed";
+    setStatusPopup({ open: false, title: "", description: "", sectionStatus: null });
+    if (shouldCloseModal) {
+      onClose();
+    }
+  };
+
+  const getGradeInputClassName = (score, isMissing) => {
+    const baseClass = "w-full px-2 py-1.5 rounded border text-sm font-semibold focus:ring-2 cursor-pointer transition-all";
+
+    if (isMissing) {
+      return cn(baseClass, "border-red-400 bg-red-50 text-red-700 focus:border-red-400 focus:ring-red-200");
+    }
+
+    if (score === null || score === undefined || score === "") {
+      return cn(baseClass, "border-[#D1D5DB] bg-white text-[#231F20] hover:border-[#FFC20E] focus:border-[#FFC20E] focus:ring-[#FFC20E]/30");
+    }
+
+    const numericScore = Number(score);
+    if (numericScore <= 2) {
+      return cn(baseClass, "border-red-300 bg-red-100 text-red-800 focus:border-red-400 focus:ring-red-200");
+    }
+
+    if (numericScore <= 4) {
+      return cn(baseClass, "border-amber-300 bg-amber-100 text-amber-900 focus:border-amber-400 focus:ring-amber-200");
+    }
+
+    return cn(baseClass, "border-emerald-300 bg-emerald-100 text-emerald-900 focus:border-emerald-400 focus:ring-emerald-200");
+  };
+
   const handleSave = async () => {
     console.log("Save Assessment button clicked");
     console.log("selectedSection:", selectedSection);
@@ -348,21 +471,18 @@ export function AssessStudentsModal({
       return;
     }
 
-    const courseSOs = courseMappings[selectedSection.courseCode] || [];
-    console.log("courseSOs:", courseSOs);
-    
-    const connectedSOs = studentOutcomes.filter(so =>
-      courseSOs.some(soId => parseInt(soId) === so.id)
-    );
-    console.log("connectedSOs:", connectedSOs);
-    
-    const selectedAssessmentSO = connectedSOs.find(s =>
-      selectedSOIds.length > 0 && s.id === selectedSOIds[0]
-    ) || connectedSOs[0];
+    const normalizedSelectedSOId = selectedSOIds.length > 0
+      ? parseInt(selectedSOIds[0], 10)
+      : null;
 
-    console.log("selectedAssessmentSO:", selectedAssessmentSO);
+    const selectedSOForSave =
+      selectedAssessmentSO ||
+      studentOutcomes.find((so) => so.id === normalizedSelectedSOId) ||
+      null;
 
-    if (!selectedAssessmentSO) {
+    console.log("selectedSOForSave:", selectedSOForSave);
+
+    if (!selectedSOForSave) {
       console.log("No Student Outcome selected");
       toast({
         description: "Please select a Student Outcome first",
@@ -372,9 +492,9 @@ export function AssessStudentsModal({
       return;
     }
 
-    const assessmentBases = buildAssessmentBases(selectedAssessmentSO);
+    const assessmentBases = buildAssessmentBases(selectedSOForSave);
     const validBases = new Set(assessmentBases.map((basis) => basis.key));
-    console.log("Valid assessment bases for SO ", selectedAssessmentSO.id, ":", [...validBases]);
+    console.log("Valid assessment bases for SO ", selectedSOForSave.id, ":", [...validBases]);
 
     const nextMissingGradeMap = {};
     const missingEntries = [];
@@ -393,24 +513,13 @@ export function AssessStudentsModal({
       });
     });
 
-    if (missingEntries.length > 0) {
+    const hasIncompleteEntries = missingEntries.length > 0;
+
+    if (hasIncompleteEntries) {
       setMissingGradeMap(nextMissingGradeMap);
-
-      const preview = missingEntries
-        .slice(0, 3)
-        .map((entry) => `${entry.studentName}: ${entry.basisLabel}`)
-        .join(" | ");
-
-      toast({
-        title: "Incomplete assessment",
-        description: `Fill in all missing ratings before saving. ${missingEntries.length} field${missingEntries.length > 1 ? "s are" : " is"} still blank.${preview ? ` Missing: ${preview}` : ""}`,
-        variant: "destructive",
-        duration: 4000,
-      });
-      return;
+    } else {
+      setMissingGradeMap({});
     }
-
-    setMissingGradeMap({});
 
     // Transform grades into backend basis keys.
     const gradesPayload = {};
@@ -422,7 +531,7 @@ export function AssessStudentsModal({
       Object.entries(student.grades).forEach(([gradeKey, score]) => {
         if (score !== null && score !== undefined && score !== "") {
           if (!validBases.has(gradeKey)) {
-            console.warn(`  Skipping unsupported basis ${gradeKey} for SO ${selectedAssessmentSO.id}`);
+            console.warn(`  Skipping unsupported basis ${gradeKey} for SO ${selectedSOForSave.id}`);
             return;
           }
 
@@ -434,14 +543,18 @@ export function AssessStudentsModal({
 
     console.log("Final gradesPayload:", gradesPayload);
 
-    const gradedStudentsCount = Object.values(gradesPayload).filter((criteriaGrades) =>
-      Object.values(criteriaGrades).some((score) => score !== null && score !== undefined && score !== "")
+    const hasScoreValue = (score) => score !== null && score !== undefined && score !== "";
+    const studentsWithAnyGradeCount = students.filter((student) =>
+      assessmentBases.some((basis) => hasScoreValue(student.grades?.[basis.key]))
+    ).length;
+    const fullyGradedStudentsCount = students.filter((student) =>
+      assessmentBases.length > 0 && assessmentBases.every((basis) => hasScoreValue(student.grades?.[basis.key]))
     ).length;
     const totalStudents = students.length;
     const sectionStatus =
-      totalStudents === 0 || gradedStudentsCount === 0
+      totalStudents === 0 || studentsWithAnyGradeCount === 0
         ? "not-yet"
-        : gradedStudentsCount === totalStudents
+        : fullyGradedStudentsCount === totalStudents
           ? "assessed"
           : "incomplete";
 
@@ -449,7 +562,7 @@ export function AssessStudentsModal({
     try {
       const response = await axios.post(`${API_BASE_URL}/assessments/save_grades/`, {
         section_id: selectedSection.id,
-        so_id: selectedAssessmentSO.id,
+        so_id: selectedSOForSave.id,
         school_year: selectedSection.schoolYear,
         grades: gradesPayload,
       });
@@ -465,15 +578,28 @@ export function AssessStudentsModal({
         onSaveSuccess({
           sectionId: selectedSection.id,
           courseCode: selectedSection.courseCode,
-          soId: selectedAssessmentSO.id,
+          soId: selectedSOForSave.id,
           sectionStatus,
         });
       }
-      
-      // Close modal after a short delay
-      setTimeout(() => {
-        onClose();
-      }, 2000);
+
+      if (sectionStatus === "assessed") {
+        setStatusPopup({
+          open: true,
+          title: "Assessment completed",
+          description: "All required ratings are filled. This section is now marked as completed.",
+          sectionStatus,
+        });
+      } else if (sectionStatus === "incomplete") {
+        setStatusPopup({
+          open: true,
+          title: "Assessment incomplete",
+          description: hasIncompleteEntries
+            ? `${missingEntries.length} field${missingEntries.length > 1 ? "s are" : " is"} still blank. The section was saved as incomplete.`
+            : "This section was saved as incomplete.",
+          sectionStatus,
+        });
+      }
     } catch (error) {
       console.error("Error saving assessment:", error);
       console.error("Error response:", error.response?.data);
@@ -496,11 +622,20 @@ export function AssessStudentsModal({
   // Use the state variable selectedAssessmentSO which is populated from backend data with correct criteria
   // This ensures we display only the criteria that belong to the selected SO
   const displayIndicators = selectedAssessmentSO?.performanceIndicators || [];
+  const fixedStudentColumnsWidth = 260;
+  const indicatorColumnCount = displayIndicators.reduce(
+    (sum, pi) => sum + Math.max(pi.performanceCriteria?.length || 1, 1),
+    0
+  );
+  const calculatedTableWidth = Math.max(fixedStudentColumnsWidth + indicatorColumnCount * 110, 800);
   const indicatorsWithoutCriteria = displayIndicators.filter(
     (pi) => !pi.performanceCriteria || pi.performanceCriteria.length === 0
   ).length;
   const displayBases = buildAssessmentBases(selectedAssessmentSO);
   const hasMissingGrades = Object.keys(missingGradeMap).length > 0;
+  const hasAnyEnteredGrade = students.some((student) =>
+    Object.values(student.grades || {}).some((score) => score !== null && score !== undefined && score !== "")
+  );
   const footerSummary = displayBases.map((basis) => {
     const answeredCount = students.filter((student) => {
       const score = student.grades?.[basis.key];
@@ -531,7 +666,7 @@ export function AssessStudentsModal({
         .assessment-table-container {
           position: relative;
           overflow-x: scroll !important;
-          overflow-y: hidden !important;
+          overflow-y: auto !important;
         }
         .assessment-table-container::-webkit-scrollbar {
           height: 10px !important;
@@ -711,39 +846,44 @@ export function AssessStudentsModal({
 
                       <div
                         className="assessment-table-container rounded-lg border border-[#D1D5DB] bg-white shadow-sm"
-                        style={{ minHeight: '300px', display: 'block', overflow: 'auto' }}
+                        style={{ minHeight: '560px', height: 'clamp(560px, 74vh, 980px)', display: 'block', overflow: 'auto' }}
                       >
                         <table
-                          className="border-collapse text-sm"
+                          className="border-separate border-spacing-0 text-sm"
                           style={{
-                            width: `${Math.max(260 + displayIndicators.reduce((sum, pi) => sum + Math.max(pi.performanceCriteria?.length || 1, 1) * 110, 0), 800)}px`,
+                            width: `${calculatedTableWidth}px`,
                             minWidth: 'calc(100% + 20px)'
                           }}
                         >
                           <thead>
                             {/* Row 1: Performance Indicator Headers */}
-                            <tr className="bg-gradient-to-r from-[#231F20] to-[#3A3A3A]">
+                            <tr ref={headerRow1Ref} className="bg-gradient-to-r from-[#231F20] to-[#3A3A3A]">
                               <th
                                 colSpan={2}
                                 className="border-r border-[#D1D5DB] px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-white min-w-[260px] bg-gradient-to-r from-[#231F20] to-[#3A3A3A]"
-                                style={{position: 'sticky', left: 0, zIndex: 20}}
+                                style={{ position: 'sticky', top: 0, left: 0, zIndex: 90 }}
                               >
                                 Student
                               </th>
                               <th
-                                colSpan={displayIndicators.reduce((sum, pi) => sum + Math.max(pi.performanceCriteria?.length || 1, 1), 0)}
-                                className="border-r border-[#D1D5DB] px-4 py-3 text-center text-xs font-bold uppercase tracking-widest text-white last:border-r-0"
+                                colSpan={indicatorColumnCount}
+                                className="relative overflow-hidden border-r border-[#D1D5DB] px-4 py-3 text-center text-xs font-bold uppercase tracking-widest text-white last:border-r-0"
+                                style={{ position: 'sticky', top: 0, zIndex: 110 }}
                               >
-                                Performance Indicators
+                                <div
+                                  className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#111111] to-[#1F1F1F]"
+                                  aria-hidden="true"
+                                />
+                                <span className="relative z-[1]">Performance Indicators</span>
                               </th>
                             </tr>
 
                             {/* Row 2: PI Names */}
-                            <tr className="bg-[#F5F5F5] border-b border-[#E5E7EB]">
+                            <tr ref={headerRow2Ref} className="bg-[#F5F5F5] border-b border-[#E5E7EB]">
                               <th
                                 colSpan={2}
                                 className="border-r border-[#D1D5DB] px-4 py-2.5 text-left text-xs font-semibold text-[#231F20] bg-[#F5F5F5]"
-                                style={{position: 'sticky', left: 0, zIndex: 20}}
+                                style={{ position: 'sticky', top: stickyHeaderTops.row2, left: 0, zIndex: 80 }}
                               >
                                 No. / Name
                               </th>
@@ -753,7 +893,12 @@ export function AssessStudentsModal({
                                     key={`pi-name-${pi.id}`}
                                     colSpan={Math.max(pi.performanceCriteria?.length || 0, 1)}
                                     className="border-r border-[#E5E7EB] px-2 py-2.5 text-center text-xs font-semibold text-[#231F20] bg-[#F5F5F5] align-middle last:border-r-0 leading-tight"
-                                    style={{ minWidth: `${Math.max(pi.performanceCriteria?.length || 0, 1) * 110}px` }}
+                                    style={{
+                                      minWidth: `${Math.max(pi.performanceCriteria?.length || 0, 1) * 110}px`,
+                                      position: 'sticky',
+                                      top: stickyHeaderTops.row2,
+                                      zIndex: 75,
+                                    }}
                                   >
                                     {pi.name}
                                   </td>
@@ -767,7 +912,7 @@ export function AssessStudentsModal({
                                 <th
                                   colSpan={2}
                                   className="border-r border-[#D1D5DB] px-4 py-2 text-left text-xs font-semibold text-[#6B6B6B] bg-[#FFF8DB]"
-                                  style={{position: 'sticky', left: 0, zIndex: 20}}
+                                  style={{ position: 'sticky', top: stickyHeaderTops.row3, left: 0, zIndex: 70 }}
                                 >
                                   Criteria
                                 </th>
@@ -777,6 +922,7 @@ export function AssessStudentsModal({
                                       <th
                                         key={`pc-${pi.id}-indicator`}
                                         className="min-w-[110px] border-r border-[#E5E7EB] px-2 py-2 text-center text-xs italic text-[#6B6B6B] bg-[#FFF8DB] last:border-r-0 leading-tight"
+                                        style={{ position: 'sticky', top: stickyHeaderTops.row3, zIndex: 65 }}
                                       >
                                         No criteria
                                       </th>
@@ -787,6 +933,7 @@ export function AssessStudentsModal({
                                     <th
                                       key={`pc-${pi.id}-${pc.id}`}
                                       className="min-w-[110px] border-r border-[#E5E7EB] px-2 py-2 text-center text-xs font-semibold text-[#231F20] bg-[#FFF8DB] last:border-r-0 leading-tight"
+                                      style={{ position: 'sticky', top: stickyHeaderTops.row3, zIndex: 65 }}
                                     >
                                       {pc.name}
                                     </th>
@@ -799,10 +946,10 @@ export function AssessStudentsModal({
                           <tbody>
                             {students.map((student, idx) => (
                               <tr key={student.id} className="border-b border-[#E5E7EB] last:border-b-0 hover:bg-[#FFC20E]/5 transition-colors">
-                                <td className="border-r border-[#E5E7EB] px-4 py-2.5 text-center text-sm font-bold text-white bg-[#231F20] min-w-[50px]" style={{position: 'sticky', left: 0, zIndex: 15}}>
+                                <td className="border-r border-[#E5E7EB] px-4 py-2.5 text-center text-sm font-bold text-white bg-[#231F20] min-w-[50px]" style={{position: 'sticky', left: 0, zIndex: 30}}>
                                   {idx + 1}
                                 </td>
-                                <td className="border-r border-[#E5E7EB] px-4 py-2.5 text-sm bg-[#F9F9F9] min-w-[210px]" style={{position: 'sticky', left: '50px', zIndex: 15}}>
+                                <td className="border-r border-[#E5E7EB] px-4 py-2.5 text-sm bg-[#F9F9F9] min-w-[210px]" style={{position: 'sticky', left: '50px', zIndex: 30}}>
                                   <p className="font-semibold text-[#231F20]">{student.name}</p>
                                   <p className="text-xs text-[#6B6B6B] mt-1">{student.studentId}</p>
                                 </td>
@@ -818,11 +965,9 @@ export function AssessStudentsModal({
                                           name={`grade-${student.id}-${pi.id}-indicator`}
                                           value={students.find(s => s.id === student.id)?.grades?.[`indicator:${pi.id}`] ?? ""}
                                           onChange={(e) => handleGradeChange(student.id, `indicator:${pi.id}`, e.target.value ? parseInt(e.target.value) : null)}
-                                          className={cn(
-                                            "w-full px-2 py-1.5 rounded border text-sm font-semibold text-[#231F20] focus:ring-2 bg-white cursor-pointer transition-all",
+                                          className={getGradeInputClassName(
+                                            students.find(s => s.id === student.id)?.grades?.[`indicator:${pi.id}`],
                                             missingGradeMap[`${student.id}::indicator:${pi.id}`]
-                                              ? "border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-200"
-                                              : "border-[#D1D5DB] hover:border-[#FFC20E] focus:border-[#FFC20E] focus:ring-[#FFC20E]/30"
                                           )}
                                         >
                                           <option value="">-</option>
@@ -847,11 +992,9 @@ export function AssessStudentsModal({
                                         name={`grade-${student.id}-${pi.id}-${pc.id}`}
                                         value={students.find(s => s.id === student.id)?.grades?.[`criterion:${pc.id}`] ?? ""}
                                         onChange={(e) => handleGradeChange(student.id, `criterion:${pc.id}`, e.target.value ? parseInt(e.target.value) : null)}
-                                        className={cn(
-                                          "w-full px-2 py-1.5 rounded border text-sm font-semibold text-[#231F20] focus:ring-2 bg-white cursor-pointer transition-all",
+                                        className={getGradeInputClassName(
+                                          students.find(s => s.id === student.id)?.grades?.[`criterion:${pc.id}`],
                                           missingGradeMap[`${student.id}::criterion:${pc.id}`]
-                                            ? "border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-200"
-                                            : "border-[#D1D5DB] hover:border-[#FFC20E] focus:border-[#FFC20E] focus:ring-[#FFC20E]/30"
                                         )}
                                         >
                                           <option value="">-</option>
@@ -925,8 +1068,16 @@ export function AssessStudentsModal({
                         </table>
                       </div>
 
-                      {/* Save Button */}
-                      <div className="flex justify-end pt-3">
+                      {/* Action Buttons */}
+                      <div className="flex justify-end gap-3 pt-3">
+                        <button
+                          onClick={() => setIsClearConfirmOpen(true)}
+                          disabled={isSaving || !hasAnyEnteredGrade}
+                          className="flex items-center gap-2 px-5 py-2.5 border border-[#D1D5DB] text-[#231F20] rounded-lg font-semibold hover:bg-[#F9FAFB] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Eraser className="w-4 h-4" />
+                          Clear Assessment
+                        </button>
                         <button
                           onClick={handleSave}
                           disabled={isSaving}
@@ -964,6 +1115,53 @@ export function AssessStudentsModal({
           title="Drag to resize modal"
         />
       </DialogContent>
+
+      <AlertDialog
+        open={isClearConfirmOpen}
+        onOpenChange={setIsClearConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear assessment fields?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove all current ratings in the table. This action affects only the current modal view until you save.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearAssessment}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Clear All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={statusPopup.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setStatusPopup((prev) => ({ ...prev, open: false }));
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{statusPopup.title}</AlertDialogTitle>
+            <AlertDialogDescription>{statusPopup.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={handleStatusPopupAcknowledge}
+              className="bg-[#FFC20E] text-[#231F20] hover:bg-[#FFC20E]/90"
+            >
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

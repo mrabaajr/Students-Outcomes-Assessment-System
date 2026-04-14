@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
 import StatCards from "@/components/reports/StatCards.jsx";
@@ -8,13 +9,77 @@ import CourseSummary from "@/components/reports/CourseSummary.jsx";
 import SOSummaryTables from "@/components/reports/SOSummaryTables.jsx";
 import ReportsFilter from "@/components/reports/ReportsFilter.jsx";
 import { useToast } from "@/hooks/use-toast";
-import { BookOpen, FileDown, Loader2, Tag } from "lucide-react";
+import { AlertTriangle, BookOpen, FileDown, History, Loader2, Tag } from "lucide-react";
 
 const API_BASE_URL = "http://localhost:8000/api";
+const AUTH_STORAGE_KEYS = ["accessToken", "refreshToken", "userRole"];
+
+const getStoredToken = (key) => {
+  const value = localStorage.getItem(key);
+  if (!value || value === "undefined" || value === "null") {
+    return null;
+  }
+  return value;
+};
+
+const parseJwtPayload = (token) => {
+  try {
+    const tokenParts = token.split(".");
+    if (tokenParts.length !== 3) {
+      return null;
+    }
+
+    const base64 = tokenParts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = window.atob(base64);
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+};
+
+const isTokenExpired = (token) => {
+  const payload = parseJwtPayload(token);
+  if (!payload?.exp) {
+    return true;
+  }
+
+  // Refresh a few seconds early to avoid race conditions between check and request.
+  const expiresAt = payload.exp * 1000;
+  return expiresAt <= Date.now() + 5000;
+};
+
+const refreshAccessToken = async () => {
+  const refreshToken = getStoredToken("refreshToken");
+  if (!refreshToken) {
+    return null;
+  }
+
+  try {
+    const response = await axios.post(`${API_BASE_URL}/token/refresh/`, {
+      refresh: refreshToken,
+    });
+
+    const nextAccessToken = response.data?.access;
+    if (!nextAccessToken) {
+      return null;
+    }
+
+    localStorage.setItem("accessToken", nextAccessToken);
+    return nextAccessToken;
+  } catch {
+    return null;
+  }
+};
+
+const clearAuthSession = () => {
+  AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+};
 
 export default function Reports() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const reportContentRef = useRef(null);
+  const hasHandledAuthFailureRef = useRef(false);
   const [reportMode, setReportMode] = useState("so");
   const [filters, setFilters] = useState({
     schoolYear: "",
@@ -25,6 +90,62 @@ export default function Reports() {
 
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [countdown, setCountdown] = useState(10);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+
+  const handleSessionExpired = useCallback(
+    (description) => {
+      if (hasHandledAuthFailureRef.current) {
+        return;
+      }
+
+      hasHandledAuthFailureRef.current = true;
+      clearAuthSession();
+      toast({
+        title: "Session expired",
+        description: description || "Please sign in again to continue.",
+        variant: "destructive",
+      });
+      navigate("/");
+    },
+    [navigate, toast]
+  );
+
+  const makeAuthorizedRequest = useCallback(async (requestConfig) => {
+    let accessToken = getStoredToken("accessToken");
+    if (!accessToken || isTokenExpired(accessToken)) {
+      accessToken = await refreshAccessToken();
+    }
+
+    if (!accessToken) {
+      const authError = new Error("Authentication required");
+      authError.code = "AUTH_REQUIRED";
+      throw authError;
+    }
+
+    const executeRequest = (token) =>
+      axios({
+        ...requestConfig,
+        headers: {
+          ...(requestConfig.headers || {}),
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+    try {
+      return await executeRequest(accessToken);
+    } catch (error) {
+      if (error.response?.status === 401) {
+        const refreshedToken = await refreshAccessToken();
+        if (refreshedToken) {
+          return executeRequest(refreshedToken);
+        }
+      }
+
+      throw error;
+    }
+  }, []);
 
   const fetchReport = useCallback(async () => {
     setIsLoading(true);
@@ -35,60 +156,113 @@ export default function Reports() {
       if (filters.section) params.section = filters.section;
       if (filters.outcome) params.so = filters.outcome;
 
-      const res = await axios.get(`${API_BASE_URL}/reports/dashboard/`, { params });
+      const res = await makeAuthorizedRequest({
+        method: "get",
+        url: `${API_BASE_URL}/reports/dashboard/`,
+        params,
+      });
       setData(res.data);
     } catch (err) {
       console.error("Error loading report data:", err);
+
+      if (err.code === "AUTH_REQUIRED" || err.response?.status === 401) {
+        handleSessionExpired("Please sign in again to load the latest report data.");
+        return;
+      }
+
+      toast({
+        title: "Unable to load reports",
+        description: err.response?.data?.detail || "Please try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  }, [filters]);
+  }, [filters, handleSessionExpired, makeAuthorizedRequest, toast]);
 
   const handleSaveSummaryTable = useCallback(
     async (tablePayload) => {
-      const payload = {
-        so_id: tablePayload.so_id,
-        school_year: filters.schoolYear || "",
-        course_id: filters.course || null,
-        section_id: filters.section || null,
-        formula: tablePayload.formula,
-        variables: tablePayload.variables,
-        table_data: tablePayload.table_data,
-      };
-
-      const res = await axios.post(`${API_BASE_URL}/reports/save_summary_table/`, payload);
-      const savedTemplate = res.data?.report_template;
-
-      setData((current) => {
-        if (!current) return current;
-        return {
-          ...current,
-          so_summary_tables: (current.so_summary_tables || []).map((table) =>
-            table.so_id === tablePayload.so_id
-              ? {
-                  ...tablePayload.table_data,
-                  so_id: tablePayload.so_id,
-                  report_config_id: savedTemplate?.id ?? table.report_config_id ?? null,
-                  formula: tablePayload.formula,
-                  variables: tablePayload.variables,
-                }
-              : table
-          ),
+      try {
+        const payload = {
+          so_id: tablePayload.so_id,
+          school_year: filters.schoolYear || "",
+          course_id: filters.course || null,
+          section_id: filters.section || null,
+          formula: tablePayload.formula,
+          variables: tablePayload.variables,
+          table_data: tablePayload.table_data,
         };
-      });
 
-      toast({
-        title: "Report summary saved",
-        description: `SO ${tablePayload.so_number} customizations are now stored in the backend.`,
-      });
+        const res = await makeAuthorizedRequest({
+          method: "post",
+          url: `${API_BASE_URL}/reports/save_summary_table/`,
+          data: payload,
+        });
+        const savedTemplate = res.data?.report_template;
 
-      return savedTemplate;
+        setData((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            so_summary_tables: (current.so_summary_tables || []).map((table) =>
+              table.so_id === tablePayload.so_id
+                ? {
+                    ...tablePayload.table_data,
+                    so_id: tablePayload.so_id,
+                    report_config_id: savedTemplate?.id ?? table.report_config_id ?? null,
+                    formula: tablePayload.formula,
+                    variables: tablePayload.variables,
+                  }
+                : table
+            ),
+          };
+        });
+
+        toast({
+          title: "Report summary saved",
+          description: `SO ${tablePayload.so_number} customizations are now stored in the backend.`,
+        });
+
+        return savedTemplate;
+      } catch (err) {
+        if (err.code === "AUTH_REQUIRED" || err.response?.status === 401) {
+          handleSessionExpired("Please sign in again before saving summary table changes.");
+          return null;
+        }
+
+        toast({
+          title: "Save failed",
+          description: err.response?.data?.detail || "Unable to save summary table changes right now.",
+          variant: "destructive",
+        });
+        throw err;
+      }
     },
-    [filters.course, filters.schoolYear, filters.section, toast]
+    [filters.course, filters.schoolYear, filters.section, handleSessionExpired, makeAuthorizedRequest, toast]
   );
 
   useEffect(() => {
     fetchReport();
   }, [fetchReport]);
+
+  useEffect(() => {
+    if (!showFinalizeModal) {
+      setCountdown(10);
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setCountdown((current) => {
+        if (current <= 1) {
+          window.clearInterval(timer);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [showFinalizeModal]);
 
   const handleExportReport = useCallback(() => {
     if (!data || !reportContentRef.current) {
@@ -229,6 +403,38 @@ export default function Reports() {
     }, 500);
   }, [data, filters.course, filters.outcome, filters.schoolYear, filters.section, toast]);
 
+  const handleFinalizeSemester = useCallback(async () => {
+    setIsFinalizing(true);
+    try {
+      await makeAuthorizedRequest({
+        method: "post",
+        url: `${API_BASE_URL}/reports/finalize_semester/`,
+        data: {},
+      });
+
+      setShowFinalizeModal(false);
+      await fetchReport();
+      toast({
+        title: "Semester finalized",
+        description: "Active sections were archived to Past Reports and cleared from the live report set.",
+      });
+      navigate("/programchair/past-reports");
+    } catch (err) {
+      if (err.code === "AUTH_REQUIRED" || err.response?.status === 401) {
+        handleSessionExpired("Please sign in again before finalizing the semester.");
+        return;
+      }
+
+      toast({
+        title: "Finalization failed",
+        description: err.response?.data?.detail || "Unable to finalize the semester right now.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFinalizing(false);
+    }
+  }, [fetchReport, handleSessionExpired, makeAuthorizedRequest, navigate, toast]);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
@@ -252,6 +458,23 @@ export default function Reports() {
             </p>
 
             <div className="flex flex-wrap items-center gap-4">
+              <button
+                onClick={() => setShowFinalizeModal(true)}
+                disabled={isLoading || isFinalizing}
+                className="flex items-center gap-2 bg-[#C62828] text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-[#B71C1C] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>FINALIZE SEMESTER</span>
+              </button>
+
+              <button
+                onClick={() => navigate("/programchair/past-reports")}
+                className="flex items-center gap-2 bg-white text-[#231F20] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg text-sm sm:text-base font-medium hover:bg-gray-50 transition-colors border border-gray-200"
+              >
+                <History className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>VIEW PAST REPORTS</span>
+              </button>
+
               <button
                 onClick={handleExportReport}
                 disabled={!data || isLoading}
@@ -331,6 +554,65 @@ export default function Reports() {
       </main>
 
       <Footer />
+
+      {showFinalizeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+            <div className="border-b border-[#E5E7EB] px-6 py-5">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-red-100 p-2 text-red-700">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-[#231F20]">Finalize this semester?</h2>
+                  <p className="mt-1 text-sm text-[#6B6B6B]">
+                    This will archive the current active report data and remove all current active sections from the live system.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 px-6 py-5 text-sm text-[#4D4741]">
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <p className="font-semibold text-red-800">Warning</p>
+                <p className="mt-1 text-red-700">
+                  After finalization, the Program Chair will need to create new course offerings and sections again before the next semester can be assessed.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3">
+                <p>The system will:</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  <li>Save the current live report snapshot into Past Reports.</li>
+                  <li>Remove all active sections so they no longer appear in current reports and assessments.</li>
+                  <li>Require a fresh setup for the next semester’s sections.</li>
+                </ul>
+              </div>
+
+              <p className="text-xs uppercase tracking-[0.2em] text-[#A5A8AB]">
+                Confirmation unlocks in {countdown} second{countdown === 1 ? "" : "s"}
+              </p>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-[#E5E7EB] px-6 py-4 sm:flex-row sm:justify-end">
+              <button
+                onClick={() => !isFinalizing && setShowFinalizeModal(false)}
+                className="rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isFinalizing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFinalizeSemester}
+                disabled={countdown > 0 || isFinalizing}
+                className="rounded-lg bg-[#C62828] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#B71C1C] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isFinalizing ? "Finalizing..." : "Finalize Semester Now"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
