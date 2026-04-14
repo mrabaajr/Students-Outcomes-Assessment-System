@@ -5,6 +5,7 @@ node_modules/
 
 # IDE
 .idea/
+.vscode/
 
 # OS
 .DS_Store
@@ -12,6 +13,33 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Environment variables
+.env
+.env.local
+.env*.local
+
+# Build artifacts
+frontend/dist/
+mobile/build/
+backend/staticfiles/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pycache
+
+# Python virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# pytest and coverage
+.pytest_cache/
+htmlcov/
+.coverage
 
 # React Native / Android build artifacts
 mobile/android/.gradle/
@@ -25,6 +53,7 @@ mobile/.expo/
 mobile/.expo-shared/
 mobile/.bundle/
 
-# Python cache
-__pycache__/
-*.pyc
+# Django
+db.sqlite3
+*.db
+media/

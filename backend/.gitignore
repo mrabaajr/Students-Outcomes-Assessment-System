@@ -2,16 +2,35 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pycache
 
 # Environment files
 .env
+.env.local
+.env*.local
 
 # Virtual environment folders
 venv/
 env/
 .venv/
+ENV/
 
 # Django logs / media / static builds
 *.log
 staticfiles/
 media/
+
+# Database
+db.sqlite3
+*.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
