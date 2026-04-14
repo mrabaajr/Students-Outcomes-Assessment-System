@@ -7,7 +7,7 @@ import StatCards from "@/components/reports/StatCards.jsx";
 import SOPerformance from "@/components/reports/SOPerformance.jsx";
 import CourseSummary from "@/components/reports/CourseSummary.jsx";
 import SOSummaryTables from "@/components/reports/SOSummaryTables.jsx";
-import ReportsFilter from "@/components/reports/ReportsFilter.jsx";
+import ReportsFilter from "@/components/reports/reportsfilter.jsx";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, BookOpen, FileDown, History, Loader2, Tag } from "lucide-react";
 
