@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "SOAS Mobile",
-    "slug": "soas-mobile",
+    "name": "SOMS Mobile",
+    "slug": "soms-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -9,10 +9,10 @@
       "**/*"
     ],
     "android": {
-      "package": "com.skool.soasmobile"
+      "package": "com.skool.somsmobile"
     },
     "ios": {
-      "bundleIdentifier": "com.skool.soasmobile"
+      "bundleIdentifier": "com.skool.somsmobile"
     }
   }
 }
