@@ -170,7 +170,13 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:3001',
     'http://127.0.0.1:5173',
     'http://localhost:8000',
+    'https://students-outcomes-assessment-system-front.onrender.com',
 ]
+
+# Allow additional origins from environment variable
+cors_origins_env = os.getenv('CORS_ALLOWED_ORIGINS', '')
+if cors_origins_env:
+    CORS_ALLOWED_ORIGINS.extend([origin.strip() for origin in cors_origins_env.split(',')])
 
 CORS_ALLOW_CREDENTIALS = True
 # Email Configuration
