@@ -38,7 +38,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 // Icons mapping for SOs (cycles if more than 6)
 const soIconList = [Lightbulb, PenTool, MessageSquare, Scale, UsersRound, FlaskConical];

@@ -8,7 +8,7 @@ import Navbar from "../components/dashboard/Navbar";
 import Footer from "../components/dashboard/Footer";
 import FacultyAccountModal from "@/components/accounts/FacultyAccountModal";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 const Index = () => {
   const [email, setEmail] = useState("");

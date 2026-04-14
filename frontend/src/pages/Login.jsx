@@ -6,7 +6,7 @@ import { Input } from "../components/ui/input";
 import { Eye, EyeOff, Mail, Lock, ArrowRight, User, Users } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const ROLE_ROUTE_MAP = {
   admin: "/programchair/dashboard",
   staff: "/faculty/dashboard",
