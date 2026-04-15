@@ -463,9 +463,11 @@ export default function FacultyClassesScreen() {
               <View style={styles.cardHeader}>
                 <View style={styles.badgeRow}>
                   <Text style={styles.codeBadge}>{item.courseCode}</Text>
-                  <Text style={[styles.statusBadge, item.isActive ? styles.statusActive : styles.statusInactive]}>
-                    {item.isActive ? "Active" : "Inactive"}
-                  </Text>
+                  <View style={[styles.statusBadge, item.isActive ? styles.statusActive : styles.statusInactive]}>
+                    <Text style={[styles.statusBadgeText, item.isActive ? styles.statusActiveText : styles.statusInactiveText]}>
+                      {item.isActive ? "Active" : "Inactive"}
+                    </Text>
+                  </View>
                 </View>
                 <Text style={styles.courseName}>{item.courseName}</Text>
                 <Text style={styles.sectionName}>{item.name}</Text>
@@ -548,9 +550,11 @@ export default function FacultyClassesScreen() {
                   <Text style={styles.listCourseName}>{item.courseName}</Text>
                   <Text style={styles.listSection}>{item.name}</Text>
                 </View>
-                <Text style={[styles.statusBadge, item.isActive ? styles.statusActive : styles.statusInactive]}>
-                  {item.isActive ? "Active" : "Inactive"}
-                </Text>
+                <View style={[styles.statusBadge, item.isActive ? styles.statusActive : styles.statusInactive]}>
+                  <Text style={[styles.statusBadgeText, item.isActive ? styles.statusActiveText : styles.statusInactiveText]}>
+                    {item.isActive ? "Active" : "Inactive"}
+                  </Text>
+                </View>
               </View>
 
               <Text style={styles.listMetaLine}>
@@ -863,19 +867,24 @@ const styles = StyleSheet.create({
   statusBadge: {
     alignSelf: "flex-start",
     borderRadius: 999,
-    fontSize: 10,
-    fontWeight: "800",
-    overflow: "hidden",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    textTransform: "uppercase",
   },
   statusActive: {
     backgroundColor: "#DCFCE7",
-    color: "#166534",
   },
   statusInactive: {
     backgroundColor: "#E5E7EB",
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  statusActiveText: {
+    color: "#166534",
+  },
+  statusInactiveText: {
     color: "#4B5563",
   },
   courseName: {

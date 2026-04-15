@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,7 +14,6 @@ import {
   View,
 } from "react-native";
 
-import { API_BASE_URL } from "../config/api";
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
 
@@ -24,6 +25,72 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const heroAnim = useRef(new Animated.Value(0)).current;
+  const formAnim = useRef(new Animated.Value(0)).current;
+  const ctaAnim = useRef(new Animated.Value(0)).current;
+  const ctaPulseAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.stagger(110, [
+      Animated.timing(heroAnim, {
+        toValue: 1,
+        duration: 560,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(formAnim, {
+        toValue: 1,
+        duration: 520,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(ctaAnim, {
+        toValue: 1,
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(ctaPulseAnim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(ctaPulseAnim, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseLoop.start();
+
+    return () => {
+      pulseLoop.stop();
+    };
+
+  }, [ctaAnim, ctaPulseAnim, formAnim, heroAnim]);
+
+  const formTranslate = formAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [34, 0],
+  });
+
+  const ctaTranslate = ctaAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, 0],
+  });
+
+  const ctaPulseScale = ctaPulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.02],
+  });
 
   async function handleLogin() {
     if (!email || !password) {
@@ -66,17 +133,37 @@ export default function LoginScreen() {
         style={styles.container}
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.hero}>
+          <Animated.View
+            style={[
+              styles.hero,
+              {
+                opacity: heroAnim,
+              },
+            ]}
+          >
+            <View style={styles.heroOrbOne} />
+            <View style={styles.heroOrbTwo} />
             <View style={styles.diagonalStripe} />
+            <View style={styles.pulseRing} />
             <View style={styles.heroContent}>
-              <Text style={styles.heroTitle}>WELCOME{"\n"}BACK</Text>
-              <Text style={styles.heroSubtitle}>
-                Sign in to access your account and continue your journey with us.
+              <Text style={styles.heroEyebrow}>Student Outcomes Assessment Portal</Text>
+              <Text style={styles.heroTitle}>
+                <Text style={styles.heroTitlePrimary}>Welcome </Text>
+                <Text style={styles.heroTitleAccent}>back</Text>
               </Text>
+              <Text style={styles.heroSubtitle}>Sign in to continue.</Text>
             </View>
-          </View>
+          </Animated.View>
 
-          <View style={styles.formArea}>
+          <Animated.View
+            style={[
+              styles.formArea,
+              {
+                opacity: formAnim,
+                transform: [{ translateY: formTranslate }],
+              },
+            ]}
+          >
             {error ? (
               <View style={styles.errorBanner}>
                 <Text style={styles.errorBannerText}>{error}</Text>
@@ -123,9 +210,6 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
-            <Text style={styles.testLabel}>This app talks to your existing Django API at:</Text>
-            <Text style={styles.apiUrl}>{API_BASE_URL}</Text>
-
             <TextInput
               autoCapitalize="none"
               keyboardType="email-address"
@@ -154,26 +238,33 @@ export default function LoginScreen() {
               <Text style={styles.forgotText}>Forgot password?</Text>
             </Pressable>
 
-            <Pressable
-              disabled={isSubmitting || !selectedRole}
-              onPress={handleLogin}
-              style={({ pressed }) => [
-                styles.button,
-                (pressed && !isSubmitting) || (!selectedRole && styles.buttonDisabled)
-                  ? styles.buttonPressed
-                  : null,
-                !selectedRole ? styles.buttonDisabled : null,
-              ]}
+            <Animated.View
+              style={{
+                opacity: ctaAnim,
+                transform: [{ translateY: ctaTranslate }, { scale: ctaPulseScale }],
+              }}
             >
-              {isSubmitting ? (
-                <ActivityIndicator color={colors.dark} />
-              ) : (
-                <Text style={styles.buttonText}>
-                  Sign in as {selectedRole === "admin" ? "Program Chair" : selectedRole === "staff" ? "Faculty" : "..."}
-                </Text>
-              )}
-            </Pressable>
-          </View>
+              <Pressable
+                disabled={isSubmitting || !selectedRole}
+                onPress={handleLogin}
+                style={({ pressed }) => [
+                  styles.button,
+                  (pressed && !isSubmitting) || (!selectedRole && styles.buttonDisabled)
+                    ? styles.buttonPressed
+                    : null,
+                  !selectedRole ? styles.buttonDisabled : null,
+                ]}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color={colors.dark} />
+                ) : (
+                  <Text style={styles.buttonText}>
+                    Sign in as {selectedRole === "admin" ? "Program Chair" : selectedRole === "staff" ? "Faculty" : "..."}
+                  </Text>
+                )}
+              </Pressable>
+            </Animated.View>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -190,51 +281,112 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 0,
   },
   hero: {
-    backgroundColor: colors.dark,
-    minHeight: 260,
+    backgroundColor: "#000000",
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    minHeight: 320,
     overflow: "hidden",
     paddingHorizontal: 22,
-    paddingTop: 28,
-    paddingBottom: 32,
+    paddingTop: 24,
+    paddingBottom: 44,
+  },
+  heroOrbOne: {
+    position: "absolute",
+    width: 140,
+    height: 140,
+    borderRadius: 999,
+    top: -34,
+    right: -30,
+    backgroundColor: "rgba(255, 194, 14, 0.18)",
+  },
+  heroOrbTwo: {
+    position: "absolute",
+    width: 110,
+    height: 110,
+    borderRadius: 999,
+    top: 36,
+    left: -34,
+    backgroundColor: "rgba(255, 194, 14, 0.16)",
   },
   diagonalStripe: {
     position: "absolute",
-    top: 26,
-    left: -80,
-    width: "150%",
-    height: 120,
-    backgroundColor: colors.yellow,
-    transform: [{ rotate: "-28deg" }],
+    top: 10,
+    left: -92,
+    width: "140%",
+    height: 78,
+    backgroundColor: "rgba(255, 194, 14, 0.88)",
+    transform: [{ rotate: "-20deg" }],
+  },
+  pulseRing: {
+    position: "absolute",
+    width: 92,
+    height: 92,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.32)",
+    right: 10,
+    bottom: 16,
   },
   heroContent: {
-    marginTop: 58,
+    marginTop: 112,
+  },
+  heroEyebrow: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    marginTop: -14,
+    marginBottom: 16,
+    textTransform: "uppercase",
   },
   heroTitle: {
-    color: colors.surface,
-    fontSize: 46,
+    fontSize: 52,
     fontWeight: "800",
-    lineHeight: 46,
-    letterSpacing: 0.4,
+    lineHeight: 54,
+    marginTop: 0,
+    textAlign: "left",
+    textTransform: "capitalize",
+  },
+  heroTitlePrimary: {
+    color: colors.surface,
+  },
+  heroTitleAccent: {
+    color: colors.yellow,
   },
   heroSubtitle: {
-    color: colors.surface,
-    fontSize: 15,
+    color: "#E5E7EB",
+    fontSize: 17,
     lineHeight: 24,
-    marginTop: 14,
-    maxWidth: 280,
+    marginTop: 28,
+    maxWidth: 290,
   },
   formArea: {
-    backgroundColor: "#f6f4fb",
+    backgroundColor: colors.surface,
+    borderColor: "#E6EAF2",
+    borderRadius: 22,
+    borderWidth: 1,
+    marginHorizontal: 14,
+    marginTop: 50,
     flex: 1,
+    minHeight: 460,
     paddingHorizontal: 16,
-    paddingTop: 22,
-    paddingBottom: 28,
+    paddingTop: 26,
+    paddingBottom: 24,
+    shadowColor: "#0F172A",
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.07,
+    shadowRadius: 20,
+    elevation: 3,
   },
   errorBanner: {
-    backgroundColor: "#fef2f2",
-    borderColor: "#fecaca",
+    backgroundColor: "#FFF8E1",
+    borderColor: "rgba(255, 194, 14, 0.45)",
     borderRadius: 14,
     borderWidth: 1,
     marginBottom: 16,
@@ -242,14 +394,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   errorBannerText: {
-    color: colors.danger,
+    color: colors.dark,
     fontSize: 13,
     lineHeight: 18,
   },
   sectionLabel: {
     color: colors.dark,
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: "700",
     marginBottom: 12,
   },
   roleRow: {
@@ -264,11 +416,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 20,
   },
   roleCardActive: {
+    backgroundColor: "#FFF8E1",
     borderColor: colors.yellow,
-    borderWidth: 2,
   },
   roleIcon: {
     color: colors.yellowAlt,
@@ -276,50 +428,40 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   roleText: {
-    color: colors.gray,
+    color: colors.darkAlt,
     fontSize: 13,
     fontWeight: "600",
   },
   roleTextActive: {
     color: colors.dark,
   },
-  testLabel: {
-    color: colors.dark,
-    fontSize: 13,
-    marginBottom: 4,
-  },
-  apiUrl: {
-    color: "#008080",
-    fontSize: 13,
-    marginBottom: 18,
-  },
   input: {
     backgroundColor: colors.surface,
-    borderColor: "#777777",
-    borderRadius: 10,
+    borderColor: colors.graySoft,
+    borderRadius: 12,
     borderWidth: 1,
     color: colors.dark,
-    fontSize: 16,
+    fontSize: 15,
     marginBottom: 16,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 15,
   },
   passwordWrap: {
     alignItems: "center",
     backgroundColor: colors.surface,
-    borderColor: "#777777",
-    borderRadius: 10,
+    borderColor: colors.graySoft,
+    borderRadius: 12,
     borderWidth: 1,
     flexDirection: "row",
-    marginBottom: 10,
+    marginBottom: 12,
     paddingRight: 12,
   },
   passwordInput: {
     color: colors.dark,
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 15,
   },
   eyeButton: {
     paddingVertical: 6,
@@ -341,8 +483,8 @@ const styles = StyleSheet.create({
   button: {
     alignItems: "center",
     backgroundColor: colors.yellow,
-    borderRadius: 14,
-    paddingVertical: 16,
+    borderRadius: 12,
+    paddingVertical: 17,
   },
   buttonPressed: {
     opacity: 0.88,
@@ -352,7 +494,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: colors.dark,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
   },
 });

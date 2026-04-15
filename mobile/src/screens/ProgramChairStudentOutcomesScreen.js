@@ -398,7 +398,8 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
     <>
       <AppScreen
         eyebrow="Outcomes Management"
-        title={"Student\nOutcomes"}
+        title="Student Outcomes"
+        titleStyle={styles.screenTitle}
         subtitle="Define and manage student outcomes, performance indicators, and evaluation criteria for your program assessment."
         showMeta={false}
         enableScrollTopButton={true}
@@ -880,6 +881,10 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
 }
 
 const styles = StyleSheet.create({
+  screenTitle: {
+    fontSize: 28,
+    lineHeight: 34,
+  },
   controlCard: {
     backgroundColor: WHITE,
     borderColor: "rgba(0,0,0,0.12)",
