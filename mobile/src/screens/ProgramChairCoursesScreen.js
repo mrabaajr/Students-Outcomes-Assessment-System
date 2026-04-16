@@ -22,6 +22,8 @@ export default function ProgramChairCoursesScreen() {
   const [studentOutcomes, setStudentOutcomes] = useState([]);
   const [loadingOutcomes, setLoadingOutcomes] = useState(false);
   const [savingCourse, setSavingCourse] = useState(false);
+  const [savingOption, setSavingOption] = useState(false);
+  const [deletingCourseId, setDeletingCourseId] = useState(null);
   const [editingCourse, setEditingCourse] = useState(null);
   const [courseDetailVisible, setCourseDetailVisible] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -36,6 +38,7 @@ export default function ProgramChairCoursesScreen() {
 
   const [newCurriculum, setNewCurriculum] = useState("");
   const [newSchoolYear, setNewSchoolYear] = useState("");
+  const [courseFormErrors, setCourseFormErrors] = useState({});
   const [courseForm, setCourseForm] = useState({
     sourceCourseId: "",
     code: "",
@@ -44,6 +47,7 @@ export default function ProgramChairCoursesScreen() {
     academicYear: "",
     semester: "1st Semester",
     yearLevel: "",
+    credits: "3",
     mappedSOs: [],
   });
 
@@ -54,31 +58,111 @@ export default function ProgramChairCoursesScreen() {
       .filter((value, index, list) => value && list.indexOf(value) === index);
   }
 
+  function getErrorMessage(loadError, fallback) {
+    const detail = loadError?.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (detail && typeof detail === "object") {
+      return Object.entries(detail)
+        .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : value}`)
+        .join(" | ");
+    }
+
+    if (loadError?.response?.data && typeof loadError.response.data === "object") {
+      return Object.entries(loadError.response.data)
+        .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : value}`)
+        .join(" | ");
+    }
+
+    return loadError?.message || fallback;
+  }
+
+  async function loadCourses() {
+    const data = await fetchProgramChairCourses();
+    setCourses(data);
+    return data;
+  }
+
+  function updateCourseForm(field, value) {
+    setCourseForm((prev) => ({ ...prev, [field]: value }));
+    setCourseFormErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function validateCourseForm(next) {
+    const errors = {};
+
+    if (!next.curriculum) errors.curriculum = "Curriculum is required.";
+    if (!next.academicYear) errors.academicYear = "Academic year is required.";
+    if (!next.semester) errors.semester = "Semester is required.";
+    if (!next.yearLevel) errors.yearLevel = "Year level is required.";
+    if (!next.code) errors.code = "Course code is required.";
+    if (!next.name) errors.name = "Course name is required.";
+    if (!next.credits) {
+      errors.credits = "Credits is required.";
+    } else if (!/^\d+$/.test(next.credits) || Number(next.credits) <= 0) {
+      errors.credits = "Credits must be a positive whole number.";
+    }
+
+    return errors;
+  }
+
+  function mapBackendErrorsToForm(saveError) {
+    const data = saveError?.response?.data;
+    if (!data || typeof data !== "object") return {};
+
+    const fieldMap = {
+      curriculum: "curriculum",
+      academic_year: "academicYear",
+      semester: "semester",
+      year_level: "yearLevel",
+      code: "code",
+      name: "name",
+      credits: "credits",
+      course: "sourceCourseId",
+      mappedSOs: "mappedSOs",
+    };
+
+    return Object.entries(data).reduce((acc, [key, value]) => {
+      const formKey = fieldMap[key];
+      if (!formKey) return acc;
+      acc[formKey] = Array.isArray(value) ? value.join(", ") : String(value);
+      return acc;
+    }, {});
+  }
+
   const selectedCourseOutcomes = useMemo(() => {
     if (!selectedCourse) return [];
 
     return normalizeMappedSOs(selectedCourse.mappedSOs)
       .map((mappedId) =>
-        studentOutcomes.find(
-          (outcome) => String(outcome.id) === String(mappedId) || String(outcome.number) === String(mappedId)
-        )
+        studentOutcomes.find((outcome) => String(outcome.id) === String(mappedId))
       )
       .filter(Boolean);
   }, [selectedCourse, studentOutcomes]);
+
+  const studentOutcomeMap = useMemo(
+    () =>
+      new Map(studentOutcomes.map((outcome) => [String(outcome.id), outcome])),
+    [studentOutcomes]
+  );
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const data = await fetchProgramChairCourses();
+        const data = await loadCourses();
         if (!cancelled) {
           setCourses(data);
           setLoading(false);
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError.response?.data?.detail || loadError.message || "Failed to load courses.");
+          setError(getErrorMessage(loadError, "Failed to load courses."));
           setLoading(false);
         }
       }
@@ -91,8 +175,6 @@ export default function ProgramChairCoursesScreen() {
   }, []);
 
   useEffect(() => {
-    if (!courseModalVisible && !courseDetailVisible) return;
-
     let cancelled = false;
 
     async function loadOutcomes() {
@@ -117,7 +199,7 @@ export default function ProgramChairCoursesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [courseDetailVisible, courseModalVisible]);
+  }, []);
 
   const semesters = useMemo(
     () => ["All Semesters", ...new Set(courses.map((course) => course.semester).filter(Boolean))],
@@ -125,7 +207,7 @@ export default function ProgramChairCoursesScreen() {
   );
 
   const semesterOptions = ["1st Semester", "2nd Semester", "Summer"];
-  const yearLevelOptions = ["1", "2", "3", "4", "5"];
+  const yearLevelOptions = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 
   const curriculums = useMemo(
     () => [
@@ -190,24 +272,32 @@ export default function ProgramChairCoursesScreen() {
     { key: "coverage", label: "Avg Coverage", value: `${stats.averageCoverage}%`, hint: "Across courses" },
   ];
 
-  const matrixOutcomeNumbers = useMemo(() => {
-    const fromOutcomes = studentOutcomes
-      .map((outcome) => Number(outcome.number))
-      .filter((value) => Number.isFinite(value));
+  const matrixOutcomes = useMemo(() => {
+    if (studentOutcomes.length > 0) {
+      return [...studentOutcomes].sort((a, b) => Number(a.number) - Number(b.number));
+    }
 
-    const fromCourses = courses.flatMap((course) =>
-      Array.isArray(course.mappedSOs)
-        ? course.mappedSOs.map((value) => Number(value)).filter((value) => Number.isFinite(value))
-        : []
+    const fallbackOutcomeIds = Array.from(
+      new Set(
+        courses.flatMap((course) => (Array.isArray(course.mappedSOs) ? course.mappedSOs.map(String) : []))
+      )
     );
 
-    const merged = Array.from(new Set([...fromOutcomes, ...fromCourses])).sort((a, b) => a - b);
-    return merged.length > 0 ? merged : [1, 2, 3, 4, 5, 6, 7];
-  }, [studentOutcomes, courses]);
+    return fallbackOutcomeIds.map((id) => ({
+      id,
+      number: id,
+      title: `Student Outcome ${id}`,
+    }));
+  }, [courses, studentOutcomes]);
 
-  function isMapped(course, outcomeNumber) {
+  function getOutcomeLabel(outcomeId) {
+    const outcome = studentOutcomeMap.get(String(outcomeId));
+    return outcome ? `SO ${outcome.number}` : `SO ${outcomeId}`;
+  }
+
+  function isMapped(course, outcomeId) {
     return Array.isArray(course.mappedSOs)
-      ? course.mappedSOs.map((value) => Number(value)).includes(Number(outcomeNumber))
+      ? course.mappedSOs.map(String).includes(String(outcomeId))
       : false;
   }
 
@@ -261,9 +351,11 @@ export default function ProgramChairCoursesScreen() {
   const coursePickerOptions =
     coursePickerField === "source"
       ? [{ label: "Select course to autofill (optional)", value: "" }].concat(
-          courses.map((course) => ({
+          courses
+            .filter((course) => course.course)
+            .map((course) => ({
             label: `${course.code} - ${course.name}`,
-            value: String(course.id),
+            value: String(course.course),
           }))
         )
       : coursePickerField === "curriculum"
@@ -306,11 +398,11 @@ export default function ProgramChairCoursesScreen() {
       if (!value) {
         setCourseForm((prev) => ({ ...prev, sourceCourseId: "" }));
       } else {
-        const sourceCourse = courses.find((course) => String(course.id) === String(value));
+        const sourceCourse = courses.find((course) => String(course.course) === String(value));
         if (sourceCourse) {
           setCourseForm((prev) => ({
             ...prev,
-            sourceCourseId: String(sourceCourse.id),
+            sourceCourseId: String(sourceCourse.course),
             code: sourceCourse.code || prev.code,
             name: sourceCourse.name || prev.name,
             curriculum: String(sourceCourse.curriculum || prev.curriculum),
@@ -328,10 +420,10 @@ export default function ProgramChairCoursesScreen() {
     setCoursePickerVisible(false);
   }
 
-  function toggleMappedOutcome(number) {
+  function toggleMappedOutcome(outcomeId) {
     setCourseForm((prev) => {
       const normalized = normalizeMappedSOs(prev.mappedSOs);
-      const key = String(number);
+      const key = String(outcomeId);
       const exists = normalized.includes(key);
       return {
         ...prev,
@@ -342,14 +434,14 @@ export default function ProgramChairCoursesScreen() {
     });
   }
 
-  async function toggleMatrixCell(courseId, outcomeNumber) {
+  async function toggleMatrixCell(courseId, outcomeId) {
     const target = courses.find((course) => String(course.id) === String(courseId));
     if (!target) {
       return;
     }
 
     const mapped = normalizeMappedSOs(target.mappedSOs);
-    const key = String(outcomeNumber);
+    const key = String(outcomeId);
     const exists = mapped.includes(key);
     const nextMapped = exists ? mapped.filter((value) => value !== key) : [...mapped, key];
 
@@ -365,8 +457,9 @@ export default function ProgramChairCoursesScreen() {
     );
 
     try {
-      await apiClient.patch(`/course-so-mappings/${courseId}/`, {
-        mappedSOs: nextMapped,
+      await apiClient.post(`/course-so-mappings/${courseId}/toggle_so/`, {
+        so_id: Number(outcomeId),
+        should_map: !exists,
       });
     } catch (saveError) {
       setCourses((prev) =>
@@ -382,27 +475,29 @@ export default function ProgramChairCoursesScreen() {
 
       Alert.alert(
         "Unable to save mapping",
-        saveError.response?.data?.detail || saveError.message || "Please try again."
+        getErrorMessage(saveError, "Please try again.")
       );
     }
   }
 
   function openEditCourse(course) {
     setEditingCourse(course);
+    setCourseFormErrors({});
     setCourseForm({
-      sourceCourseId: String(course?.course || ""),
+      sourceCourseId: course?.course ? String(course.course) : "",
       code: course?.code || "",
       name: course?.name || "",
       curriculum: String(course?.curriculum || ""),
       academicYear: String(course?.academicYear || ""),
       semester: course?.semester || "1st Semester",
       yearLevel: String(course?.yearLevel || ""),
+      credits: String(course?.credits || 3),
       mappedSOs: normalizeMappedSOs(course?.mappedSOs),
     });
     setCourseModalVisible(true);
   }
 
-  function handleAddCurriculum() {
+  async function handleAddCurriculum() {
     const value = newCurriculum.trim();
     if (!value) return;
 
@@ -412,14 +507,22 @@ export default function ProgramChairCoursesScreen() {
       return;
     }
 
-    setCustomCurriculums((prev) => [value, ...prev]);
-    setSelectedCurriculum(value);
-    setCourseForm((prev) => ({ ...prev, curriculum: value }));
-    setNewCurriculum("");
-    setCurriculumModalVisible(false);
+    try {
+      setSavingOption(true);
+      await apiClient.post("/curriculums/", { year: value });
+      setCustomCurriculums((prev) => [value, ...prev]);
+      setSelectedCurriculum(value);
+      setCourseForm((prev) => ({ ...prev, curriculum: value }));
+      setNewCurriculum("");
+      setCurriculumModalVisible(false);
+    } catch (saveError) {
+      Alert.alert("Unable to add curriculum", getErrorMessage(saveError, "Please try again."));
+    } finally {
+      setSavingOption(false);
+    }
   }
 
-  function handleAddSchoolYear() {
+  async function handleAddSchoolYear() {
     const value = newSchoolYear.trim();
     if (!value) return;
 
@@ -429,11 +532,19 @@ export default function ProgramChairCoursesScreen() {
       return;
     }
 
-    setCustomAcademicYears((prev) => [value, ...prev]);
-    setSelectedAcademicYear(value);
-    setCourseForm((prev) => ({ ...prev, academicYear: value }));
-    setNewSchoolYear("");
-    setSchoolYearModalVisible(false);
+    try {
+      setSavingOption(true);
+      await apiClient.post("/school-years/", { year: value });
+      setCustomAcademicYears((prev) => [value, ...prev]);
+      setSelectedAcademicYear(value);
+      setCourseForm((prev) => ({ ...prev, academicYear: value }));
+      setNewSchoolYear("");
+      setSchoolYearModalVisible(false);
+    } catch (saveError) {
+      Alert.alert("Unable to add school year", getErrorMessage(saveError, "Please try again."));
+    } finally {
+      setSavingOption(false);
+    }
   }
 
   async function handleAddCourse() {
@@ -444,21 +555,27 @@ export default function ProgramChairCoursesScreen() {
       academicYear: courseForm.academicYear.trim(),
       semester: courseForm.semester,
       yearLevel: courseForm.yearLevel.trim(),
+      credits: courseForm.credits.trim(),
       mappedSOs: normalizeMappedSOs(courseForm.mappedSOs),
     };
 
-    if (!next.code || !next.name || !next.curriculum || !next.academicYear || !next.yearLevel) {
-      Alert.alert("Required fields", "Please fill in all required fields before saving.");
+    const validationErrors = validateCourseForm(next);
+    if (Object.keys(validationErrors).length > 0) {
+      setCourseFormErrors(validationErrors);
       return;
     }
 
+    setCourseFormErrors({});
+
     const payload = {
+      course: courseForm.sourceCourseId ? Number(courseForm.sourceCourseId) : editingCourse?.course || null,
       code: next.code,
       name: next.name,
       curriculum: next.curriculum,
       academic_year: next.academicYear,
       semester: next.semester,
       year_level: next.yearLevel,
+      credits: Number(next.credits),
       mappedSOs: next.mappedSOs,
     };
 
@@ -466,12 +583,12 @@ export default function ProgramChairCoursesScreen() {
       setSavingCourse(true);
 
       if (editingCourse?.id) {
-        await apiClient.patch(`/course-so-mappings/${editingCourse.id}/`, payload);
+        await apiClient.put(`/course-so-mappings/${editingCourse.id}/`, payload);
       } else {
         await apiClient.post("/course-so-mappings/", payload);
       }
 
-      const data = await fetchProgramChairCourses();
+      const data = await loadCourses();
       setCourses(data);
 
       setCourseForm({
@@ -482,20 +599,56 @@ export default function ProgramChairCoursesScreen() {
         academicYear: next.academicYear,
         semester: "1st Semester",
         yearLevel: "",
+        credits: "3",
         mappedSOs: [],
       });
+      setCourseFormErrors({});
       setSelectedCurriculum(next.curriculum);
       setSelectedAcademicYear(next.academicYear);
       setCourseModalVisible(false);
       setEditingCourse(null);
     } catch (saveError) {
-      Alert.alert(
-        editingCourse?.id ? "Unable to update course" : "Unable to save course",
-        saveError.response?.data?.detail || saveError.message || "Please try again."
-      );
+      const backendFieldErrors = mapBackendErrorsToForm(saveError);
+      if (Object.keys(backendFieldErrors).length > 0) {
+        setCourseFormErrors(backendFieldErrors);
+      } else {
+        Alert.alert(
+          editingCourse?.id ? "Unable to update course" : "Unable to save course",
+          getErrorMessage(saveError, "Please try again.")
+        );
+      }
     } finally {
       setSavingCourse(false);
     }
+  }
+
+  function handleDeleteCourse(course) {
+    Alert.alert(
+      "Delete course mapping",
+      `Remove ${course.code} for ${course.academicYear}? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setDeletingCourseId(course.id);
+              await apiClient.delete(`/course-so-mappings/${course.id}/`);
+              setCourses((prev) => prev.filter((item) => String(item.id) !== String(course.id)));
+              if (selectedCourse && String(selectedCourse.id) === String(course.id)) {
+                setSelectedCourse(null);
+                setCourseDetailVisible(false);
+              }
+            } catch (deleteError) {
+              Alert.alert("Unable to delete course", getErrorMessage(deleteError, "Please try again."));
+            } finally {
+              setDeletingCourseId(null);
+            }
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -520,8 +673,10 @@ export default function ProgramChairCoursesScreen() {
                 academicYear: "",
                 semester: "1st Semester",
                 yearLevel: "",
+                credits: "3",
                 mappedSOs: [],
               });
+              setCourseFormErrors({});
               setCourseModalVisible(true);
             }}
             style={styles.primaryActionButton}
@@ -616,7 +771,7 @@ export default function ProgramChairCoursesScreen() {
           <Text style={styles.helperText}>Try changing your search or semester filter.</Text>
         </InfoCard>
       ) : viewMode === "Matrix" ? (
-        <InfoCard title="Course-to-SO Mapping Matrix" rightText={`${matrixOutcomeNumbers.length} SO columns`}>
+        <InfoCard title="Course-to-SO Mapping Matrix" rightText={`${matrixOutcomes.length} SO columns`}>
           <Text style={styles.matrixHint}>Tap cells to toggle mappings. Yellow cells are linked outcomes.</Text>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.matrixScrollContent}>
@@ -625,9 +780,9 @@ export default function ProgramChairCoursesScreen() {
                 <View style={[styles.matrixCourseCell, styles.matrixHeaderCell]}>
                   <Text style={styles.matrixHeaderText}>Course</Text>
                 </View>
-                {matrixOutcomeNumbers.map((number) => (
-                  <View key={`head-${number}`} style={[styles.matrixSOCell, styles.matrixHeaderCell]}>
-                    <Text style={styles.matrixHeaderText}>{`SO ${number}`}</Text>
+                {matrixOutcomes.map((outcome) => (
+                  <View key={`head-${outcome.id}`} style={[styles.matrixSOCell, styles.matrixHeaderCell]}>
+                    <Text style={styles.matrixHeaderText}>{`SO ${outcome.number}`}</Text>
                   </View>
                 ))}
               </View>
@@ -639,17 +794,17 @@ export default function ProgramChairCoursesScreen() {
                     <Text numberOfLines={1} style={styles.matrixCourseName}>{course.name}</Text>
                   </View>
 
-                  {matrixOutcomeNumbers.map((number) => {
-                    const active = isMapped(course, number);
-                    return (
-                      <Pressable
-                        key={`cell-${course.id}-${number}`}
-                        onPress={() => toggleMatrixCell(course.id, number)}
-                        style={[styles.matrixSOCell, styles.matrixDataCell, active && styles.matrixDataCellActive]}
-                      >
-                        <Text style={[styles.matrixCellText, active && styles.matrixCellTextActive]}>
+                  {matrixOutcomes.map((outcome) => {
+                      const active = isMapped(course, outcome.id);
+                      return (
+                        <Pressable
+                          key={`cell-${course.id}-${outcome.id}`}
+                          onPress={() => toggleMatrixCell(course.id, outcome.id)}
+                          style={[styles.matrixSOCell, styles.matrixDataCell, active && styles.matrixDataCellActive]}
+                        >
+                          <Text style={[styles.matrixCellText, active && styles.matrixCellTextActive]}>
                           {active ? "✓" : "×"}
-                        </Text>
+                          </Text>
                       </Pressable>
                     );
                   })}
@@ -679,9 +834,9 @@ export default function ProgramChairCoursesScreen() {
                 <View style={styles.soTagRow}>
                   {course.mappedSOs.slice(0, 6).map((so) => (
                     <View key={`${course.id}-${so}`} style={styles.soTag}>
-                      <Text style={styles.soTagText}>{`SO ${so}`}</Text>
+                      <Text style={styles.soTagText}>{getOutcomeLabel(so)}</Text>
                     </View>
-                  ))}
+                    ))}
                 </View>
               ) : null}
 
@@ -692,9 +847,18 @@ export default function ProgramChairCoursesScreen() {
                 <Pressable style={styles.cardActionButton} onPress={() => openEditCourse(course)}>
                   <Text style={styles.cardActionText}>Edit</Text>
                 </Pressable>
+                <Pressable
+                  style={styles.cardActionButton}
+                  onPress={() => handleDeleteCourse(course)}
+                  disabled={deletingCourseId === course.id}
+                >
+                  <Text style={styles.cardActionText}>
+                    {deletingCourseId === course.id ? "Deleting..." : "Delete"}
+                  </Text>
+                </Pressable>
               </View>
-            </View>
-          </InfoCard>
+              </View>
+            </InfoCard>
         ))
       )}
       </AppScreen>
@@ -832,6 +996,7 @@ export default function ProgramChairCoursesScreen() {
                 onPress={() => {
                   setCourseModalVisible(false);
                   setEditingCourse(null);
+                  setCourseFormErrors({});
                 }}
                 style={styles.closeModalButton}
               >
@@ -849,12 +1014,14 @@ export default function ProgramChairCoursesScreen() {
                 <Text style={styles.dropdownValue}>{courseForm.curriculum || "Select Curriculum"}</Text>
                 <Text style={styles.dropdownChevron}>▾</Text>
               </Pressable>
+              {courseFormErrors.curriculum ? <Text style={styles.fieldError}>{courseFormErrors.curriculum}</Text> : null}
 
               <Text style={[styles.fieldLegend, styles.fieldGap]}>Course From Database</Text>
               <Pressable style={styles.dropdownButton} onPress={() => openCoursePicker("source")}>
                 <Text style={styles.dropdownValue}>
                   {courseForm.sourceCourseId
-                    ? (courses.find((course) => String(course.id) === String(courseForm.sourceCourseId))?.code || "Selected")
+                    ? (courses.find((course) => String(course.course) === String(courseForm.sourceCourseId))?.code ||
+                      "Selected")
                     : "Select course to autofill (optional)"}
                 </Text>
                 <Text style={styles.dropdownChevron}>▾</Text>
@@ -868,6 +1035,7 @@ export default function ProgramChairCoursesScreen() {
                     <Text style={styles.dropdownValue}>{courseForm.academicYear || "Select Academic Year"}</Text>
                     <Text style={styles.dropdownChevron}>▾</Text>
                   </Pressable>
+                  {courseFormErrors.academicYear ? <Text style={styles.fieldError}>{courseFormErrors.academicYear}</Text> : null}
                 </View>
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Semester *</Text>
@@ -875,6 +1043,7 @@ export default function ProgramChairCoursesScreen() {
                     <Text style={styles.dropdownValue}>{courseForm.semester || "Select Semester"}</Text>
                     <Text style={styles.dropdownChevron}>▾</Text>
                   </Pressable>
+                  {courseFormErrors.semester ? <Text style={styles.fieldError}>{courseFormErrors.semester}</Text> : null}
                 </View>
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Year Level *</Text>
@@ -882,10 +1051,11 @@ export default function ProgramChairCoursesScreen() {
                     <Text style={styles.dropdownValue}>{courseForm.yearLevel || "Select Year Level"}</Text>
                     <Text style={styles.dropdownChevron}>▾</Text>
                   </Pressable>
+                  {courseFormErrors.yearLevel ? <Text style={styles.fieldError}>{courseFormErrors.yearLevel}</Text> : null}
                 </View>
               </View>
 
-              <View style={styles.twoColumnRow}>
+              <View style={styles.threeColumnRow}>
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Course Code *</Text>
                   <TextInput
@@ -893,8 +1063,9 @@ export default function ProgramChairCoursesScreen() {
                     placeholderTextColor="#7b8a86"
                     style={styles.modalInput}
                     value={courseForm.code}
-                    onChangeText={(value) => setCourseForm((prev) => ({ ...prev, code: value }))}
+                    onChangeText={(value) => updateCourseForm("code", value)}
                   />
+                  {courseFormErrors.code ? <Text style={styles.fieldError}>{courseFormErrors.code}</Text> : null}
                 </View>
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Course Name *</Text>
@@ -903,8 +1074,21 @@ export default function ProgramChairCoursesScreen() {
                     placeholderTextColor="#7b8a86"
                     style={styles.modalInput}
                     value={courseForm.name}
-                    onChangeText={(value) => setCourseForm((prev) => ({ ...prev, name: value }))}
+                    onChangeText={(value) => updateCourseForm("name", value)}
                   />
+                  {courseFormErrors.name ? <Text style={styles.fieldError}>{courseFormErrors.name}</Text> : null}
+                </View>
+                <View style={styles.colItem}>
+                  <Text style={styles.fieldLegend}>Credits *</Text>
+                  <TextInput
+                    placeholder="3"
+                    placeholderTextColor="#7b8a86"
+                    style={styles.modalInput}
+                    value={courseForm.credits}
+                    keyboardType="number-pad"
+                    onChangeText={(value) => updateCourseForm("credits", value.replace(/[^0-9]/g, ""))}
+                  />
+                  {courseFormErrors.credits ? <Text style={styles.fieldError}>{courseFormErrors.credits}</Text> : null}
                 </View>
               </View>
 
@@ -914,11 +1098,11 @@ export default function ProgramChairCoursesScreen() {
               ) : (
                 <View style={styles.soChecklist}>
                   {studentOutcomes.map((outcome) => {
-                    const checked = normalizeMappedSOs(courseForm.mappedSOs).includes(String(outcome.number));
+                    const checked = normalizeMappedSOs(courseForm.mappedSOs).includes(String(outcome.id));
                     return (
                       <Pressable
                         key={outcome.id}
-                        onPress={() => toggleMappedOutcome(outcome.number)}
+                        onPress={() => toggleMappedOutcome(outcome.id)}
                         style={[styles.soChecklistItem, checked && styles.soChecklistItemActive]}
                       >
                         <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
@@ -969,11 +1153,15 @@ export default function ProgramChairCoursesScreen() {
               onChangeText={setNewCurriculum}
             />
             <View style={styles.modalActions}>
-              <Pressable onPress={() => setCurriculumModalVisible(false)} style={styles.secondaryActionButton}>
+              <Pressable
+                onPress={() => setCurriculumModalVisible(false)}
+                style={styles.secondaryActionButton}
+                disabled={savingOption}
+              >
                 <Text style={styles.secondaryActionButtonText}>Cancel</Text>
               </Pressable>
-              <Pressable onPress={handleAddCurriculum} style={styles.primaryActionButton}>
-                <Text style={styles.primaryActionButtonText}>Add</Text>
+              <Pressable onPress={handleAddCurriculum} style={styles.primaryActionButton} disabled={savingOption}>
+                <Text style={styles.primaryActionButtonText}>{savingOption ? "Saving..." : "Add"}</Text>
               </Pressable>
             </View>
           </View>
@@ -993,11 +1181,15 @@ export default function ProgramChairCoursesScreen() {
               onChangeText={setNewSchoolYear}
             />
             <View style={styles.modalActions}>
-              <Pressable onPress={() => setSchoolYearModalVisible(false)} style={styles.secondaryActionButton}>
+              <Pressable
+                onPress={() => setSchoolYearModalVisible(false)}
+                style={styles.secondaryActionButton}
+                disabled={savingOption}
+              >
                 <Text style={styles.secondaryActionButtonText}>Cancel</Text>
               </Pressable>
-              <Pressable onPress={handleAddSchoolYear} style={styles.primaryActionButton}>
-                <Text style={styles.primaryActionButtonText}>Add</Text>
+              <Pressable onPress={handleAddSchoolYear} style={styles.primaryActionButton} disabled={savingOption}>
+                <Text style={styles.primaryActionButtonText}>{savingOption ? "Saving..." : "Add"}</Text>
               </Pressable>
             </View>
           </View>
@@ -1555,6 +1747,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 6,
     marginBottom: 2,
+  },
+  fieldError: {
+    color: colors.danger,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
   },
   threeColumnRow: {
     flexDirection: "row",
