@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as FileSystem from "expo-file-system";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -33,6 +33,26 @@ function getFlattenedReportRows(data) {
   });
 
   return rows;
+}
+
+function formatListValue(value) {
+  if (!value) return "";
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (!item) return "";
+        if (typeof item === "string" || typeof item === "number") return String(item);
+        return String(item.number || item.name || item.code || item.title || "");
+      })
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+
+  return String(value.number || value.name || value.code || value.title || "");
 }
 
 function buildPdfHtml({ metrics, rows }) {
@@ -116,6 +136,7 @@ function FilterRow({ label, value, onPress }) {
 }
 
 export default function ProgramChairReportsScreen({ navigation }) {
+  const [reportLevel, setReportLevel] = useState("course");
   const [filters, setFilters] = useState({
     schoolYear: "",
     course: "",
@@ -127,6 +148,7 @@ export default function ProgramChairReportsScreen({ navigation }) {
   const [data, setData] = useState(null);
   const [filterPickerVisible, setFilterPickerVisible] = useState(false);
   const [activeFilterKey, setActiveFilterKey] = useState("schoolYear");
+  const [editableSoOverview, setEditableSoOverview] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +175,23 @@ export default function ProgramChairReportsScreen({ navigation }) {
       cancelled = true;
     };
   }, [filters]);
+
+  useEffect(() => {
+    const nextState = {};
+    (data?.so_summary_tables || []).forEach((table, index) => {
+      const tableKey = String(table.so_id || table.so_number || index);
+      nextState[tableKey] = {
+        classSize: String(table.totals?.class_size ?? ""),
+        percentCli: String(table.totals?.percent_gu ?? ""),
+        studentsAnswered: String(table.totals?.students_assessed ?? ""),
+        virtualClassSize: String(table.totals?.virtual_class_size ?? table.totals?.class_size ?? ""),
+        program: String(table.program ?? ""),
+        sourceAssessment: formatListValue(table.source_assessment || table.sources),
+        timeCollection: String(table.time_data_collection || filters.schoolYear || ""),
+      };
+    });
+    setEditableSoOverview(nextState);
+  }, [data, filters.schoolYear]);
 
   const metricCards = useMemo(() => {
     const metrics = data?.metrics || {};
@@ -256,6 +295,36 @@ export default function ProgramChairReportsScreen({ navigation }) {
     setFilterPickerVisible(false);
   }
 
+  function handleSoOverviewEdit(tableKey, field, value) {
+    setEditableSoOverview((prev) => ({
+      ...prev,
+      [tableKey]: {
+        ...(prev[tableKey] || {}),
+        [field]: value,
+      },
+    }));
+  }
+
+  function handleSoTableReset(table, tableKey) {
+    setEditableSoOverview((prev) => ({
+      ...prev,
+      [tableKey]: {
+        ...(prev[tableKey] || {}),
+        classSize: String(table.totals?.class_size ?? ""),
+        percentCli: String(table.totals?.percent_gu ?? ""),
+        studentsAnswered: String(table.totals?.students_assessed ?? ""),
+        virtualClassSize: String(table.totals?.virtual_class_size ?? table.totals?.class_size ?? ""),
+        program: String(table.program ?? ""),
+        sourceAssessment: formatListValue(table.source_assessment || table.sources),
+        timeCollection: String(table.time_data_collection || filters.schoolYear || ""),
+      },
+    }));
+  }
+
+  function handleSoTableSave() {
+    Alert.alert("Saved", "SO-level edits are saved locally on this mobile view.");
+  }
+
   function handleExportPdf() {
     try {
       if (!metricCards.length) {
@@ -320,6 +389,27 @@ export default function ProgramChairReportsScreen({ navigation }) {
         <>
           <InfoCard title="Filters">
             <View style={styles.filterStack}>
+              <View style={styles.levelToggleRow}>
+                <Pressable
+                  onPress={() => setReportLevel("so")}
+                  style={[styles.levelToggleChip, reportLevel === "so" ? styles.levelToggleChipActive : null]}
+                >
+                  <Text style={[styles.levelToggleText, reportLevel === "so" ? styles.levelToggleTextActive : null]}>
+                    SO Level
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setReportLevel("course")}
+                  style={[styles.levelToggleChip, reportLevel === "course" ? styles.levelToggleChipActive : null]}
+                >
+                  <Text
+                    style={[styles.levelToggleText, reportLevel === "course" ? styles.levelToggleTextActive : null]}
+                  >
+                    Course Level
+                  </Text>
+                </Pressable>
+              </View>
+
               <View style={styles.filterBlock}>
                 <Text style={styles.filterBlockLabel}>Student Outcomes</Text>
                 <View style={styles.soChipRow}>
@@ -364,15 +454,64 @@ export default function ProgramChairReportsScreen({ navigation }) {
             ))}
           </View>
 
-          <InfoCard title="Assessment Results">
+          {reportLevel === "so" ? (
+            <>
+              <InfoCard title="Assessment Results">
                 {(data.so_summary_tables || []).length === 0 ? (
                   <Text style={styles.mutedText}>No SO summary tables available for the selected filters.</Text>
                 ) : (
                   (data.so_summary_tables || []).map((table) => (
                     <View key={`table-${table.so_id}`} style={styles.assessmentResultsBlock}>
+                      {(() => {
+                        const tableKey = String(table.so_id || table.so_number || "");
+                        const editable = editableSoOverview[tableKey] || {};
+                        return (
+                          <>
+                      <View style={styles.assessmentTopRow}>
+                        <Text style={styles.assessmentPill}>SO {table.so_number} Summary</Text>
+                        <View style={styles.assessmentTopActions}>
+                          <Pressable onPress={() => handleSoTableReset(table, tableKey)} style={styles.assessmentMiniButton}>
+                            <Text style={styles.assessmentMiniButtonText}>Reset</Text>
+                          </Pressable>
+                          <Pressable onPress={handleSoTableSave} style={[styles.assessmentMiniButton, styles.assessmentMiniButtonPrimary]}>
+                            <Text style={[styles.assessmentMiniButtonText, styles.assessmentMiniButtonPrimaryText]}>Save</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+
                       <View style={styles.assessmentHeader}>
                         <Text style={styles.assessmentTitle}>Summary Result of Direct Assessment</Text>
                         <Text style={styles.assessmentSubtitle}>SO {table.so_number}: {table.so_title}</Text>
+                      </View>
+
+                      <View style={styles.assessmentMetaGrid}>
+                        <View style={styles.assessmentMetaCol}>
+                          <Text style={styles.assessmentMetaLabel}>Program</Text>
+                          <TextInput
+                            style={styles.assessmentMetaInput}
+                            value={editable.program}
+                            onChangeText={(value) => handleSoOverviewEdit(tableKey, "program", value)}
+                          />
+                        </View>
+                        <View style={styles.assessmentMetaCol}>
+                          <Text style={styles.assessmentMetaLabel}>Source of Assessment</Text>
+                          <TextInput
+                            style={styles.assessmentMetaInput}
+                            value={editable.sourceAssessment}
+                            onChangeText={(value) => handleSoOverviewEdit(tableKey, "sourceAssessment", value)}
+                          />
+                        </View>
+                      </View>
+
+                      <View style={styles.assessmentMetaGrid}>
+                        <View style={[styles.assessmentMetaCol, styles.assessmentMetaColFull]}>
+                          <Text style={styles.assessmentMetaLabel}>Time of Data Collection</Text>
+                          <TextInput
+                            style={styles.assessmentMetaInput}
+                            value={editable.timeCollection}
+                            onChangeText={(value) => handleSoOverviewEdit(tableKey, "timeCollection", value)}
+                          />
+                        </View>
                       </View>
 
                       <View style={styles.assessmentSection}>
@@ -381,14 +520,44 @@ export default function ProgramChairReportsScreen({ navigation }) {
                           <View style={styles.assessmentTableRow}>
                             <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Course</Text>
                             <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Class Size</Text>
-                            <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>% GU</Text>
-                            <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Assessed</Text>
+                            <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>% of CLI</Text>
+                            <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Students Answered</Text>
+                            <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Virtual Class Size</Text>
                           </View>
                           <View style={styles.assessmentTableRow}>
                             <Text style={styles.assessmentTableCell}>{table.program}</Text>
-                            <Text style={styles.assessmentTableCell}>{table.totals?.class_size ?? "-"}</Text>
-                            <Text style={styles.assessmentTableCell}>{table.totals?.percent_gu ?? "-"}%</Text>
-                            <Text style={styles.assessmentTableCell}>{table.totals?.students_assessed ?? 0}</Text>
+                            <View style={styles.assessmentTableInputCell}>
+                              <TextInput
+                                style={styles.assessmentTableInput}
+                                keyboardType="numeric"
+                                value={editable.classSize}
+                                onChangeText={(value) => handleSoOverviewEdit(tableKey, "classSize", value)}
+                              />
+                            </View>
+                            <View style={styles.assessmentTableInputCell}>
+                              <TextInput
+                                style={styles.assessmentTableInput}
+                                keyboardType="numeric"
+                                value={editable.percentCli}
+                                onChangeText={(value) => handleSoOverviewEdit(tableKey, "percentCli", value)}
+                              />
+                            </View>
+                            <View style={styles.assessmentTableInputCell}>
+                              <TextInput
+                                style={styles.assessmentTableInput}
+                                keyboardType="numeric"
+                                value={editable.studentsAnswered}
+                                onChangeText={(value) => handleSoOverviewEdit(tableKey, "studentsAnswered", value)}
+                              />
+                            </View>
+                            <View style={styles.assessmentTableInputCell}>
+                              <TextInput
+                                style={styles.assessmentTableInput}
+                                keyboardType="numeric"
+                                value={editable.virtualClassSize}
+                                onChangeText={(value) => handleSoOverviewEdit(tableKey, "virtualClassSize", value)}
+                              />
+                            </View>
                           </View>
                         </View>
                       </View>
@@ -437,6 +606,9 @@ export default function ProgramChairReportsScreen({ navigation }) {
                           <Text style={styles.conclusionText}>{table.totals.conclusion}</Text>
                         </View>
                       ) : null}
+                          </>
+                        );
+                      })()}
                     </View>
                   ))
                 )}
@@ -506,6 +678,58 @@ export default function ProgramChairReportsScreen({ navigation }) {
                   </View>
                 )}
               </InfoCard>
+            </>
+          ) : (
+            <InfoCard title="Course-Level Summary">
+              {(data.course_summary || []).length === 0 ? (
+                <Text style={styles.mutedText}>No course-level summary available for the selected filters.</Text>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.courseLevelTableWrap}>
+                    <View style={styles.courseLevelHeaderRow}>
+                      <Text style={[styles.courseLevelHeaderText, styles.courseCodeCol]}>Code</Text>
+                      <Text style={[styles.courseLevelHeaderText, styles.courseNameCol]}>Course Name</Text>
+                      <Text style={[styles.courseLevelHeaderText, styles.courseInstructorCol]}>Instructor</Text>
+                      <Text style={[styles.courseLevelHeaderText, styles.courseLinkedSoCol]}>Linked SOs</Text>
+                      <Text style={[styles.courseLevelHeaderText, styles.courseMetricCol]}>Students</Text>
+                      <Text style={[styles.courseLevelHeaderText, styles.courseMetricCol]}>Avg Score</Text>
+                      <Text style={[styles.courseLevelHeaderText, styles.courseMetricCol]}>Pass Rate</Text>
+                    </View>
+
+                    {(data.course_summary || []).map((course, index) => {
+                      const linkedOutcomes = course.linked_sos || course.outcomes || [];
+                      return (
+                        <View
+                          key={`course-summary-${course.id || course.code || index}`}
+                          style={[styles.courseLevelDataRow, index < (data.course_summary || []).length - 1 ? styles.courseLevelDataRowBorder : null]}
+                        >
+                          <Text style={[styles.courseLevelCellText, styles.courseCodeCol]}>{course.code || "-"}</Text>
+                          <Text style={[styles.courseLevelCellText, styles.courseNameCol]}>{course.name || "-"}</Text>
+                          <Text style={[styles.courseLevelCellText, styles.courseInstructorCol]}>{course.instructor || "-"}</Text>
+                          <View style={[styles.courseLinkedSoCol, styles.courseLinkedSoWrap]}>
+                            {linkedOutcomes.length > 0 ? (
+                              linkedOutcomes.map((so, soIndex) => (
+                                <View key={`linked-so-${course.id || course.code}-${soIndex}`} style={styles.courseSoTag}>
+                                  <Text style={styles.courseSoTagText}>
+                                    {typeof so === "string" ? so : `SO ${so.number || so}`}
+                                  </Text>
+                                </View>
+                              ))
+                            ) : (
+                              <Text style={styles.courseLevelCellMuted}>-</Text>
+                            )}
+                          </View>
+                          <Text style={[styles.courseLevelCellText, styles.courseMetricCol]}>{course.students ?? 0}</Text>
+                          <Text style={[styles.courseLevelCellText, styles.courseMetricCol]}>{course.avg ?? 0}%</Text>
+                          <Text style={[styles.courseLevelPassRate, styles.courseMetricCol]}>{course.pass_rate ?? 0}%</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              )}
+            </InfoCard>
+          )}
           </>
       ) : (
         <InfoCard title="Reports">
@@ -583,6 +807,31 @@ const styles = StyleSheet.create({
   },
   filterStack: {
     gap: 10,
+  },
+  levelToggleRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 2,
+  },
+  levelToggleChip: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.graySoft,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  levelToggleChipActive: {
+    backgroundColor: colors.yellow,
+    borderColor: colors.yellow,
+  },
+  levelToggleText: {
+    color: colors.gray,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  levelToggleTextActive: {
+    color: colors.dark,
   },
   filterBlock: {
     gap: 8,
@@ -758,6 +1007,87 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     marginTop: 8,
   },
+  courseLevelTableWrap: {
+    minWidth: 780,
+    borderColor: colors.graySoft,
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  courseLevelHeaderRow: {
+    backgroundColor: colors.surfaceMuted,
+    borderBottomColor: colors.graySoft,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  courseLevelHeaderText: {
+    color: colors.gray,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  courseLevelDataRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: colors.surface,
+  },
+  courseLevelDataRowBorder: {
+    borderBottomColor: colors.graySoft,
+    borderBottomWidth: 1,
+  },
+  courseCodeCol: {
+    width: 78,
+  },
+  courseNameCol: {
+    width: 190,
+  },
+  courseInstructorCol: {
+    width: 120,
+  },
+  courseLinkedSoCol: {
+    width: 180,
+  },
+  courseMetricCol: {
+    width: 70,
+    textAlign: "center",
+  },
+  courseLevelCellText: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  courseLevelCellMuted: {
+    color: colors.gray,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  courseLinkedSoWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  courseSoTag: {
+    backgroundColor: "#FFF8E1",
+    borderColor: "rgba(255, 194, 14, 0.45)",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  courseSoTagText: {
+    color: colors.dark,
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  courseLevelPassRate: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: "800",
+  },
   performanceRow: {
     alignItems: "center",
     borderBottomColor: colors.graySoft,
@@ -830,6 +1160,78 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingBottom: 10,
   },
+  assessmentTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  assessmentPill: {
+    backgroundColor: "#FFF8E1",
+    borderColor: "rgba(255, 194, 14, 0.55)",
+    borderRadius: 999,
+    borderWidth: 1,
+    color: colors.dark,
+    fontSize: 10,
+    fontWeight: "800",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    textTransform: "uppercase",
+  },
+  assessmentTopActions: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  assessmentMiniButton: {
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  assessmentMiniButtonPrimary: {
+    backgroundColor: colors.dark,
+    borderColor: colors.dark,
+  },
+  assessmentMiniButtonText: {
+    color: colors.dark,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  assessmentMiniButtonPrimaryText: {
+    color: colors.surface,
+  },
+  assessmentMetaGrid: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 10,
+  },
+  assessmentMetaCol: {
+    flex: 1,
+    gap: 4,
+  },
+  assessmentMetaColFull: {
+    flex: 1,
+  },
+  assessmentMetaLabel: {
+    color: colors.gray,
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  assessmentMetaInput: {
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "700",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
   assessmentTitle: {
     color: colors.dark,
     fontSize: 15,
@@ -869,6 +1271,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     padding: 10,
+    textAlign: "center",
+  },
+  assessmentTableInputCell: {
+    flex: 1,
+    padding: 6,
+  },
+  assessmentTableInput: {
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 6,
+    borderWidth: 1,
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "700",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     textAlign: "center",
   },
   assessmentTableHeader: {

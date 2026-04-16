@@ -10,6 +10,7 @@ export default function AppScreen({
   eyebrow,
   title,
   subtitle,
+  titleStyle,
   heroFooter,
   showMeta = true,
   enableScrollTopButton = false,
@@ -67,7 +68,7 @@ export default function AppScreen({
             <Pressable onPress={() => setSidebarOpen(true)} style={styles.menuButton} hitSlop={8}>
               <Text style={styles.menuIcon}>≡</Text>
             </Pressable>
-            <Text style={[styles.title, styles.titleInline]}>{title}</Text>
+            <Text style={[styles.title, styles.titleInline, titleStyle]}>{title}</Text>
           </View>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           {showMeta && user?.email ? <Text style={styles.meta}>{user.email}</Text> : null}
@@ -120,7 +121,7 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: colors.dark,
     paddingHorizontal: 20,
-    paddingTop: 44,
+    paddingTop: 56,
     paddingBottom: 24,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -129,7 +130,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: 10,
-    marginTop: 22,
+    marginTop: 30,
   },
   eyebrow: {
     alignSelf: "flex-start",
@@ -147,14 +148,14 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.surface,
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: "800",
-    lineHeight: 36,
+    lineHeight: 32,
   },
   titleInline: {
     flex: 1,
-    fontSize: 36,
-    lineHeight: 40,
+    fontSize: 28,
+    lineHeight: 34,
   },
   menuButton: {
     backgroundColor: "rgba(255, 194, 14, 0.16)",
