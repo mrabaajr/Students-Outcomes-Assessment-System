@@ -624,8 +624,8 @@ export default function ProgramChairCoursesScreen() {
 
   function handleDeleteCourse(course) {
     Alert.alert(
-      "Delete course mapping",
-      `Remove ${course.code} for ${course.academicYear}? This cannot be undone.`,
+      "Warning: Delete course mapping",
+      `You are about to permanently remove the course mapping for ${course.code} in ${course.academicYear}.\n\nThis deletes the mapping record and its student outcome links for that term, which is why the action cannot be undone.\n\nThe base course record may still exist elsewhere, but this mapping entry will be gone.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -1032,7 +1032,7 @@ export default function ProgramChairCoursesScreen() {
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Academic Year *</Text>
                   <Pressable style={styles.dropdownButton} onPress={() => openCoursePicker("academicYear")}>
-                    <Text style={styles.dropdownValue}>{courseForm.academicYear || "Select Academic Year"}</Text>
+                    <Text style={styles.dropdownValue}>{courseForm.academicYear || "Select Academic Year (e.g. 2026-2027)"}</Text>
                     <Text style={styles.dropdownChevron}>▾</Text>
                   </Pressable>
                   {courseFormErrors.academicYear ? <Text style={styles.fieldError}>{courseFormErrors.academicYear}</Text> : null}
@@ -1040,7 +1040,7 @@ export default function ProgramChairCoursesScreen() {
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Semester *</Text>
                   <Pressable style={styles.dropdownButton} onPress={() => openCoursePicker("semester")}>
-                    <Text style={styles.dropdownValue}>{courseForm.semester || "Select Semester"}</Text>
+                    <Text style={styles.dropdownValue}>{courseForm.semester || "Select Semester (e.g. 1st Semester)"}</Text>
                     <Text style={styles.dropdownChevron}>▾</Text>
                   </Pressable>
                   {courseFormErrors.semester ? <Text style={styles.fieldError}>{courseFormErrors.semester}</Text> : null}
@@ -1048,7 +1048,7 @@ export default function ProgramChairCoursesScreen() {
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Year Level *</Text>
                   <Pressable style={styles.dropdownButton} onPress={() => openCoursePicker("yearLevel")}>
-                    <Text style={styles.dropdownValue}>{courseForm.yearLevel || "Select Year Level"}</Text>
+                    <Text style={styles.dropdownValue}>{courseForm.yearLevel || "Select Year Level (e.g. 3rd Year)"}</Text>
                     <Text style={styles.dropdownChevron}>▾</Text>
                   </Pressable>
                   {courseFormErrors.yearLevel ? <Text style={styles.fieldError}>{courseFormErrors.yearLevel}</Text> : null}
@@ -1059,7 +1059,7 @@ export default function ProgramChairCoursesScreen() {
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Course Code *</Text>
                   <TextInput
-                    placeholder="CPE-101"
+                    placeholder="e.g. CPE-309"
                     placeholderTextColor="#7b8a86"
                     style={styles.modalInput}
                     value={courseForm.code}
@@ -1070,7 +1070,7 @@ export default function ProgramChairCoursesScreen() {
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Course Name *</Text>
                   <TextInput
-                    placeholder="Simple Course Name"
+                    placeholder="e.g. Digital Signal Processing"
                     placeholderTextColor="#7b8a86"
                     style={styles.modalInput}
                     value={courseForm.name}
@@ -1081,7 +1081,7 @@ export default function ProgramChairCoursesScreen() {
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Credits *</Text>
                   <TextInput
-                    placeholder="3"
+                    placeholder="e.g. 3"
                     placeholderTextColor="#7b8a86"
                     style={styles.modalInput}
                     value={courseForm.credits}

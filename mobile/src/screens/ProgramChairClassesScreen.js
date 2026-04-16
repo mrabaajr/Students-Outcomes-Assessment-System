@@ -63,7 +63,7 @@ function getSectionOwner(section, facultyMembers) {
   return owner ? { id: owner.id, name: owner.name || "Faculty member" } : null;
 }
 
-function SectionFormModal({ visible, section, facultyOptions, saving, onClose, onSave }) {
+function SectionFormModal({ visible, section, facultyOptions, saving, errors, onClose, onSave, onFieldChange }) {
   const [name, setName] = useState("");
   const [semester, setSemester] = useState("");
   const [academicYear, setAcademicYear] = useState("");
@@ -96,26 +96,38 @@ function SectionFormModal({ visible, section, facultyOptions, saving, onClose, o
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
             <TextInput
-              onChangeText={setName}
-              placeholder="Section name"
+              onChangeText={(value) => {
+                setName(value);
+                onFieldChange?.("name");
+              }}
+              placeholder="e.g. 3A or A"
               placeholderTextColor={colors.gray}
               style={styles.modalInput}
               value={name}
             />
+            {errors?.name ? <Text style={styles.fieldError}>{errors.name}</Text> : null}
             <TextInput
-              onChangeText={setSemester}
-              placeholder="Semester"
+              onChangeText={(value) => {
+                setSemester(value);
+                onFieldChange?.("semester");
+              }}
+              placeholder="e.g. 1st Semester"
               placeholderTextColor={colors.gray}
               style={styles.modalInput}
               value={semester}
             />
+            {errors?.semester ? <Text style={styles.fieldError}>{errors.semester}</Text> : null}
             <TextInput
-              onChangeText={setAcademicYear}
-              placeholder="School year"
+              onChangeText={(value) => {
+                setAcademicYear(value);
+                onFieldChange?.("academicYear");
+              }}
+              placeholder="e.g. 2026-2027"
               placeholderTextColor={colors.gray}
               style={styles.modalInput}
               value={academicYear}
             />
+            {errors?.academicYear ? <Text style={styles.fieldError}>{errors.academicYear}</Text> : null}
 
             <Text style={styles.modalSectionLabel}>Status</Text>
             <View style={styles.modalChipRow}>
@@ -128,7 +140,10 @@ function SectionFormModal({ visible, section, facultyOptions, saving, onClose, o
                 return (
                   <Pressable
                     key={option.label}
-                    onPress={() => setIsActive(option.value)}
+                    onPress={() => {
+                      setIsActive(option.value);
+                      onFieldChange?.("isActive");
+                    }}
                     style={[styles.modalChip, selected ? styles.modalChipSelected : null]}
                   >
                     <Text style={[styles.modalChipText, selected ? styles.modalChipTextSelected : null]}>
@@ -153,6 +168,7 @@ function SectionFormModal({ visible, section, facultyOptions, saving, onClose, o
                 <Pressable
                   onPress={() => {
                     setFacultyId("");
+                    onFieldChange?.("facultyId");
                     setFacultyDropdownOpen(false);
                   }}
                   style={[styles.dropdownItem, !facultyId ? styles.dropdownItemSelected : null]}
@@ -171,6 +187,7 @@ function SectionFormModal({ visible, section, facultyOptions, saving, onClose, o
                         key={faculty.id}
                         onPress={() => {
                           setFacultyId(String(faculty.id));
+                          onFieldChange?.("facultyId");
                           setFacultyDropdownOpen(false);
                         }}
                         style={[styles.dropdownItem, selected ? styles.dropdownItemSelected : null]}
@@ -184,6 +201,7 @@ function SectionFormModal({ visible, section, facultyOptions, saving, onClose, o
                 </ScrollView>
               </View>
             ) : null}
+            {errors?.facultyId ? <Text style={styles.fieldError}>{errors.facultyId}</Text> : null}
           </ScrollView>
 
           <View style={styles.modalActions}>
@@ -212,7 +230,7 @@ function SectionFormModal({ visible, section, facultyOptions, saving, onClose, o
   );
 }
 
-function StudentFormModal({ visible, sectionName, student, saving, onClose, onSave }) {
+function StudentFormModal({ visible, sectionName, student, saving, errors, onClose, onSave, onFieldChange }) {
   const [studentId, setStudentId] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -241,41 +259,61 @@ function StudentFormModal({ visible, sectionName, student, saving, onClose, onSa
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
             <TextInput
-              onChangeText={setStudentId}
-              placeholder="Student ID"
+              onChangeText={(value) => {
+                setStudentId(value);
+                onFieldChange?.("studentId");
+              }}
+              placeholder="e.g. 2024-0001"
               placeholderTextColor={colors.gray}
               style={styles.modalInput}
               value={studentId}
             />
+            {errors?.studentId ? <Text style={styles.fieldError}>{errors.studentId}</Text> : null}
             <TextInput
-              onChangeText={setFirstName}
-              placeholder="First name"
+              onChangeText={(value) => {
+                setFirstName(value);
+                onFieldChange?.("firstName");
+              }}
+              placeholder="e.g. Juan"
               placeholderTextColor={colors.gray}
               style={styles.modalInput}
               value={firstName}
             />
+            {errors?.firstName ? <Text style={styles.fieldError}>{errors.firstName}</Text> : null}
             <TextInput
-              onChangeText={setLastName}
-              placeholder="Last name"
+              onChangeText={(value) => {
+                setLastName(value);
+                onFieldChange?.("lastName");
+              }}
+              placeholder="e.g. Dela Cruz"
               placeholderTextColor={colors.gray}
               style={styles.modalInput}
               value={lastName}
             />
+            {errors?.lastName ? <Text style={styles.fieldError}>{errors.lastName}</Text> : null}
             <TextInput
-              onChangeText={setProgram}
-              placeholder="Course / program"
+              onChangeText={(value) => {
+                setProgram(value);
+                onFieldChange?.("program");
+              }}
+              placeholder="e.g. Computer Engineering"
               placeholderTextColor={colors.gray}
               style={styles.modalInput}
               value={program}
             />
+            {errors?.program ? <Text style={styles.fieldError}>{errors.program}</Text> : null}
             <TextInput
               keyboardType="number-pad"
-              onChangeText={setYearLevel}
-              placeholder="Year level"
+              onChangeText={(value) => {
+                setYearLevel(value);
+                onFieldChange?.("yearLevel");
+              }}
+              placeholder="e.g. 3"
               placeholderTextColor={colors.gray}
               style={styles.modalInput}
               value={yearLevel}
             />
+            {errors?.yearLevel ? <Text style={styles.fieldError}>{errors.yearLevel}</Text> : null}
           </ScrollView>
 
           <View style={styles.modalActions}>
@@ -560,10 +598,14 @@ export default function ProgramChairClassesScreen() {
   const [sectionFormVisible, setSectionFormVisible] = useState(false);
   const [editingSection, setEditingSection] = useState(null);
   const [sectionSaving, setSectionSaving] = useState(false);
+  const [sectionFormErrors, setSectionFormErrors] = useState({});
+  const [deletingSectionId, setDeletingSectionId] = useState(null);
   const [studentFormVisible, setStudentFormVisible] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [studentSection, setStudentSection] = useState(null);
   const [studentSaving, setStudentSaving] = useState(false);
+  const [studentFormErrors, setStudentFormErrors] = useState({});
+  const [deletingStudentKey, setDeletingStudentKey] = useState(null);
   const [facultyFormVisible, setFacultyFormVisible] = useState(false);
   const [editingFaculty, setEditingFaculty] = useState(null);
   const [facultySaving, setFacultySaving] = useState(false);
@@ -603,10 +645,118 @@ export default function ProgramChairClassesScreen() {
   }, []);
 
   useEffect(() => {
-    if (!expandedSectionId && payload.sections.length > 0) {
-      setExpandedSectionId(payload.sections[0].id);
+    if (!expandedSectionId) return;
+
+    const sectionStillExists = payload.sections.some(
+      (section) => String(section.id) === String(expandedSectionId)
+    );
+
+    if (!sectionStillExists) {
+      setExpandedSectionId(null);
     }
   }, [expandedSectionId, payload.sections]);
+
+  function getErrorMessage(loadError, fallback) {
+    const detail = loadError?.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (detail && typeof detail === "object") {
+      return Object.entries(detail)
+        .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : value}`)
+        .join(" | ");
+    }
+
+    if (loadError?.response?.data && typeof loadError.response.data === "object") {
+      return Object.entries(loadError.response.data)
+        .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : value}`)
+        .join(" | ");
+    }
+
+    return loadError?.message || fallback;
+  }
+
+  function clearSectionFieldError(field) {
+    setSectionFormErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function clearStudentFieldError(field) {
+    setStudentFormErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function validateSectionForm(data) {
+    const errors = {};
+    if (!data.name) errors.name = "Section name is required.";
+    if (!data.semester) errors.semester = "Semester is required.";
+    if (!data.academicYear) errors.academicYear = "School year is required.";
+    return errors;
+  }
+
+  function validateStudentForm(data) {
+    const errors = {};
+    if (!data.studentId) errors.studentId = "Student ID is required.";
+    if (!data.firstName) errors.firstName = "First name is required.";
+    if (!data.lastName) errors.lastName = "Last name is required.";
+    if (!data.program) errors.program = "Program is required.";
+    if (!data.yearLevel) {
+      errors.yearLevel = "Year level is required.";
+    } else if (!/^\d+$/.test(data.yearLevel)) {
+      errors.yearLevel = "Year level must be a number.";
+    } else {
+      const numericLevel = Number(data.yearLevel);
+      if (numericLevel < 1 || numericLevel > 4) {
+        errors.yearLevel = "Year level must be between 1 and 4.";
+      }
+    }
+    return errors;
+  }
+
+  function mapSectionErrors(saveError) {
+    const data = saveError?.response?.data;
+    if (!data || typeof data !== "object") return {};
+
+    const fieldMap = {
+      name: "name",
+      semester: "semester",
+      academic_year: "academicYear",
+      faculty_id: "facultyId",
+    };
+
+    return Object.entries(data).reduce((acc, [key, value]) => {
+      const formKey = fieldMap[key];
+      if (!formKey) return acc;
+      acc[formKey] = Array.isArray(value) ? value.join(", ") : String(value);
+      return acc;
+    }, {});
+  }
+
+  function mapStudentErrors(saveError) {
+    const data = saveError?.response?.data;
+    if (!data || typeof data !== "object") return {};
+
+    const fieldMap = {
+      student_id: "studentId",
+      first_name: "firstName",
+      last_name: "lastName",
+      program: "program",
+      year_level: "yearLevel",
+    };
+
+    return Object.entries(data).reduce((acc, [key, value]) => {
+      const formKey = fieldMap[key];
+      if (!formKey) return acc;
+      acc[formKey] = Array.isArray(value) ? value.join(", ") : String(value);
+      return acc;
+    }, {});
+  }
 
   const activeSections = useMemo(
     () => payload.sections.filter((section) => section.isActive).length,
@@ -804,11 +954,13 @@ export default function ProgramChairClassesScreen() {
   }
 
   function openSectionEditor(section) {
+    setSectionFormErrors({});
     setEditingSection(section);
     setSectionFormVisible(true);
   }
 
   function openStudentEditor(section, student) {
+    setStudentFormErrors({});
     setStudentSection(section);
     setEditingStudent(student || null);
     setStudentFormVisible(true);
@@ -822,8 +974,15 @@ export default function ProgramChairClassesScreen() {
   async function handleSaveSection(data) {
     if (!editingSection) return;
 
+    const validationErrors = validateSectionForm(data);
+    if (Object.keys(validationErrors).length > 0) {
+      setSectionFormErrors(validationErrors);
+      return;
+    }
+
     try {
       setSectionSaving(true);
+      setSectionFormErrors({});
       await apiClient.patch(`/sections/${editingSection.id}/`, {
         name: data.name,
         semester: data.semester,
@@ -834,32 +993,54 @@ export default function ProgramChairClassesScreen() {
       await refreshClasses();
       setSectionFormVisible(false);
       setEditingSection(null);
+      setSectionFormErrors({});
     } catch (saveError) {
-      Alert.alert("Unable to save section", saveError.response?.data?.detail || saveError.message || "Please try again.");
+      const fieldErrors = mapSectionErrors(saveError);
+      if (Object.keys(fieldErrors).length > 0) {
+        setSectionFormErrors(fieldErrors);
+      } else {
+        Alert.alert("Unable to save section", getErrorMessage(saveError, "Please try again."));
+      }
     } finally {
       setSectionSaving(false);
     }
   }
 
   async function handleDeleteSection(section) {
-    Alert.alert("Delete section?", `Delete ${section.courseCode} - ${section.name}?`, [
+    Alert.alert(
+      "Warning: Delete section",
+      `You are about to permanently delete ${section.courseCode} - ${section.name}.\n\nThis will also remove every student enrollment linked to this section first, because the backend will not allow the section to be deleted while students are still attached.\n\nThis action cannot be undone.`,
+      [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
           try {
+            setDeletingSectionId(section.id);
+            const enrollmentsResponse = await apiClient.get("/enrollments/");
+            const enrollments = normalizeApiList(enrollmentsResponse.data).filter(
+              (enrollment) => String(enrollment.section?.id || enrollment.section || "") === String(section.id)
+            );
+
+            for (const enrollment of enrollments) {
+              await apiClient.delete(`/enrollments/${enrollment.id}/`);
+            }
+
             await apiClient.delete(`/sections/${section.id}/`);
             await refreshClasses();
           } catch (deleteError) {
             Alert.alert(
               "Unable to delete section",
-              deleteError.response?.data?.detail || deleteError.message || "Please try again."
+              getErrorMessage(deleteError, "Please try again.")
             );
+          } finally {
+            setDeletingSectionId(null);
           }
         },
       },
-    ]);
+      ]
+    );
   }
 
   async function handleImportCsv(section) {
@@ -915,16 +1096,20 @@ export default function ProgramChairClassesScreen() {
   async function handleSaveStudent(data) {
     if (!studentSection) return;
 
+    const validationErrors = validateStudentForm(data);
+    if (Object.keys(validationErrors).length > 0) {
+      setStudentFormErrors(validationErrors);
+      return;
+    }
+
     try {
       setStudentSaving(true);
-
-      if (!data.studentId || !data.firstName || !data.lastName || !data.program || !data.yearLevel) {
-        throw new Error("Please complete all student fields.");
-      }
+      setStudentFormErrors({});
 
       const yearLevelValue = Number.parseInt(data.yearLevel, 10);
       if (Number.isNaN(yearLevelValue)) {
-        throw new Error("Year level must be a number.");
+        setStudentFormErrors({ yearLevel: "Year level must be a number." });
+        return;
       }
 
       const studentsResponse = await apiClient.get("/students/");
@@ -968,24 +1153,31 @@ export default function ProgramChairClassesScreen() {
       setStudentFormVisible(false);
       setEditingStudent(null);
       setStudentSection(null);
+      setStudentFormErrors({});
     } catch (studentError) {
-      Alert.alert(
-        "Unable to save student",
-        studentError.response?.data?.detail || studentError.message || "Please try again."
-      );
+      const fieldErrors = mapStudentErrors(studentError);
+      if (Object.keys(fieldErrors).length > 0) {
+        setStudentFormErrors(fieldErrors);
+      } else {
+        Alert.alert("Unable to save student", getErrorMessage(studentError, "Please try again."));
+      }
     } finally {
       setStudentSaving(false);
     }
   }
 
   async function handleDeleteStudent(section, student) {
-    Alert.alert("Delete student?", `${student.name} will be removed from ${section.name}.`, [
+    Alert.alert(
+      "Warning: Remove student",
+      `${student.name} will be removed from ${section.name} by deleting the enrollment record for this class.\n\nThis does not delete the student account itself, but it does unenroll the student from this section.\n\nThis action cannot be undone.`,
+      [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
           try {
+            setDeletingStudentKey(`${section.id}-${student.id}`);
             const enrollmentId = await findEnrollmentId(section.id, student.id);
             if (!enrollmentId) {
               throw new Error("Enrollment record not found.");
@@ -996,12 +1188,15 @@ export default function ProgramChairClassesScreen() {
           } catch (deleteError) {
             Alert.alert(
               "Unable to delete student",
-              deleteError.response?.data?.detail || deleteError.message || "Please try again."
+              getErrorMessage(deleteError, "Please try again.")
             );
+          } finally {
+            setDeletingStudentKey(null);
           }
         },
       },
-    ]);
+      ]
+    );
   }
 
   async function handleSaveFaculty(payloadData) {
@@ -1057,8 +1252,8 @@ export default function ProgramChairClassesScreen() {
 
   function handleDeleteFaculty(member) {
     Alert.alert(
-      "Delete faculty?",
-      `${member.name} will be removed from faculty accounts and section assignments will be unlinked.`,
+      "Warning: Delete faculty",
+      `${member.name} will be permanently removed from faculty accounts.\n\nAny sections currently assigned to this faculty will be left unassigned so classes are not deleted by mistake.\n\nThis action cannot be undone.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -1238,8 +1433,14 @@ export default function ProgramChairClassesScreen() {
                     <Pressable onPress={() => openSectionEditor(section)} style={styles.actionButtonSecondary}>
                       <Text style={styles.actionButtonSecondaryText}>Edit</Text>
                     </Pressable>
-                    <Pressable onPress={() => handleDeleteSection(section)} style={styles.actionButtonDanger}>
-                      <Text style={styles.actionButtonDangerText}>Delete</Text>
+                    <Pressable
+                      onPress={() => handleDeleteSection(section)}
+                      style={styles.actionButtonDanger}
+                      disabled={deletingSectionId === section.id}
+                    >
+                      <Text style={styles.actionButtonDangerText}>
+                        {deletingSectionId === section.id ? "Deleting..." : "Delete"}
+                      </Text>
                     </Pressable>
                     <Pressable onPress={() => openStudentEditor(section, null)} style={styles.actionButtonPrimary}>
                       <Text style={styles.actionButtonPrimaryText}>Add Student</Text>
@@ -1274,8 +1475,14 @@ export default function ProgramChairClassesScreen() {
                                 <Pressable onPress={() => openStudentEditor(section, student)} style={styles.rowActionButton}>
                                   <Text style={styles.rowActionText}>Edit</Text>
                                 </Pressable>
-                                <Pressable onPress={() => handleDeleteStudent(section, student)} style={styles.rowActionButtonDanger}>
-                                  <Text style={styles.rowActionTextDanger}>Delete</Text>
+                                <Pressable
+                                  onPress={() => handleDeleteStudent(section, student)}
+                                  style={styles.rowActionButtonDanger}
+                                  disabled={deletingStudentKey === `${section.id}-${student.id}`}
+                                >
+                                  <Text style={styles.rowActionTextDanger}>
+                                    {deletingStudentKey === `${section.id}-${student.id}` ? "Deleting..." : "Delete"}
+                                  </Text>
                                 </Pressable>
                               </View>
                             </View>
@@ -1412,10 +1619,13 @@ export default function ProgramChairClassesScreen() {
         section={editingSection}
         facultyOptions={payload.faculty}
         saving={sectionSaving}
+        errors={sectionFormErrors}
         onClose={() => {
           setSectionFormVisible(false);
           setEditingSection(null);
+          setSectionFormErrors({});
         }}
+        onFieldChange={clearSectionFieldError}
         onSave={handleSaveSection}
       />
 
@@ -1424,11 +1634,14 @@ export default function ProgramChairClassesScreen() {
         sectionName={studentSection?.name || ""}
         student={editingStudent}
         saving={studentSaving}
+        errors={studentFormErrors}
         onClose={() => {
           setStudentFormVisible(false);
           setEditingStudent(null);
           setStudentSection(null);
+          setStudentFormErrors({});
         }}
+        onFieldChange={clearStudentFieldError}
         onSave={handleSaveStudent}
       />
 
@@ -1780,6 +1993,13 @@ const styles = StyleSheet.create({
   modalInputEdit: {
     borderRadius: 8,
     borderColor: colors.dark,
+  },
+  fieldError: {
+    color: colors.danger,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: -8,
+    marginBottom: 10,
   },
   formFieldLabel: {
     color: colors.dark,
