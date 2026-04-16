@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -101,6 +102,8 @@ export default function FacultyAssessmentsScreen({ navigation }) {
   const [selectedSemester, setSelectedSemester] = useState("");
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("");
   const [summaryMap, setSummaryMap] = useState({});
+  const [filterPickerVisible, setFilterPickerVisible] = useState(false);
+  const [activeFilterKey, setActiveFilterKey] = useState("outcome");
 
   useEffect(() => {
     let cancelled = false;
@@ -233,6 +236,84 @@ export default function FacultyAssessmentsScreen({ navigation }) {
     [filteredSections]
   );
 
+  const filterConfigs = useMemo(
+    () => ({
+      outcome: {
+        label: "Student Outcome",
+        value: selectedSOIds.length > 0 ? String(selectedSOIds[0]) : "",
+        displayValue:
+          selectedSOIds.length > 0
+            ? studentOutcomes.find((item) => String(item.id) === String(selectedSOIds[0]))?.code || "Selected"
+            : "All Outcomes",
+        options: [{ label: "All Outcomes", value: "" }].concat(
+          studentOutcomes.map((item) => ({ label: item.code, value: String(item.id) }))
+        ),
+        onSelect: (value) => setSelectedSOIds(value ? [Number(value)] : []),
+      },
+      course: {
+        label: "Course",
+        value: selectedCourseCode,
+        displayValue: selectedCourseCode || "All Courses",
+        options: [{ label: "All Courses", value: "" }].concat(
+          courseOptions.map((item) => ({ label: `${item.code} - ${item.name}`, value: item.code }))
+        ),
+        onSelect: setSelectedCourseCode,
+      },
+      section: {
+        label: "Section",
+        value: selectedSectionName,
+        displayValue: selectedSectionName || "All Sections",
+        options: [{ label: "All Sections", value: "" }].concat(
+          sectionOptions.map((item) => ({ label: item, value: item }))
+        ),
+        onSelect: setSelectedSectionName,
+      },
+      semester: {
+        label: "Semester",
+        value: selectedSemester,
+        displayValue: selectedSemester || "All Semesters",
+        options: [{ label: "All Semesters", value: "" }].concat(
+          semesterOptions.map((item) => ({ label: item, value: item }))
+        ),
+        onSelect: setSelectedSemester,
+      },
+      schoolYear: {
+        label: "School Year",
+        value: selectedSchoolYear,
+        displayValue: selectedSchoolYear || "All School Years",
+        options: [{ label: "All School Years", value: "" }].concat(
+          schoolYearOptions.map((item) => ({ label: item, value: item }))
+        ),
+        onSelect: setSelectedSchoolYear,
+      },
+    }),
+    [
+      courseOptions,
+      schoolYearOptions,
+      sectionOptions,
+      selectedCourseCode,
+      selectedSOIds,
+      selectedSchoolYear,
+      selectedSectionName,
+      selectedSemester,
+      semesterOptions,
+      studentOutcomes,
+    ]
+  );
+
+  function openFilterPicker(key) {
+    setActiveFilterKey(key);
+    setFilterPickerVisible(true);
+  }
+
+  function handleFilterSelect(value) {
+    const config = filterConfigs[activeFilterKey];
+    if (config?.onSelect) {
+      config.onSelect(value);
+    }
+    setFilterPickerVisible(false);
+  }
+
   function clearAllFilters() {
     setSelectedSOIds([]);
     setSelectedCourseCode("");
@@ -249,38 +330,68 @@ export default function FacultyAssessmentsScreen({ navigation }) {
     selectedSchoolYear,
   ].filter(Boolean).length;
 
+  const assessmentSnapshot = useMemo(() => {
+    const keys = sectionRequests.map(
+      (request) => `${request.section_id}:${request.so_id}:${request.school_year || ""}`
+    );
+    const summaries = keys.map((key) => summaryMap[key]).filter(Boolean);
+    const assessed = summaries.filter((item) => item.status === "assessed").length;
+    const completion = summaries.length > 0 ? Math.round((assessed / summaries.length) * 100) : 0;
+
+    return {
+      courses: coursesForGrid.length,
+      sections: filteredSections.length,
+      assessed,
+      incomplete: summaries.filter((item) => item.status === "incomplete").length,
+      completion,
+    };
+  }, [coursesForGrid.length, filteredSections.length, sectionRequests, summaryMap]);
+
+  const exportRows = useMemo(() => {
+    if (!selectedCourseCode) {
+      return [];
+    }
+
+    const courseSections = filteredSections.filter((section) => section.courseCode === selectedCourseCode);
+
+    return courseSections.flatMap((section) => {
+      const mappedSOs = courseMappings[section.courseCode] || [];
+      const relevantIds = selectedSOIds.length > 0 ? selectedSOIds : mappedSOs;
+
+      return relevantIds.map((soId) => {
+        const summary = summaryMap[`${section.id}:${soId}:${section.schoolYear || ""}`];
+        const studentOutcome = studentOutcomes.find((item) => String(item.id) === String(soId));
+
+        return {
+          courseCode: section.courseCode,
+          courseName: section.courseName,
+          sectionName: section.name,
+          semester: section.semester,
+          schoolYear: section.schoolYear,
+          soCode: studentOutcome?.code || `SO ${soId}`,
+          statusLabel: statusColors(summary?.status).label,
+          gradedStudents: summary?.graded_students ?? 0,
+          totalStudents: summary?.total_students ?? section.studentCount ?? 0,
+          facultyName: section.facultyName || "",
+        };
+      });
+    });
+  }, [courseMappings, filteredSections, selectedCourseCode, selectedSOIds, studentOutcomes, summaryMap]);
+
   async function handleExportCsv() {
     try {
-      const rows = filteredSections.flatMap((section) => {
-        const mappedSOs = courseMappings[section.courseCode] || [];
-        const relevantIds = selectedSOIds.length > 0 ? selectedSOIds : mappedSOs;
-
-        return relevantIds.map((soId) => {
-          const summary = summaryMap[`${section.id}:${soId}:${section.schoolYear || ""}`];
-          const studentOutcome = studentOutcomes.find((item) => String(item.id) === String(soId));
-
-          return {
-            courseCode: section.courseCode,
-            courseName: section.courseName,
-            sectionName: section.name,
-            semester: section.semester,
-            schoolYear: section.schoolYear,
-            soCode: studentOutcome?.code || `SO ${soId}`,
-            statusLabel: statusColors(summary?.status).label,
-            gradedStudents: summary?.graded_students ?? 0,
-            totalStudents: summary?.total_students ?? section.studentCount ?? 0,
-            facultyName: section.facultyName || "",
-          };
-        });
-      });
-
-      if (!rows.length) {
-        Alert.alert("No data to export", "Use filters that return assessment rows before exporting.");
+      if (!selectedCourseCode) {
+        Alert.alert("Select a course", "Choose a course before exporting the CSV.");
         return;
       }
 
-      const csv = buildAssessmentCsv(rows);
-      const fileUri = `${FileSystem.cacheDirectory}faculty-assessments-${Date.now()}.csv`;
+      if (!exportRows.length) {
+        Alert.alert("No data to export", "No assessment rows are available for the selected course.");
+        return;
+      }
+
+      const csv = buildAssessmentCsv(exportRows);
+      const fileUri = `${FileSystem.cacheDirectory}faculty-assessments-${String(selectedCourseCode).replace(/[^a-z0-9_-]/gi, "-")}-${Date.now()}.csv`;
       await FileSystem.writeAsStringAsync(fileUri, csv, {
         encoding: FileSystem.EncodingType.UTF8,
       });
@@ -303,10 +414,26 @@ export default function FacultyAssessmentsScreen({ navigation }) {
     <AppScreen
       title={"SO\nAssessment"}
       subtitle="Filter by outcome, course, section, and term before opening a class for grading."
+      showMeta={false}
+      enableScrollTopButton={true}
       heroFooter={
-        <Pressable onPress={handleExportCsv} style={styles.exportButton}>
-          <Text style={styles.exportButtonText}>Export CSV</Text>
-        </Pressable>
+        <View style={styles.heroFooterWrap}>
+          <View style={styles.heroActionRow}>
+            <Pressable onPress={() => openFilterPicker("course")} style={styles.chooseCourseButton}>
+              <Text style={styles.chooseCourseButtonText}>
+                {selectedCourseCode ? `Selected: ${selectedCourseCode}` : "Choose Course"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleExportCsv}
+              style={[styles.exportButton, !selectedCourseCode ? styles.exportButtonDisabled : null]}
+              disabled={!selectedCourseCode}
+            >
+              <Text style={styles.exportButtonText}>Export Course CSV</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.heroHelperText}>Pick a course first, then export its assessment rows.</Text>
+        </View>
       }
     >
       {loading ? (
@@ -323,58 +450,22 @@ export default function FacultyAssessmentsScreen({ navigation }) {
       ) : (
         <>
           <InfoCard title="Filters">
-            <Text style={styles.filterLabel}>Student Outcomes</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.soRow}>
-                {studentOutcomes.map((outcome) => {
-                  const active = selectedSOIds.includes(outcome.id);
-                  return (
-                    <Pressable
-                      key={outcome.id}
-                      onPress={() =>
-                        setSelectedSOIds((prev) =>
-                          active ? prev.filter((id) => id !== outcome.id) : [...prev, outcome.id]
-                        )
-                      }
-                      style={[styles.soChip, active ? styles.soChipActive : null]}
-                    >
-                      <Text style={[styles.soChipText, active ? styles.soChipTextActive : null]}>
-                        {outcome.code}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
-
-            <View style={styles.optionSection}>
-              <Text style={styles.filterLabel}>Quick filters</Text>
-              <View style={styles.optionWrap}>
-                {[{ label: "Course", value: selectedCourseCode || "All", options: courseOptions.map((item) => item.code), setter: setSelectedCourseCode },
-                  { label: "Section", value: selectedSectionName || "All", options: sectionOptions, setter: setSelectedSectionName },
-                  { label: "Semester", value: selectedSemester || "All", options: semesterOptions, setter: setSelectedSemester },
-                  { label: "School Year", value: selectedSchoolYear || "All", options: schoolYearOptions, setter: setSelectedSchoolYear }].map((group) => (
-                  <ScrollView key={group.label} horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={styles.groupRow}>
-                      <Text style={styles.groupLabel}>{group.label}</Text>
-                      <Pressable onPress={() => group.setter("")} style={[styles.optionPill, group.value === "All" ? styles.optionPillActive : null]}>
-                        <Text style={[styles.optionText, group.value === "All" ? styles.optionTextActive : null]}>All</Text>
-                      </Pressable>
-                      {group.options.map((option) => (
-                        <Pressable
-                          key={`${group.label}-${option}`}
-                          onPress={() => group.setter(option)}
-                          style={[styles.optionPill, group.value === option ? styles.optionPillActive : null]}
-                        >
-                          <Text style={[styles.optionText, group.value === option ? styles.optionTextActive : null]}>
-                            {option}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </ScrollView>
-                ))}
-              </View>
+            <View style={styles.filterDropdownStack}>
+              {[
+                { key: "outcome", label: "Student Outcome" },
+                { key: "course", label: "Course" },
+                { key: "section", label: "Section" },
+                { key: "semester", label: "Semester" },
+                { key: "schoolYear", label: "School Year" },
+              ].map((item) => (
+                <View key={item.key} style={styles.filterBlock}>
+                  <Text style={styles.filterLabel}>{item.label}</Text>
+                  <Pressable style={styles.dropdownButton} onPress={() => openFilterPicker(item.key)}>
+                    <Text style={styles.dropdownValue}>{filterConfigs[item.key].displayValue}</Text>
+                    <Text style={styles.dropdownChevron}>▾</Text>
+                  </Pressable>
+                </View>
+              ))}
             </View>
 
             <View style={styles.filterFooter}>
@@ -388,6 +479,25 @@ export default function FacultyAssessmentsScreen({ navigation }) {
               ) : null}
             </View>
           </InfoCard>
+
+          <View style={styles.snapshotGrid}>
+            <View style={styles.snapshotTile}>
+              <Text style={styles.snapshotLabel}>Courses</Text>
+              <Text style={styles.snapshotValue}>{assessmentSnapshot.courses}</Text>
+            </View>
+            <View style={styles.snapshotTile}>
+              <Text style={styles.snapshotLabel}>Sections</Text>
+              <Text style={styles.snapshotValue}>{assessmentSnapshot.sections}</Text>
+            </View>
+            <View style={styles.snapshotTile}>
+              <Text style={styles.snapshotLabel}>Assessed</Text>
+              <Text style={styles.snapshotValue}>{assessmentSnapshot.assessed}</Text>
+            </View>
+            <View style={styles.snapshotTileHighlight}>
+              <Text style={styles.snapshotLabelHighlight}>Completion</Text>
+              <Text style={styles.snapshotValueHighlight}>{assessmentSnapshot.completion}%</Text>
+            </View>
+          </View>
 
           <InfoCard title="Courses" rightText={`${coursesForGrid.length} total`}>
             {coursesForGrid.length === 0 ? (
@@ -412,8 +522,6 @@ export default function FacultyAssessmentsScreen({ navigation }) {
                   aggregateStatus = "assessed";
                 }
 
-                const badge = statusColors(aggregateStatus);
-
                 return (
                   <Pressable
                     key={course.id}
@@ -427,6 +535,7 @@ export default function FacultyAssessmentsScreen({ navigation }) {
                     }
                     style={styles.courseCard}
                   >
+                    <View style={styles.courseAccentBar} />
                     <View style={styles.courseHeader}>
                       <View style={styles.courseMain}>
                         <Text style={styles.courseCode}>{course.courseCode}</Text>
@@ -441,6 +550,11 @@ export default function FacultyAssessmentsScreen({ navigation }) {
                       {course.studentCount} students • {course.sections.length} sections
                     </Text>
 
+                    <View style={styles.courseMetaRow}>
+                      <Text style={styles.courseMetaSoft}>Tap card to open assessment entry</Text>
+                      <Text style={styles.courseMetaStrong}>{mappedIds.length} mapped SOs</Text>
+                    </View>
+
                     {mappedIds.length > 0 ? (
                       <View style={styles.mappedRow}>
                         {studentOutcomes
@@ -452,6 +566,11 @@ export default function FacultyAssessmentsScreen({ navigation }) {
                           ))}
                       </View>
                     ) : null}
+
+                    <View style={styles.openCourseRow}>
+                      <Text style={styles.openCourseText}>Open Assessment</Text>
+                      <Text style={styles.openCourseArrow}>→</Text>
+                    </View>
                   </Pressable>
                 );
               })
@@ -459,11 +578,41 @@ export default function FacultyAssessmentsScreen({ navigation }) {
           </InfoCard>
         </>
       )}
+
+      <Modal animationType="fade" transparent visible={filterPickerVisible}>
+        <View style={styles.modalOverlaySoft}>
+          <View style={styles.pickerCard}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>{filterConfigs[activeFilterKey]?.label || "Select"}</Text>
+              <Pressable onPress={() => setFilterPickerVisible(false)} style={styles.pickerCloseButton}>
+                <Text style={styles.pickerCloseText}>Close</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.pickerList}>
+              {(filterConfigs[activeFilterKey]?.options || []).map((option) => {
+                const selected = String(filterConfigs[activeFilterKey]?.value || "") === String(option.value);
+                return (
+                  <Pressable
+                    key={`${activeFilterKey}-${option.value}`}
+                    onPress={() => handleFilterSelect(option.value)}
+                    style={[styles.pickerOption, selected && styles.pickerOptionActive]}
+                  >
+                    <Text style={[styles.pickerOptionText, selected && styles.pickerOptionTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </AppScreen>
   );
 }
 
-export function FacultyAssessmentEntryScreen({ route }) {
+export function FacultyAssessmentEntryScreen({ route, navigation }) {
   const { course, studentOutcomes, courseMappings, summaryMap } = route.params;
   const [selectedSection, setSelectedSection] = useState(course.sections?.[0] || null);
   const [selectedSOId, setSelectedSOId] = useState(() => {
@@ -473,6 +622,7 @@ export function FacultyAssessmentEntryScreen({ route }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [successVisible, setSuccessVisible] = useState(false);
   const [error, setError] = useState("");
 
   const selectedSO = useMemo(
@@ -579,6 +729,7 @@ export function FacultyAssessmentEntryScreen({ route }) {
         schoolYear: selectedSection.schoolYear,
         grades,
       });
+      setSuccessVisible(true);
     } catch (saveError) {
       setError(saveError.response?.data?.detail || saveError.message || "Failed to save assessment.");
     } finally {
@@ -592,8 +743,20 @@ export function FacultyAssessmentEntryScreen({ route }) {
       : null;
 
   return (
-    <AppScreen eyebrow="Assessment Entry" title={course.courseCode} subtitle={course.courseName}>
+    <AppScreen
+      eyebrow="Assessment Entry"
+      title={course.courseCode}
+      subtitle={course.courseName}
+      showMeta={false}
+      enableScrollTopButton={true}
+    >
       <InfoCard title="Selection">
+        <View style={styles.entryTopRow}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.entryBackButton}>
+            <Text style={styles.entryBackButtonText}>← Back to Assessments</Text>
+          </Pressable>
+        </View>
+
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.soRow}>
             {(course.sections || []).map((section) => (
@@ -638,12 +801,28 @@ export function FacultyAssessmentEntryScreen({ route }) {
 
         {currentSummary ? (
           <View style={styles.summaryInline}>
-            <Text style={styles.summaryInlineText}>
-              Status: {statusColors(currentSummary.status).label}
-            </Text>
-            <Text style={styles.summaryInlineText}>
-              Graded: {currentSummary.graded_students}/{currentSummary.total_students}
-            </Text>
+            <View style={[styles.summaryPill, styles.summaryPillStatus]}>
+              <Text style={styles.summaryPillLabel}>Status</Text>
+              <Text
+                style={[
+                  styles.summaryPillValue,
+                  currentSummary.status === "assessed"
+                    ? styles.summaryPillValueGood
+                    : currentSummary.status === "incomplete"
+                    ? styles.summaryPillValueWarn
+                    : styles.summaryPillValueNeutral,
+                ]}
+              >
+                {statusColors(currentSummary.status).label}
+              </Text>
+            </View>
+
+            <View style={[styles.summaryPill, styles.summaryPillGraded]}>
+              <Text style={styles.summaryPillLabel}>Graded</Text>
+              <Text style={styles.summaryPillValue}>
+                {currentSummary.graded_students}/{currentSummary.total_students}
+              </Text>
+            </View>
           </View>
         ) : null}
       </InfoCard>
@@ -704,6 +883,29 @@ export function FacultyAssessmentEntryScreen({ route }) {
           <Text style={styles.mutedText}>Choose a section and mapped student outcome to start grading.</Text>
         </InfoCard>
       )}
+
+      <Modal animationType="fade" transparent visible={successVisible}>
+        <View style={styles.successOverlay}>
+          <View style={styles.successCard}>
+            <View style={styles.successIconWrap}>
+              <Text style={styles.successIcon}>✓</Text>
+            </View>
+            <Text style={styles.successTitle}>Saved Successfully</Text>
+            <Text style={styles.successMessage}>
+              Assessment grades have been saved to the system.
+            </Text>
+            <Pressable
+              onPress={() => {
+                setSuccessVisible(false);
+                navigation.goBack();
+              }}
+              style={styles.successButton}
+            >
+              <Text style={styles.successButtonText}>Back To Assessments</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </AppScreen>
   );
 }
@@ -740,7 +942,95 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: 13,
     fontWeight: "700",
-    marginBottom: 10,
+    marginBottom: 6,
+  },
+  filterDropdownStack: {
+    gap: 10,
+  },
+  filterBlock: {
+    gap: 6,
+  },
+  dropdownButton: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  dropdownValue: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+    marginRight: 8,
+  },
+  dropdownChevron: {
+    color: colors.gray,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  modalOverlaySoft: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    padding: 18,
+  },
+  pickerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.graySoft,
+    padding: 14,
+    maxHeight: "70%",
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  pickerTitle: {
+    color: colors.dark,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  pickerCloseButton: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pickerCloseText: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  pickerList: {
+    marginTop: 4,
+  },
+  pickerOption: {
+    borderColor: colors.graySoft,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  pickerOptionActive: {
+    backgroundColor: colors.dark,
+    borderColor: colors.dark,
+  },
+  pickerOptionText: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  pickerOptionTextActive: {
+    color: colors.yellow,
   },
   soRow: {
     flexDirection: "row",
@@ -811,6 +1101,55 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 16,
   },
+  snapshotGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  snapshotTile: {
+    flex: 1,
+    minWidth: "47%",
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  snapshotTileHighlight: {
+    flex: 1,
+    minWidth: "47%",
+    backgroundColor: colors.dark,
+    borderColor: colors.dark,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  snapshotLabel: {
+    color: colors.gray,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  snapshotValue: {
+    color: colors.dark,
+    fontSize: 24,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  snapshotLabelHighlight: {
+    color: "#ffe9a0",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  snapshotValueHighlight: {
+    color: colors.yellow,
+    fontSize: 24,
+    fontWeight: "900",
+    marginTop: 4,
+  },
   clearButton: {
     backgroundColor: colors.yellow,
     borderRadius: 10,
@@ -829,6 +1168,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 12,
     padding: 16,
+  },
+  courseAccentBar: {
+    width: 42,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: colors.yellow,
+    marginBottom: 10,
   },
   courseHeader: {
     flexDirection: "row",
@@ -862,6 +1208,24 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: 13,
     marginTop: 10,
+    fontWeight: "700",
+  },
+  courseMetaRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  courseMetaSoft: {
+    color: colors.gray,
+    fontSize: 12,
+    flex: 1,
+  },
+  courseMetaStrong: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "800",
   },
   mappedRow: {
     flexDirection: "row",
@@ -880,17 +1244,88 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
   },
+  openCourseRow: {
+    marginTop: 12,
+    borderTopColor: colors.graySoft,
+    borderTopWidth: 1,
+    paddingTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  openCourseText: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  openCourseArrow: {
+    color: colors.yellowAlt,
+    fontSize: 18,
+    fontWeight: "900",
+    lineHeight: 18,
+  },
   selectionSpacer: {
     marginTop: 10,
   },
-  summaryInline: {
-    gap: 4,
-    marginTop: 12,
+  entryTopRow: {
+    marginBottom: 10,
   },
-  summaryInlineText: {
+  entryBackButton: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  entryBackButtonText: {
     color: colors.dark,
     fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  summaryInline: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12,
+  },
+  summaryPill: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  summaryPillStatus: {
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+  },
+  summaryPillGraded: {
+    backgroundColor: "#fff8db",
+    borderColor: colors.yellow,
+  },
+  summaryPillLabel: {
+    color: colors.gray,
+    fontSize: 11,
     fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  summaryPillValue: {
+    color: colors.dark,
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  summaryPillValueGood: {
+    color: "#15803d",
+  },
+  summaryPillValueWarn: {
+    color: "#b45309",
+  },
+  summaryPillValueNeutral: {
+    color: "#4b5563",
   },
   studentGrades: {
     gap: 14,
@@ -943,5 +1378,65 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: 15,
     fontWeight: "800",
+  },
+  successOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    padding: 24,
+  },
+  successCard: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.graySoft,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    alignItems: "center",
+  },
+  successIconWrap: {
+    width: 58,
+    height: 58,
+    borderRadius: 999,
+    backgroundColor: colors.yellow,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  successIcon: {
+    color: colors.dark,
+    fontSize: 28,
+    fontWeight: "900",
+    lineHeight: 30,
+  },
+  successTitle: {
+    color: colors.dark,
+    fontSize: 21,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  successMessage: {
+    color: colors.gray,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  successButton: {
+    marginTop: 16,
+    width: "100%",
+    alignItems: "center",
+    backgroundColor: colors.yellow,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  successButtonText: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
 });

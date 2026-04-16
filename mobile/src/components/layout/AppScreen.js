@@ -1,5 +1,5 @@
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import AppSidebar from "../navigation/AppSidebar";
@@ -11,13 +11,17 @@ export default function AppScreen({
   title,
   subtitle,
   heroFooter,
+  showMeta = true,
+  enableScrollTopButton = false,
   children,
   footer,
 }) {
   const navigation = useNavigation();
   const route = useRoute();
   const { session, signOut, user } = useAuth();
+  const scrollRef = useRef(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const isProgramChair = session.userRole === "admin";
   const showEyebrow = Boolean(
     eyebrow && (isProgramChair || !String(eyebrow).toLowerCase().startsWith("faculty"))
@@ -47,7 +51,16 @@ export default function AppScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.content}
+        onScroll={(event) => {
+          if (!enableScrollTopButton) return;
+          const y = event.nativeEvent.contentOffset?.y || 0;
+          setShowScrollTop(y > 260);
+        }}
+        scrollEventThrottle={16}
+      >
         <View style={styles.hero}>
           {showEyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
           <View style={styles.titleRow}>
@@ -57,7 +70,7 @@ export default function AppScreen({
             <Text style={[styles.title, styles.titleInline]}>{title}</Text>
           </View>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-          {user?.email ? <Text style={styles.meta}>{user.email}</Text> : null}
+          {showMeta && user?.email ? <Text style={styles.meta}>{user.email}</Text> : null}
           {heroFooter ? <View style={styles.heroFooter}>{heroFooter}</View> : null}
         </View>
 
@@ -65,6 +78,15 @@ export default function AppScreen({
 
         {footer ? <View style={styles.footer}>{footer}</View> : null}
       </ScrollView>
+
+      {enableScrollTopButton && showScrollTop ? (
+        <Pressable
+          onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+          style={styles.scrollTopButton}
+        >
+          <Text style={styles.scrollTopButtonText}>↑</Text>
+        </Pressable>
+      ) : null}
 
       {sidebarOpen ? (
         <AppSidebar
@@ -168,5 +190,23 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 16,
     paddingTop: 16,
+  },
+  scrollTopButton: {
+    position: "absolute",
+    right: 18,
+    bottom: 22,
+    backgroundColor: colors.yellow,
+    borderRadius: 999,
+    minWidth: 48,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+  },
+  scrollTopButtonText: {
+    color: colors.dark,
+    fontSize: 24,
+    fontWeight: "900",
+    lineHeight: 24,
   },
 });
