@@ -7,7 +7,8 @@
     "node": ">=20 <23"
   },
   "scripts": {
-    "start": "expo start --localhost --port 8082",
+    "start": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android.ps1",
+    "start:android": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android.ps1",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web"
