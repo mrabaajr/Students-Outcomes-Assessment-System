@@ -35,9 +35,9 @@ const AddCourseModal = ({
 }) => {
   const { toast } = useToast();
   const [curricula, setCurricula] = useState([]);
-  const [courseMappings, setCourseMappings] = useState([]);
+  const [databaseCourses, setDatabaseCourses] = useState([]);
   const [academicYears, setAcademicYears] = useState(fallbackAcademicYears);
-  const [loadingCourseMappings, setLoadingCourseMappings] = useState(false);
+  const [loadingDatabaseCourses, setLoadingDatabaseCourses] = useState(false);
   const [errors, setErrors] = useState({});
 
   const [formData, setFormData] = useState({
@@ -130,25 +130,28 @@ const AddCourseModal = ({
     fetchAcademicYears();
   }, []);
 
-  // Fetch courses when curriculum changes
+  // Fetch saved courses when curriculum changes so the form can autofill from the course database.
   useEffect(() => {
-    if (!formData.curriculum) return;
+    if (!formData.curriculum) {
+      setDatabaseCourses([]);
+      return;
+    }
 
-    const fetchCourseMappings = async () => {
-      setLoadingCourseMappings(true);
+    const fetchDatabaseCourses = async () => {
+      setLoadingDatabaseCourses(true);
       try {
-        const res = await fetch(`/api/course-so-mappings/?curriculum=${formData.curriculum}`);
+        const res = await fetch(`/api/courses/?curriculum=${formData.curriculum}`);
         const data = await res.json();
-        setCourseMappings(data.results || data);
+        setDatabaseCourses(data.results || data);
       } catch (err) {
-        console.error('Error fetching course mappings:', err);
-        setCourseMappings([]);
+        console.error('Error fetching database courses:', err);
+        setDatabaseCourses([]);
       } finally {
-        setLoadingCourseMappings(false);
+        setLoadingDatabaseCourses(false);
       }
     };
 
-    fetchCourseMappings();
+    fetchDatabaseCourses();
   }, [formData.curriculum]);
 
   const validateField = (name, value) => {
@@ -222,13 +225,13 @@ const AddCourseModal = ({
         };
       }
 
-      const course = courseMappings.find(c => String(c.id) === String(courseId));
+      const course = databaseCourses.find(c => String(c.id) === String(courseId));
       if (!course) return prev;
 
       return {
         ...prev,
         selectedCourseId: courseId,
-        academic_year: course.academic_year || '',
+        academic_year: prev.academic_year,
         semester: course.semester || '',
         code: course.code || '',
         name: course.name || '',
@@ -323,15 +326,15 @@ const AddCourseModal = ({
               disabled={!formData.curriculum}
             >
               <option value="">Select course to autofill (optional)</option>
-              {loadingCourseMappings && <option>Loading...</option>}
-              {courseMappings.map(course => (
+              {loadingDatabaseCourses && <option>Loading...</option>}
+              {databaseCourses.map(course => (
                 <option key={course.id} value={course.id}>
-                  {course.code} - {course.name} ({course.academic_year || 'No school year'} | {course.semester || 'No semester'})
+                  {course.code} - {course.name} ({course.year_level || 'No year level'} | {course.semester || 'No semester'})
                 </option>
               ))}
             </select>
             <p className="text-xs text-muted-foreground">
-              Selecting an existing course mapping fills the fields below using the saved school year, semester, and year level.
+              Selecting an existing course fills the code, name, year level, and semester from the saved course record.
             </p>
           </div>
 
