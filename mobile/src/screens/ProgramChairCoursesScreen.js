@@ -35,6 +35,8 @@ export default function ProgramChairCoursesScreen() {
   const [activeFilter, setActiveFilter] = useState("curriculum");
   const [coursePickerVisible, setCoursePickerVisible] = useState(false);
   const [coursePickerField, setCoursePickerField] = useState("curriculum");
+  const [databaseCourses, setDatabaseCourses] = useState([]);
+  const [loadingDatabaseCourses, setLoadingDatabaseCourses] = useState(false);
 
   const [newCurriculum, setNewCurriculum] = useState("");
   const [newSchoolYear, setNewSchoolYear] = useState("");
@@ -56,6 +58,22 @@ export default function ProgramChairCoursesScreen() {
     return values
       .map((value) => String(value))
       .filter((value, index, list) => value && list.indexOf(value) === index);
+  }
+
+  function normalizeFilterValue(value) {
+    return String(value ?? "")
+      .trim()
+      .toLowerCase();
+  }
+
+  function getUniqueOptions(values) {
+    const seen = new Set();
+    return values.filter((value) => {
+      const normalized = normalizeFilterValue(value);
+      if (!normalized || seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    });
   }
 
   function getErrorMessage(loadError, fallback) {
@@ -201,8 +219,41 @@ export default function ProgramChairCoursesScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDatabaseCourses() {
+      if (!courseForm.curriculum) {
+        setDatabaseCourses([]);
+        return;
+      }
+
+      try {
+        setLoadingDatabaseCourses(true);
+        const response = await apiClient.get(`/courses/?curriculum=${encodeURIComponent(courseForm.curriculum)}`);
+        const data = Array.isArray(response.data) ? response.data : response.data?.results || [];
+        if (!cancelled) {
+          setDatabaseCourses(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setDatabaseCourses([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingDatabaseCourses(false);
+        }
+      }
+    }
+
+    loadDatabaseCourses();
+    return () => {
+      cancelled = true;
+    };
+  }, [courseForm.curriculum]);
+
   const semesters = useMemo(
-    () => ["All Semesters", ...new Set(courses.map((course) => course.semester).filter(Boolean))],
+    () => ["All Semesters", ...getUniqueOptions(courses.map((course) => course.semester))],
     [courses]
   );
 
@@ -212,7 +263,7 @@ export default function ProgramChairCoursesScreen() {
   const curriculums = useMemo(
     () => [
       "All Curriculums",
-      ...new Set([
+      ...getUniqueOptions([
         ...courses.map((course) => String(course.curriculum || "")).filter(Boolean),
         ...customCurriculums,
       ]),
@@ -223,7 +274,7 @@ export default function ProgramChairCoursesScreen() {
   const academicYears = useMemo(
     () => [
       "All Years",
-      ...new Set([
+      ...getUniqueOptions([
         ...courses.map((course) => String(course.academicYear || "")).filter(Boolean),
         ...customAcademicYears,
       ]),
@@ -232,20 +283,26 @@ export default function ProgramChairCoursesScreen() {
   );
 
   const filteredCourses = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+    const normalized = normalizeFilterValue(query);
+    const normalizedSemester = normalizeFilterValue(selectedSemester);
+    const normalizedCurriculum = normalizeFilterValue(selectedCurriculum);
+    const normalizedAcademicYear = normalizeFilterValue(selectedAcademicYear);
 
     return courses.filter((course) => {
       const matchesQuery =
         !normalized ||
-        course.code.toLowerCase().includes(normalized) ||
-        course.name.toLowerCase().includes(normalized) ||
-        String(course.curriculum).toLowerCase().includes(normalized);
+        normalizeFilterValue(course.code).includes(normalized) ||
+        normalizeFilterValue(course.name).includes(normalized) ||
+        normalizeFilterValue(course.curriculum).includes(normalized);
       const matchesSemester =
-        selectedSemester === "All Semesters" || course.semester === selectedSemester;
+        normalizedSemester === normalizeFilterValue("All Semesters") ||
+        normalizeFilterValue(course.semester) === normalizedSemester;
       const matchesCurriculum =
-        selectedCurriculum === "All Curriculums" || String(course.curriculum) === selectedCurriculum;
+        normalizedCurriculum === normalizeFilterValue("All Curriculums") ||
+        normalizeFilterValue(course.curriculum) === normalizedCurriculum;
       const matchesAcademicYear =
-        selectedAcademicYear === "All Years" || String(course.academicYear) === selectedAcademicYear;
+        normalizedAcademicYear === normalizeFilterValue("All Years") ||
+        normalizeFilterValue(course.academicYear) === normalizedAcademicYear;
 
       return matchesQuery && matchesSemester && matchesCurriculum && matchesAcademicYear;
     });
@@ -351,11 +408,9 @@ export default function ProgramChairCoursesScreen() {
   const coursePickerOptions =
     coursePickerField === "source"
       ? [{ label: "Select course to autofill (optional)", value: "" }].concat(
-          courses
-            .filter((course) => course.course)
-            .map((course) => ({
-            label: `${course.code} - ${course.name}`,
-            value: String(course.course),
+          databaseCourses.map((course) => ({
+            label: `${course.code || "No Code"} - ${course.name || "Untitled Course"}`,
+            value: String(course.id),
           }))
         )
       : coursePickerField === "curriculum"
@@ -396,20 +451,25 @@ export default function ProgramChairCoursesScreen() {
   function handleCoursePickerSelect(value) {
     if (coursePickerField === "source") {
       if (!value) {
-        setCourseForm((prev) => ({ ...prev, sourceCourseId: "" }));
+        setCourseForm((prev) => ({
+          ...prev,
+          sourceCourseId: "",
+          code: "",
+          name: "",
+          semester: "1st Semester",
+          yearLevel: "",
+        }));
       } else {
-        const sourceCourse = courses.find((course) => String(course.course) === String(value));
+        const sourceCourse = databaseCourses.find((course) => String(course.id) === String(value));
         if (sourceCourse) {
           setCourseForm((prev) => ({
             ...prev,
-            sourceCourseId: String(sourceCourse.course),
+            sourceCourseId: String(sourceCourse.id),
             code: sourceCourse.code || prev.code,
             name: sourceCourse.name || prev.name,
-            curriculum: String(sourceCourse.curriculum || prev.curriculum),
-            academicYear: String(sourceCourse.academicYear || prev.academicYear),
             semester: sourceCourse.semester || prev.semester,
-            yearLevel: String(sourceCourse.yearLevel || prev.yearLevel),
-            mappedSOs: Array.isArray(sourceCourse.mappedSOs) ? sourceCourse.mappedSOs : prev.mappedSOs,
+            yearLevel: String(sourceCourse.year_level || prev.yearLevel),
+            credits: String(sourceCourse.credits || prev.credits),
           }));
         }
       }
@@ -1020,13 +1080,19 @@ export default function ProgramChairCoursesScreen() {
               <Pressable style={styles.dropdownButton} onPress={() => openCoursePicker("source")}>
                 <Text style={styles.dropdownValue}>
                   {courseForm.sourceCourseId
-                    ? (courses.find((course) => String(course.course) === String(courseForm.sourceCourseId))?.code ||
+                    ? (databaseCourses.find((course) => String(course.id) === String(courseForm.sourceCourseId))?.code ||
                       "Selected")
+                    : loadingDatabaseCourses
+                    ? "Loading courses..."
                     : "Select course to autofill (optional)"}
                 </Text>
                 <Text style={styles.dropdownChevron}>▾</Text>
               </Pressable>
-              <Text style={styles.fieldHint}>Selecting a course fills fields below, but you can still edit them.</Text>
+              <Text style={styles.fieldHint}>
+                {courseForm.curriculum
+                  ? "Selecting a course fills fields below, but you can still edit them."
+                  : "Select a curriculum first to load saved courses from the database."}
+              </Text>
 
               <View style={styles.threeColumnRow}>
                 <View style={styles.colItem}>

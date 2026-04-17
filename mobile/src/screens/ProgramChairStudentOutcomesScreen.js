@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 function CriterionAddModal({ visible, saving, onClose, onSave }) {
   const [name, setName] = useState("");
 
@@ -51,6 +51,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 
 import AppScreen from "../components/layout/AppScreen";
 import InfoCard from "../components/ui/InfoCard";
@@ -68,6 +69,7 @@ function OutcomeFormModal({
   visible,
   editingOutcome,
   nextNumber,
+  saving,
   onClose,
   onSave,
 }) {
@@ -128,13 +130,17 @@ function OutcomeFormModal({
               }
               style={[
                 styles.primaryButton,
-                (!title.trim() || !description.trim()) && styles.disabledButton,
+                (!title.trim() || !description.trim() || saving) && styles.disabledButton,
               ]}
-              disabled={!title.trim() || !description.trim()}
+              disabled={!title.trim() || !description.trim() || saving}
             >
-              <Text style={styles.primaryButtonText}>
-                {editingOutcome ? "Save Changes" : "Add SO"}
-              </Text>
+              {saving ? (
+                <ActivityIndicator color={BLACK} size="small" />
+              ) : (
+                <Text style={styles.primaryButtonText}>
+                  {editingOutcome ? "Save Changes" : "Add SO"}
+                </Text>
+              )}
             </Pressable>
           </View>
         </View>
@@ -307,7 +313,7 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
     []
   );
 
-  async function loadOutcomes(refresh = false) {
+  const loadOutcomes = useCallback(async (refresh = false) => {
     try {
       if (refresh) {
         setRefreshing(true);
@@ -318,6 +324,7 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
       setError("");
       const data = await fetchStudentOutcomesMobile();
       setOutcomes(data);
+      setHasUnsavedChanges(false);
     } catch (loadError) {
       setError(loadError.response?.data?.detail || loadError.message || "Failed to load student outcomes.");
     } finally {
@@ -327,31 +334,17 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
         setLoading(false);
       }
     }
-  }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    loadOutcomes();
+  }, [loadOutcomes]);
 
-    async function load() {
-      try {
-        const data = await fetchStudentOutcomesMobile();
-        if (!cancelled) {
-          setOutcomes(data);
-          setLoading(false);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError.response?.data?.detail || loadError.message || "Failed to load student outcomes.");
-          setLoading(false);
-        }
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadOutcomes(true);
+    }, [loadOutcomes])
+  );
 
   const filteredOutcomes = useMemo(() => {
     const text = query.trim().toLowerCase();
@@ -397,44 +390,59 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
     [outcomes]
   );
 
-  function handleSaveLocal(outcome) {
-    setOutcomes((prev) => {
-      const exists = prev.some((item) => item.id === outcome.id);
-      const next = exists
-        ? prev.map((item) => (item.id === outcome.id ? outcome : item))
-        : [...prev, outcome];
+  async function persistOutcomes(nextOutcomes, options = {}) {
+    const { closeForm = false, clearDeleting = false } = options;
 
-      return [...next].sort((a, b) => a.number - b.number);
-    });
-    setHasUnsavedChanges(true);
-    setFormVisible(false);
-    setEditingOutcome(null);
-  }
-
-  async function handleSaveBackend() {
     try {
       setSaving(true);
       setError("");
-      const saved = await saveStudentOutcomesMobile(outcomes);
+      const saved = await saveStudentOutcomesMobile(nextOutcomes);
       setOutcomes(saved.sort((a, b) => a.number - b.number));
       setHasUnsavedChanges(false);
+      if (closeForm) {
+        setFormVisible(false);
+        setEditingOutcome(null);
+      }
+      if (clearDeleting) {
+        setDeletingOutcome(null);
+      }
     } catch (saveError) {
       setError(saveError.response?.data?.detail || saveError.message || "Failed to save student outcomes.");
+      setHasUnsavedChanges(true);
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSaveLocal(outcome) {
+    const nextOutcomes = (() => {
+      const exists = outcomes.some((item) => item.id === outcome.id);
+      const next = exists
+        ? outcomes.map((item) => (item.id === outcome.id ? outcome : item))
+        : [...outcomes, outcome];
+
+      return [...next].sort((a, b) => a.number - b.number);
+    })();
+    setOutcomes(nextOutcomes);
+    setHasUnsavedChanges(true);
+    await persistOutcomes(nextOutcomes, { closeForm: true });
+  }
+
+  async function handleSaveBackend() {
+    await persistOutcomes(outcomes);
   }
 
   function handleDelete(outcome) {
     setDeletingOutcome(outcome);
   }
 
-  function confirmDeleteOutcome() {
+  async function confirmDeleteOutcome() {
     if (!deletingOutcome) return;
 
-    setOutcomes((prev) => prev.filter((item) => item.id !== deletingOutcome.id));
+    const nextOutcomes = outcomes.filter((item) => item.id !== deletingOutcome.id);
+    setOutcomes(nextOutcomes);
     setHasUnsavedChanges(true);
-    setDeletingOutcome(null);
+    await persistOutcomes(nextOutcomes, { clearDeleting: true });
   }
 
   return (
@@ -658,6 +666,7 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
       <OutcomeFormModal
         editingOutcome={editingOutcome}
         nextNumber={nextNumber}
+        saving={saving}
         onClose={() => {
           setFormVisible(false);
           setEditingOutcome(null);
@@ -674,6 +683,7 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
             ? `This will remove ${deletingOutcome.title} and its rubric details.`
             : ""
         }
+        loading={saving}
         onCancel={() => setDeletingOutcome(null)}
         onConfirm={confirmDeleteOutcome}
       />
@@ -716,7 +726,7 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
   );
 }
 
-export function ProgramChairOutcomeRubricScreen({ route }) {
+export function ProgramChairOutcomeRubricScreen({ navigation, route }) {
   const [inlineAdd, setInlineAdd] = useState({ indicatorId: null, rowIndex: null, value: "" });
   const [criterionModal, setCriterionModal] = useState({ visible: false, indicatorId: null, rowIndex: null });
   const { width: viewportWidth } = useWindowDimensions();
@@ -729,27 +739,28 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
   const [error, setError] = useState("");
   const [deletingIndicator, setDeletingIndicator] = useState(null);
 
-  // Add confirmDeleteIndicator to handle indicator deletion
+  async function saveCurrentOutcome(nextOutcome) {
+    const allOutcomes = await fetchStudentOutcomesMobile();
+    const updatedOutcomes = allOutcomes.map((item) =>
+      String(item.id) === String(nextOutcome.id) ? nextOutcome : item
+    );
+    const savedOutcomes = await saveStudentOutcomesMobile(updatedOutcomes);
+    return savedOutcomes.find((item) => String(item.id) === String(nextOutcome.id)) || nextOutcome;
+  }
+
   async function confirmDeleteIndicator() {
     if (!deletingIndicator) return;
     try {
       setSavingIndicator(true);
       setError("");
-
-      const allOutcomes = await fetchStudentOutcomesMobile();
-      const updatedOutcomes = allOutcomes.map((item) => {
-        if (String(item.id) !== String(outcome.id)) return item;
-        return {
-          ...item,
-          indicators: (item.indicators || []).filter((ind) => String(ind.id) !== String(deletingIndicator.id)),
-        };
-      });
-
-      const savedOutcomes = await saveStudentOutcomesMobile(updatedOutcomes);
-      const savedCurrent = savedOutcomes.find((item) => String(item.id) === String(outcome.id));
-      if (savedCurrent) {
-        setOutcome(savedCurrent);
-      }
+      const nextOutcome = {
+        ...outcome,
+        indicators: (outcome.indicators || [])
+          .filter((ind) => String(ind.id) !== String(deletingIndicator.id))
+          .map((ind, idx) => ({ ...ind, number: idx + 1 })),
+      };
+      const savedCurrent = await saveCurrentOutcome(nextOutcome);
+      setOutcome(savedCurrent);
       setDeletingIndicator(null);
     } catch (deleteError) {
       setError(deleteError.response?.data?.detail || deleteError.message || "Failed to delete indicator.");
@@ -758,41 +769,32 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
     }
   }
 
-  // Add missing handleSaveCriterion function
   async function handleSaveCriterion(criterionName) {
     if (!criterionModal.indicatorId || !criterionName) return;
     try {
-      // Optionally, you can set a saving state here
+      setSavingIndicator(true);
       setError("");
-
-      const allOutcomes = await fetchStudentOutcomesMobile();
-      const updatedOutcomes = allOutcomes.map((item) => {
-        if (String(item.id) !== String(outcome.id)) return item;
-        return {
-          ...item,
-          indicators: (item.indicators || []).map((indicator) => {
-            if (String(indicator.id) !== String(criterionModal.indicatorId)) return indicator;
-            const criteria = indicator.criteria ? [...indicator.criteria] : [];
-            if (criterionModal.rowIndex != null && criteria.length > criterionModal.rowIndex) {
-              criteria[criterionModal.rowIndex] = { id: `crit_${Date.now()}`, name: criterionName };
-            } else {
-              criteria.push({ id: `crit_${Date.now()}`, name: criterionName });
-            }
-            return { ...indicator, criteria };
-          }),
-        };
-      });
-
-      const savedOutcomes = await saveStudentOutcomesMobile(updatedOutcomes);
-      const savedCurrent = savedOutcomes.find((item) => String(item.id) === String(outcome.id));
-      if (savedCurrent) {
-        setOutcome(savedCurrent);
-      }
+      const nextOutcome = {
+        ...outcome,
+        indicators: (outcome.indicators || []).map((indicator) => {
+          if (String(indicator.id) !== String(criterionModal.indicatorId)) return indicator;
+          const criteria = indicator.criteria ? [...indicator.criteria] : [];
+          if (criterionModal.rowIndex != null && criteria.length > criterionModal.rowIndex) {
+            criteria[criterionModal.rowIndex] = { id: `crit_${Date.now()}`, name: criterionName };
+          } else {
+            criteria.push({ id: `crit_${Date.now()}`, name: criterionName });
+          }
+          return { ...indicator, criteria };
+        }),
+      };
+      const savedCurrent = await saveCurrentOutcome(nextOutcome);
+      setOutcome(savedCurrent);
       setCriterionModal({ visible: false, indicatorId: null, rowIndex: null });
     } catch (saveError) {
       setError(saveError.response?.data?.detail || saveError.message || "Failed to add criterion.");
+    } finally {
+      setSavingIndicator(false);
     }
-    // Optionally, reset saving state here
   }
 
   async function handleSaveIndicator(nextDescription) {
@@ -801,28 +803,16 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
     try {
       setSavingIndicator(true);
       setError("");
-
-      const allOutcomes = await fetchStudentOutcomesMobile();
-      const updatedOutcomes = allOutcomes.map((item) => {
-        if (String(item.id) !== String(outcome.id)) return item;
-
-        return {
-          ...item,
-          indicators: (item.indicators || []).map((indicator) =>
-            String(indicator.id) === String(editingIndicator.id)
-              ? { ...indicator, description: nextDescription }
-              : indicator
-          ),
-        };
-      });
-
-      const savedOutcomes = await saveStudentOutcomesMobile(updatedOutcomes);
-      const savedCurrent = savedOutcomes.find((item) => String(item.id) === String(outcome.id));
-
-      if (savedCurrent) {
-        setOutcome(savedCurrent);
-      }
-
+      const nextOutcome = {
+        ...outcome,
+        indicators: (outcome.indicators || []).map((indicator) =>
+          String(indicator.id) === String(editingIndicator.id)
+            ? { ...indicator, description: nextDescription }
+            : indicator
+        ),
+      };
+      const savedCurrent = await saveCurrentOutcome(nextOutcome);
+      setOutcome(savedCurrent);
       setEditingVisible(false);
       setEditingIndicator(null);
     } catch (saveError) {
@@ -836,35 +826,22 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
     try {
       setSavingIndicator(true);
       setError("");
-
-      const allOutcomes = await fetchStudentOutcomesMobile();
-      const updatedOutcomes = allOutcomes.map((item) => {
-        if (String(item.id) !== String(outcome.id)) return item;
-
-        const indicators = item.indicators || [];
-        const nextNumber = indicators.reduce((max, indicator) => Math.max(max, indicator.number || 0), 0) + 1;
-
-        return {
-          ...item,
-          indicators: [
-            ...indicators,
-            {
-              id: `new_pi_${Date.now()}`,
-              number: nextNumber,
-              description: nextDescription,
-              criteria: [],
-            },
-          ],
-        };
-      });
-
-      const savedOutcomes = await saveStudentOutcomesMobile(updatedOutcomes);
-      const savedCurrent = savedOutcomes.find((item) => String(item.id) === String(outcome.id));
-
-      if (savedCurrent) {
-        setOutcome(savedCurrent);
-      }
-
+      const indicators = outcome.indicators || [];
+      const nextNumber = indicators.reduce((max, indicator) => Math.max(max, indicator.number || 0), 0) + 1;
+      const nextOutcome = {
+        ...outcome,
+        indicators: [
+          ...indicators,
+          {
+            id: `new_pi_${Date.now()}`,
+            number: nextNumber,
+            description: nextDescription,
+            criteria: [],
+          },
+        ],
+      };
+      const savedCurrent = await saveCurrentOutcome(nextOutcome);
+      setOutcome(savedCurrent);
       setAddingVisible(false);
     } catch (saveError) {
       setError(saveError.response?.data?.detail || saveError.message || "Failed to add performance indicator.");
@@ -874,11 +851,7 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
   }
 
   function handleDeleteIndicator(indicatorToDelete) {
-    // Optionally, show a confirmation dialog here
-    setOutcome((prev) => {
-      const indicators = (prev.indicators || []).filter((ind) => String(ind.id) !== String(indicatorToDelete.id)).map((ind, idx) => ({ ...ind, number: idx + 1 }));
-      return { ...prev, indicators };
-    });
+    setDeletingIndicator(indicatorToDelete);
   }
 
   const indicators = outcome?.indicators || [];
@@ -899,39 +872,40 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
     setInlineAdd((prev) => ({ ...prev, value: text }));
   }
 
-  function handleInlineSave() {
-    if (!inlineAdd.indicatorId || !inlineAdd.value.trim()) return setInlineAdd({ indicatorId: null, rowIndex: null, value: "" });
-    setOutcome((prev) => {
-      const indicators = (prev.indicators || []).map((ind) => {
-        if (String(ind.id) !== String(inlineAdd.indicatorId)) return ind;
-        const criteria = ind.criteria ? [...ind.criteria] : [];
-        if (inlineAdd.rowIndex != null && criteria.length > inlineAdd.rowIndex) {
-          criteria[inlineAdd.rowIndex] = { id: `crit_${Date.now()}`, name: inlineAdd.value.trim() };
-        } else {
-          criteria.push({ id: `crit_${Date.now()}`, name: inlineAdd.value.trim() });
-        }
-        return { ...ind, criteria };
-      });
-      return { ...prev, indicators };
-    });
-    setInlineAdd({ indicatorId: null, rowIndex: null, value: "" });
+  async function handleInlineSave() {
+    if (!inlineAdd.indicatorId || !inlineAdd.value.trim()) {
+      setInlineAdd({ indicatorId: null, rowIndex: null, value: "" });
+      return;
+    }
+
+    try {
+      setSavingIndicator(true);
+      setError("");
+      const nextOutcome = {
+        ...outcome,
+        indicators: (outcome.indicators || []).map((ind) => {
+          if (String(ind.id) !== String(inlineAdd.indicatorId)) return ind;
+          const criteria = ind.criteria ? [...ind.criteria] : [];
+          if (inlineAdd.rowIndex != null && criteria.length > inlineAdd.rowIndex) {
+            criteria[inlineAdd.rowIndex] = { id: `crit_${Date.now()}`, name: inlineAdd.value.trim() };
+          } else {
+            criteria.push({ id: `crit_${Date.now()}`, name: inlineAdd.value.trim() });
+          }
+          return { ...ind, criteria };
+        }),
+      };
+      const savedCurrent = await saveCurrentOutcome(nextOutcome);
+      setOutcome(savedCurrent);
+      setInlineAdd({ indicatorId: null, rowIndex: null, value: "" });
+    } catch (saveError) {
+      setError(saveError.response?.data?.detail || saveError.message || "Failed to save criterion.");
+    } finally {
+      setSavingIndicator(false);
+    }
   }
 
   function handleInlineCancel() {
     setInlineAdd({ indicatorId: null, rowIndex: null, value: "" });
-  }
-
-  function handleAddCriterionRow() {
-    setAddingRow(true);
-    setOutcome((prev) => {
-      const indicators = (prev.indicators || []).map((ind) => {
-        const criteria = ind.criteria ? [...ind.criteria] : [];
-        criteria.push({ id: `crit_${Date.now()}`, name: "" });
-        return { ...ind, criteria };
-      });
-      return { ...prev, indicators };
-    });
-    setTimeout(() => setAddingRow(false), 300);
   }
 
   return (
@@ -963,7 +937,9 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
             </View>
             <Text style={styles.rubricPanelTitle}>{outcome.title} - Rubric</Text>
           </View>
-          <Text style={styles.rubricCloseText}>×</Text>
+          <Pressable onPress={() => navigation.goBack()} style={styles.iconActionButton}>
+            <Text style={styles.rubricCloseText}>X</Text>
+          </Pressable>
         </View>
         <Text numberOfLines={2} ellipsizeMode="tail" style={styles.rubricPanelSubtitle}>
           {outcome.description}
@@ -1081,18 +1057,37 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
         )}
 
         <View style={styles.rubricFooterActions}>
-          <Pressable style={styles.rubricCancelBtn}>
+          <Pressable style={styles.rubricCancelBtn} onPress={() => navigation.goBack()}>
             <Text style={styles.rubricCancelBtnText}>Cancel</Text>
           </Pressable>
-          <Pressable style={styles.rubricSaveBtn}>
-            <Text style={styles.rubricSaveBtnText}>Save Rubric</Text>
+          <Pressable
+            style={[styles.rubricSaveBtn, savingIndicator && styles.disabledButton]}
+            onPress={async () => {
+              try {
+                setSavingIndicator(true);
+                setError("");
+                const savedCurrent = await saveCurrentOutcome(outcome);
+                setOutcome(savedCurrent);
+              } catch (saveError) {
+                setError(saveError.response?.data?.detail || saveError.message || "Failed to save rubric.");
+              } finally {
+                setSavingIndicator(false);
+              }
+            }}
+            disabled={savingIndicator}
+          >
+            {savingIndicator ? (
+              <ActivityIndicator color={BLACK} size="small" />
+            ) : (
+              <Text style={styles.rubricSaveBtnText}>Save Rubric</Text>
+            )}
           </Pressable>
         </View>
       </InfoCard>
 
       <CriterionAddModal
         visible={criterionModal.visible}
-        saving={false}
+        saving={savingIndicator}
         onClose={() => setCriterionModal({ visible: false, indicatorId: null, rowIndex: null })}
         onSave={handleSaveCriterion}
       />
