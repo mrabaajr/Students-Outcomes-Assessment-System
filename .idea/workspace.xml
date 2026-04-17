@@ -6,16 +6,26 @@
   <component name="ChangeListManager">
     <list default="true" id="040b285d-bf81-4640-8fdd-432f454e50ac" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/pages/account_settings.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/account_settings.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/db.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/backend/db.sqlite3" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/package-lock.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/scripts/start-android.ps1" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/scripts/start-android.ps1" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/components/layout/AppScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/components/layout/AppScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/components/ui/InfoCard.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/components/ui/InfoCard.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/context/AuthContext.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/context/AuthContext.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/navigation/RootNavigator.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/navigation/RootNavigator.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/screens/FacultyAssessmentsScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/FacultyAssessmentsScreen.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/screens/FacultyClassesScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/FacultyClassesScreen.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/screens/FacultyDashboardScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/FacultyDashboardScreen.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/screens/LoginScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/LoginScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/screens/ProgramChairClassesScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/ProgramChairClassesScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/screens/ProgramChairCoursesScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/ProgramChairCoursesScreen.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/screens/ProgramChairDashboardScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/ProgramChairDashboardScreen.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobile/src/screens/ProgramChairReportsScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/ProgramChairReportsScreen.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobile/src/screens/ProgramChairStudentOutcomesScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/ProgramChairStudentOutcomesScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/services/apiClient.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/services/apiClient.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/services/auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/services/auth.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/services/storage.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/services/storage.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobile/src/theme/colors.js" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/theme/colors.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -48,20 +58,20 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
-    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
-    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;branch-ni-alexa-ulit&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "git-widget-placeholder": "branch-ni-quel-III",
+    "kotlin-language-version-configured": "true"
   }
-}</component>
+}]]></component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
       <changelist id="040b285d-bf81-4640-8fdd-432f454e50ac" name="Changes" comment="" />

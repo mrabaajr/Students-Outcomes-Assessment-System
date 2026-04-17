@@ -353,7 +353,7 @@ export default function FacultyClassesScreen() {
         <TextInput
           onChangeText={setQuery}
           placeholder="Course, section, year, or student"
-          placeholderTextColor="#7b8a86"
+          placeholderTextColor={colors.darkAlt}
           style={styles.input}
           value={query}
         />

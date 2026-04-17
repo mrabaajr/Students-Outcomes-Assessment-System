@@ -712,7 +712,7 @@ export default function ProgramChairCoursesScreen() {
           <TextInput
             onChangeText={setQuery}
             placeholder="Search code, name, or curriculum"
-            placeholderTextColor="#7b8a86"
+            placeholderTextColor={colors.darkAlt}
             style={styles.input}
             value={query}
           />
@@ -1059,8 +1059,8 @@ export default function ProgramChairCoursesScreen() {
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Course Code *</Text>
                   <TextInput
-                    placeholder="e.g. CPE-309"
-                    placeholderTextColor="#7b8a86"
+                    placeholder="CPE-101"
+                    placeholderTextColor={colors.darkAlt}
                     style={styles.modalInput}
                     value={courseForm.code}
                     onChangeText={(value) => updateCourseForm("code", value)}
@@ -1070,8 +1070,8 @@ export default function ProgramChairCoursesScreen() {
                 <View style={styles.colItem}>
                   <Text style={styles.fieldLegend}>Course Name *</Text>
                   <TextInput
-                    placeholder="e.g. Digital Signal Processing"
-                    placeholderTextColor="#7b8a86"
+                    placeholder="Simple Course Name"
+                    placeholderTextColor={colors.darkAlt}
                     style={styles.modalInput}
                     value={courseForm.name}
                     onChangeText={(value) => updateCourseForm("name", value)}
@@ -1147,7 +1147,7 @@ export default function ProgramChairCoursesScreen() {
             <Text style={styles.modalSubtitle}>Create a new curriculum option for filtering and course setup.</Text>
             <TextInput
               placeholder="Curriculum name"
-              placeholderTextColor="#7b8a86"
+              placeholderTextColor={colors.darkAlt}
               style={styles.modalInput}
               value={newCurriculum}
               onChangeText={setNewCurriculum}
@@ -1175,7 +1175,7 @@ export default function ProgramChairCoursesScreen() {
             <Text style={styles.modalSubtitle}>Create a school year option for filtering and course setup.</Text>
             <TextInput
               placeholder="School year (e.g. 2026-2027)"
-              placeholderTextColor="#7b8a86"
+              placeholderTextColor={colors.darkAlt}
               style={styles.modalInput}
               value={newSchoolYear}
               onChangeText={setNewSchoolYear}

@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   heroSubtitle: {
-    color: "#D1D5DB",
+    color: colors.surface,
     fontSize: 13,
     lineHeight: 19,
     marginTop: 6,
