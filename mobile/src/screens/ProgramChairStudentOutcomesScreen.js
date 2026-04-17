@@ -729,6 +729,72 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
   const [error, setError] = useState("");
   const [deletingIndicator, setDeletingIndicator] = useState(null);
 
+  // Add confirmDeleteIndicator to handle indicator deletion
+  async function confirmDeleteIndicator() {
+    if (!deletingIndicator) return;
+    try {
+      setSavingIndicator(true);
+      setError("");
+
+      const allOutcomes = await fetchStudentOutcomesMobile();
+      const updatedOutcomes = allOutcomes.map((item) => {
+        if (String(item.id) !== String(outcome.id)) return item;
+        return {
+          ...item,
+          indicators: (item.indicators || []).filter((ind) => String(ind.id) !== String(deletingIndicator.id)),
+        };
+      });
+
+      const savedOutcomes = await saveStudentOutcomesMobile(updatedOutcomes);
+      const savedCurrent = savedOutcomes.find((item) => String(item.id) === String(outcome.id));
+      if (savedCurrent) {
+        setOutcome(savedCurrent);
+      }
+      setDeletingIndicator(null);
+    } catch (deleteError) {
+      setError(deleteError.response?.data?.detail || deleteError.message || "Failed to delete indicator.");
+    } finally {
+      setSavingIndicator(false);
+    }
+  }
+
+  // Add missing handleSaveCriterion function
+  async function handleSaveCriterion(criterionName) {
+    if (!criterionModal.indicatorId || !criterionName) return;
+    try {
+      // Optionally, you can set a saving state here
+      setError("");
+
+      const allOutcomes = await fetchStudentOutcomesMobile();
+      const updatedOutcomes = allOutcomes.map((item) => {
+        if (String(item.id) !== String(outcome.id)) return item;
+        return {
+          ...item,
+          indicators: (item.indicators || []).map((indicator) => {
+            if (String(indicator.id) !== String(criterionModal.indicatorId)) return indicator;
+            const criteria = indicator.criteria ? [...indicator.criteria] : [];
+            if (criterionModal.rowIndex != null && criteria.length > criterionModal.rowIndex) {
+              criteria[criterionModal.rowIndex] = { id: `crit_${Date.now()}`, name: criterionName };
+            } else {
+              criteria.push({ id: `crit_${Date.now()}`, name: criterionName });
+            }
+            return { ...indicator, criteria };
+          }),
+        };
+      });
+
+      const savedOutcomes = await saveStudentOutcomesMobile(updatedOutcomes);
+      const savedCurrent = savedOutcomes.find((item) => String(item.id) === String(outcome.id));
+      if (savedCurrent) {
+        setOutcome(savedCurrent);
+      }
+      setCriterionModal({ visible: false, indicatorId: null, rowIndex: null });
+    } catch (saveError) {
+      setError(saveError.response?.data?.detail || saveError.message || "Failed to add criterion.");
+    }
+    // Optionally, reset saving state here
+  }
+
   async function handleSaveIndicator(nextDescription) {
     if (!editingIndicator) return;
 
