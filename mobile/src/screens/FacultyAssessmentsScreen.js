@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -450,21 +450,25 @@ export default function FacultyAssessmentsScreen({ navigation }) {
       ) : (
         <>
           <InfoCard title="Filters">
-            <View style={styles.filterDropdownStack}>
+            <View style={styles.filterCompactGrid}>
               {[
-                { key: "outcome", label: "Student Outcome" },
+                { key: "outcome", label: "Outcome" },
                 { key: "course", label: "Course" },
                 { key: "section", label: "Section" },
                 { key: "semester", label: "Semester" },
                 { key: "schoolYear", label: "School Year" },
               ].map((item) => (
-                <View key={item.key} style={styles.filterBlock}>
-                  <Text style={styles.filterLabel}>{item.label}</Text>
-                  <Pressable style={styles.dropdownButton} onPress={() => openFilterPicker(item.key)}>
-                    <Text style={styles.dropdownValue}>{filterConfigs[item.key].displayValue}</Text>
+                <Pressable
+                  key={item.key}
+                  style={styles.filterCompactButton}
+                  onPress={() => openFilterPicker(item.key)}
+                >
+                  <Text style={styles.filterCompactLabel}>{item.label}</Text>
+                  <Text numberOfLines={1} style={styles.filterCompactValue}>
+                    {filterConfigs[item.key].displayValue}
                     <Text style={styles.dropdownChevron}>▾</Text>
-                  </Pressable>
-                </View>
+                  </Text>
+                </Pressable>
               ))}
             </View>
 
@@ -625,6 +629,11 @@ export function FacultyAssessmentEntryScreen({ route, navigation }) {
   const [saving, setSaving] = useState(false);
   const [successVisible, setSuccessVisible] = useState(false);
   const [error, setError] = useState("");
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const [liveSummary, setLiveSummary] = useState(null);
+  const autosaveTimeoutRef = useRef(null);
+  const hydratedSelectionRef = useRef(false);
+  const lastSavedSignatureRef = useRef("");
 
   const selectedSO = useMemo(
     () => studentOutcomes.find((item) => item.id === selectedSOId) || null,
@@ -644,10 +653,42 @@ export function FacultyAssessmentEntryScreen({ route, navigation }) {
     });
   }, [selectedSO]);
 
+  function buildGradesPayload(studentList) {
+    const grades = {};
+    studentList.forEach((student) => {
+      grades[student.id] = {};
+      Object.entries(student.grades || {}).forEach(([key, score]) => {
+        if (score !== null && score !== undefined && score !== "") {
+          grades[student.id][key] = score;
+        }
+      });
+    });
+    return grades;
+  }
+
+  function buildSaveSignature(section, so, studentList) {
+    if (!section || !so) return "";
+    return JSON.stringify({
+      sectionId: section.id,
+      soId: so.id,
+      schoolYear: section.schoolYear || "",
+      grades: buildGradesPayload(studentList),
+    });
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadGradesForSelection() {
+      hydratedSelectionRef.current = false;
+      clearTimeout(autosaveTimeoutRef.current);
+      setSaveStatus("idle");
+      setLiveSummary(
+        selectedSection && selectedSO
+          ? summaryMap[`${selectedSection.id}:${selectedSO.id}:${selectedSection.schoolYear || ""}`] || null
+          : null
+      );
+
       if (!selectedSection || !selectedSO) {
         setStudents([]);
         return;
@@ -676,6 +717,8 @@ export function FacultyAssessmentEntryScreen({ route, navigation }) {
 
         if (!cancelled) {
           setStudents(nextStudents);
+          lastSavedSignatureRef.current = buildSaveSignature(selectedSection, selectedSO, nextStudents);
+          hydratedSelectionRef.current = true;
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -690,9 +733,17 @@ export function FacultyAssessmentEntryScreen({ route, navigation }) {
     return () => {
       cancelled = true;
     };
-  }, [selectedSection, selectedSO]);
+  }, [selectedSection, selectedSO, summaryMap]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(autosaveTimeoutRef.current);
+    };
+  }, []);
 
   function updateGrade(studentId, basisKey, value) {
+    setError("");
+    setSaveStatus("pending");
     setStudents((prev) =>
       prev.map((student) =>
         student.id === studentId
@@ -708,40 +759,69 @@ export function FacultyAssessmentEntryScreen({ route, navigation }) {
     );
   }
 
-  async function handleSave() {
-    if (!selectedSection || !selectedSO) return;
-
-    const grades = {};
-    students.forEach((student) => {
-      grades[student.id] = {};
-      Object.entries(student.grades || {}).forEach(([key, score]) => {
-        if (score !== null && score !== undefined && score !== "") {
-          grades[student.id][key] = score;
-        }
-      });
-    });
-
-    try {
-      setSaving(true);
-      setError("");
-      await saveAssessmentGrades({
-        sectionId: selectedSection.id,
-        soId: selectedSO.id,
-        schoolYear: selectedSection.schoolYear,
-        grades,
-      });
-      setSuccessVisible(true);
-    } catch (saveError) {
-      setError(saveError.response?.data?.detail || saveError.message || "Failed to save assessment.");
-    } finally {
-      setSaving(false);
+  useEffect(() => {
+    if (!selectedSection || !selectedSO || loading || !hydratedSelectionRef.current) {
+      return undefined;
     }
-  }
+
+    const nextSignature = buildSaveSignature(selectedSection, selectedSO, students);
+    if (!nextSignature || nextSignature === lastSavedSignatureRef.current) {
+      return undefined;
+    }
+
+    clearTimeout(autosaveTimeoutRef.current);
+    autosaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        setSaving(true);
+        setSaveStatus("saving");
+        setError("");
+
+        await saveAssessmentGrades({
+          sectionId: selectedSection.id,
+          soId: selectedSO.id,
+          schoolYear: selectedSection.schoolYear,
+          grades: buildGradesPayload(students),
+        });
+
+        lastSavedSignatureRef.current = nextSignature;
+        setSaveStatus("saved");
+
+        const summaries = await fetchAssessmentSummaries([
+          {
+            section_id: selectedSection.id,
+            so_id: selectedSO.id,
+            school_year: selectedSection.schoolYear || "",
+          },
+        ]);
+        setLiveSummary(summaries[0] || null);
+      } catch (saveError) {
+        setSaveStatus("error");
+        setError(saveError.response?.data?.detail || saveError.message || "Failed to save assessment.");
+      } finally {
+        setSaving(false);
+      }
+    }, 700);
+
+    return () => {
+      clearTimeout(autosaveTimeoutRef.current);
+    };
+  }, [students, selectedSection, selectedSO, loading]);
 
   const currentSummary =
     selectedSection && selectedSO
-      ? summaryMap[`${selectedSection.id}:${selectedSO.id}:${selectedSection.schoolYear || ""}`]
+      ? liveSummary || summaryMap[`${selectedSection.id}:${selectedSO.id}:${selectedSection.schoolYear || ""}`]
       : null;
+
+  const autoSaveMessage =
+    saveStatus === "saving"
+      ? "Saving assessment automatically..."
+      : saveStatus === "saved"
+      ? "Assessment saved automatically."
+      : saveStatus === "pending"
+      ? "Saving your latest grade changes..."
+      : saveStatus === "error"
+      ? "Autosave failed. Changes will retry when you update a grade."
+      : "Changes save automatically as you grade.";
 
   return (
     <AppScreen
@@ -875,9 +955,15 @@ export function FacultyAssessmentEntryScreen({ route, navigation }) {
             </InfoCard>
           ) : null}
 
-          <Pressable onPress={handleSave} style={[styles.saveAction, saving && styles.saveActionDisabled]} disabled={saving}>
-            {saving ? <ActivityIndicator color={colors.dark} /> : <Text style={styles.saveActionText}>Save Assessment</Text>}
-          </Pressable>
+          <View
+            style={[
+              styles.autoSaveBanner,
+              saveStatus === "error" ? styles.autoSaveBannerError : null,
+            ]}
+          >
+            {saving ? <ActivityIndicator color={colors.dark} size="small" /> : null}
+            <Text style={styles.autoSaveText}>{autoSaveMessage}</Text>
+          </View>
         </>
       ) : (
         <InfoCard title="No assessment data">
@@ -950,6 +1036,32 @@ const styles = StyleSheet.create({
   },
   filterBlock: {
     gap: 6,
+  },
+  filterCompactGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  filterCompactButton: {
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexBasis: "47%",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  filterCompactLabel: {
+    color: colors.gray,
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  filterCompactValue: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 4,
   },
   dropdownButton: {
     alignItems: "center",
@@ -1365,6 +1477,27 @@ const styles = StyleSheet.create({
   },
   scoreChipTextActive: {
     color: colors.dark,
+  },
+  autoSaveBanner: {
+    alignItems: "center",
+    backgroundColor: "#fff8db",
+    borderColor: colors.yellow,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  autoSaveBannerError: {
+    backgroundColor: "#fff1f2",
+    borderColor: "#fecdd3",
+  },
+  autoSaveText: {
+    color: colors.dark,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "800",
   },
   saveAction: {
     alignItems: "center",
