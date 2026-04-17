@@ -16,6 +16,7 @@ import {
 
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
+import { normalizeRole, roleLabel } from "../utils/roles";
 
 export default function LoginScreen() {
   const { signIn, signOut } = useAuth();
@@ -94,12 +95,12 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!email || !password) {
-      setError("Enter your email and password.");
+      setError("Enter email and password.");
       return;
     }
 
     if (!selectedRole) {
-      setError("Select your role to continue.");
+      setError("Select a role.");
       return;
     }
 
@@ -107,19 +108,19 @@ export default function LoginScreen() {
       setIsSubmitting(true);
       setError("");
       const user = await signIn(email.trim(), password);
-      const actualRole = String(user?.role || "").toLowerCase();
+      const actualRole = normalizeRole(user?.role);
 
       if (actualRole !== selectedRole) {
         await signOut();
         throw new Error(
-          `This account is ${actualRole === "admin" ? "Program Chair" : "Faculty"}. Please select the correct role.`
+          `This account is ${roleLabel(actualRole)}. Please select the correct role.`
         );
       }
     } catch (err) {
       setError(
         err.response?.data?.detail ||
           err.message ||
-          "Unable to sign in. Check your API URL and credentials."
+          "Unable to sign in."
       );
     } finally {
       setIsSubmitting(false);
@@ -151,7 +152,7 @@ export default function LoginScreen() {
                 <Text style={styles.heroTitlePrimary}>Welcome </Text>
                 <Text style={styles.heroTitleAccent}>back</Text>
               </Text>
-              <Text style={styles.heroSubtitle}>Sign in to continue.</Text>
+              <Text style={styles.heroSubtitle}>Sign in to access your account and continue your journey with us.</Text>
             </View>
           </Animated.View>
 
@@ -170,7 +171,7 @@ export default function LoginScreen() {
               </View>
             ) : null}
 
-            <Text style={styles.sectionLabel}>Select your role to continue</Text>
+            <Text style={styles.sectionLabel}>Select role</Text>
 
             <View style={styles.roleRow}>
               <Pressable

@@ -1,3 +1,7 @@
+param(
+    [switch]$Clean
+)
+
 $ErrorActionPreference = 'Stop'
 
 function Get-RunningEmulatorId {
@@ -39,8 +43,10 @@ if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-Stop-ListenerOnPort -Port 8082
-Stop-ListenerOnPort -Port 8083
+if ($Clean) {
+    Stop-ListenerOnPort -Port 8082
+    Stop-ListenerOnPort -Port 8083
+}
 
 $emulatorId = Get-RunningEmulatorId
 
@@ -63,7 +69,7 @@ if (-not $emulatorId) {
     Write-Host "Waiting for emulator to connect..."
     adb wait-for-device | Out-Null
 
-    $deadline = (Get-Date).AddMinutes(3)
+    $deadline = (Get-Date).AddMinutes(2)
     do {
         Start-Sleep -Seconds 2
         $emulatorId = Get-RunningEmulatorId

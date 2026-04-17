@@ -1149,7 +1149,7 @@ export default function ProgramChairClassesScreen() {
             <TextInput
               onChangeText={setSectionQuery}
               placeholder="Search section, course, year, or semester"
-              placeholderTextColor="#7b8a86"
+              placeholderTextColor={colors.darkAlt}
               style={styles.input}
               value={sectionQuery}
             />
@@ -1309,7 +1309,7 @@ export default function ProgramChairClassesScreen() {
             <TextInput
               onChangeText={setFacultyQuery}
               placeholder="Search name, email, or course"
-              placeholderTextColor="#7b8a86"
+              placeholderTextColor={colors.darkAlt}
               style={styles.input}
               value={facultyQuery}
             />
@@ -1673,6 +1673,7 @@ const styles = StyleSheet.create({
   metaText: {
     color: colors.darkAlt,
     fontSize: 12,
+    lineHeight: 18,
   },
   metaStrong: {
     color: colors.yellowAlt,
@@ -2135,13 +2136,13 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   sectionCardHeader: {
-    gap: 4,
+    gap: 8,
     marginBottom: 12,
     backgroundColor: colors.surfaceMuted,
     borderColor: colors.graySoft,
     borderRadius: 14,
     borderWidth: 1,
-    padding: 10,
+    padding: 12,
   },
   badgeRow: {
     alignItems: "center",
@@ -2153,11 +2154,17 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: 16,
     fontWeight: "800",
+    lineHeight: 22,
     marginTop: 2,
   },
   sectionLine: {
     color: colors.gray,
     fontSize: 13,
+    lineHeight: 18,
+  },
+  metaGrid: {
+    gap: 4,
+    marginBottom: 12,
   },
   importButton: {
     alignItems: "center",

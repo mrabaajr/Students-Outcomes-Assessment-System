@@ -68,16 +68,6 @@ export default function RootNavigator() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="ProgramChairCourses"
-            component={ProgramChairCoursesScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="ProgramChairClasses"
-            component={ProgramChairClassesScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
             name="ProgramChairStudentOutcomes"
             component={ProgramChairStudentOutcomesScreen}
             options={{ headerShown: false }}
@@ -85,6 +75,16 @@ export default function RootNavigator() {
           <Stack.Screen
             name="ProgramChairOutcomeRubric"
             component={ProgramChairOutcomeRubricScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ProgramChairCourses"
+            component={ProgramChairCoursesScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ProgramChairClasses"
+            component={ProgramChairClassesScreen}
             options={{ headerShown: false }}
           />
           <Stack.Screen

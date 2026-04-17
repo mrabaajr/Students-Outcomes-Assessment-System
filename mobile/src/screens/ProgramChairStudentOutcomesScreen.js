@@ -1,13 +1,56 @@
 import { useEffect, useMemo, useState } from "react";
+function CriterionAddModal({ visible, saving, onClose, onSave }) {
+  const [name, setName] = useState("");
+
+  useEffect(() => {
+    if (visible) setName("");
+  }, [visible]);
+
+  return (
+    <Modal animationType="slide" transparent visible={visible}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Add Criterion</Text>
+          <Text style={styles.modalSubtitle}>Enter the criterion name.</Text>
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>Criterion name</Text>
+            <TextInput
+              onChangeText={setName}
+              placeholder="e.g. Solve complex problems"
+              placeholderTextColor="rgba(0,0,0,0.45)"
+              style={styles.modalInput}
+              value={name}
+            />
+          </View>
+          <View style={styles.modalActions}>
+            <Pressable onPress={onClose} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => onSave(name.trim())}
+              style={[styles.primaryButton, (!name.trim() || saving) && styles.disabledButton]}
+              disabled={!name.trim() || saving}
+            >
+              <Text style={styles.primaryButtonText}>Add</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 import {
   ActivityIndicator,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 
 import AppScreen from "../components/layout/AppScreen";
 import InfoCard from "../components/ui/InfoCard";
@@ -512,73 +555,94 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
           </InfoCard>
         ) : (
           filteredOutcomes.map((outcome) => {
-            const criteriaCount = outcome.indicators.reduce(
-              (sum, indicator) => sum + Math.max(indicator.criteria.length, 1),
+            const indicators = outcome.indicators || [];
+            const criteriaCount = indicators.reduce(
+              (sum, indicator) => sum + Math.max((indicator.criteria || []).length, 1),
               0
             );
 
             return (
               <InfoCard key={outcome.id}>
-                <View style={styles.outcomeAccentBar} />
-                <View style={styles.cardTop}>
-                  <View style={styles.numberBox}>
-                    <Text style={styles.numberText}>{outcome.number}</Text>
-                  </View>
-                  <View style={styles.cardMain}>
-                    <Text style={styles.outcomeTitle}>{outcome.title}</Text>
-                    <Text style={styles.outcomeDescription}>{outcome.description}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.cardActions}>
-                  <Pressable
-                    onPress={() =>
-                      navigation.navigate("ProgramChairOutcomeRubric", {
-                        outcome,
-                      })
-                    }
-                    style={styles.ghostButton}
-                  >
-                    <Text style={styles.ghostButtonText}>Open Rubric</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      setEditingOutcome(outcome);
-                      setFormVisible(true);
-                    }}
-                    style={styles.ghostButton}
-                  >
-                    <Text style={styles.ghostButtonText}>Edit</Text>
-                  </Pressable>
-                  <Pressable onPress={() => handleDelete(outcome)} style={styles.deleteButton}>
-                    <Text style={styles.deleteButtonText}>Delete</Text>
-                  </Pressable>
-                </View>
-
-                {outcome.indicators.length > 0 ? (
-                  <View style={styles.summaryBox}>
-                    <Text style={styles.summaryLabel}>Performance Indicators & Criteria</Text>
-                    <Text style={styles.summaryText}>
-                      {outcome.indicators.length} indicator{outcome.indicators.length === 1 ? "" : "s"} • {criteriaCount} criteria columns
-                    </Text>
-                    <View style={styles.indicatorList}>
-                      {outcome.indicators.map((indicator, index) => (
-                        <View key={indicator.id} style={styles.indicatorCard}>
-                          <Text style={styles.indicatorTitle}>PI {index + 1}</Text>
-                          <Text style={styles.indicatorDescription}>{indicator.description}</Text>
-                          <View style={styles.criteriaList}>
-                            {(indicator.criteria || []).slice(0, 2).map((criterion, criterionIndex) => (
-                              <Text key={criterion.id} style={styles.criteriaItem}>
-                                PC {criterionIndex + 1}: {criterion.name}
-                              </Text>
-                            ))}
-                            {(indicator.criteria || []).length === 0 ? (
-                              <Text style={styles.criteriaItem}>No criteria</Text>
-                            ) : null}
-                          </View>
-                        </View>
-                      ))}
+                <View style={styles.webOutcomeCard}>
+                  <View style={styles.outcomeHeaderRow}>
+                    <View style={styles.cardTop}>
+                      <View style={styles.numberBoxCompact}>
+                        <Text style={styles.numberTextCompact}>{outcome.number}</Text>
+                      </View>
+                      <View style={styles.cardMain}>
+                        <Text style={styles.outcomeTitle}>{outcome.title}</Text>
+                        <Text style={styles.outcomeDescription}>{outcome.description}</Text>
+                      </View>
                     </View>
+
+                    <View style={styles.iconActionRow}>
+                      <Pressable
+                        onPress={() =>
+                          navigation.navigate("ProgramChairOutcomeRubric", {
+                            outcome,
+                          })
+                        }
+                        style={styles.iconActionButton}
+                      >
+                        <Feather name="eye" size={14} color="#6B7280" />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          setEditingOutcome(outcome);
+                          setFormVisible(true);
+                        }}
+                        style={styles.iconActionButton}
+                      >
+                        <Feather name="edit-2" size={14} color="#6B7280" />
+                      </Pressable>
+                      <Pressable onPress={() => handleDelete(outcome)} style={styles.iconActionButton}>
+                        <Feather name="trash-2" size={14} color="#EF4444" />
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+
+                {indicators.length > 0 ? (
+                  <View style={styles.tableSection}>
+                    <Text style={styles.tableSectionLabel}>PERFORMANCE INDICATORS & CRITERIA</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tableScrollContent}>
+                      <View style={[styles.piTable, { minWidth: Math.max(320, indicators.length * 210) }]}>
+                        <View style={styles.tableTopBand}>
+                          <Text style={styles.tableTopBandText}>PERFORMANCE INDICATOR</Text>
+                        </View>
+
+                        <View style={styles.tableIndicatorsRow}>
+                          {indicators.map((indicator, index) => (
+                            <View key={indicator.id} style={styles.tableCell}>
+                              <Text style={styles.tableCellPi}>PI {index + 1}</Text>
+                              <Text style={styles.tableCellText}>{indicator.description}</Text>
+                            </View>
+                          ))}
+                        </View>
+
+                        <View style={styles.tableCriteriaRow}>
+                          {indicators.map((indicator) => {
+                            const criteria = indicator.criteria || [];
+                            return (
+                              <View key={`criteria_${indicator.id}`} style={styles.tableCellCriteria}>
+                                {criteria.length === 0 ? (
+                                  <Text style={styles.tableCriteriaMuted}>No criteria</Text>
+                                ) : (
+                                  criteria.slice(0, 2).map((criterion, criterionIndex) => (
+                                    <Text key={criterion.id} style={styles.tableCriteriaText}>
+                                      PC {criterionIndex + 1}: {criterion.name}
+                                    </Text>
+                                  ))
+                                )}
+                              </View>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    </ScrollView>
+                    <Text style={styles.summaryText}>
+                      {indicators.length} indicator{indicators.length === 1 ? "" : "s"} • {criteriaCount} criteria columns
+                    </Text>
                   </View>
                 ) : (
                   <View style={styles.emptyBox}>
@@ -653,6 +717,9 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
 }
 
 export function ProgramChairOutcomeRubricScreen({ route }) {
+  const [inlineAdd, setInlineAdd] = useState({ indicatorId: null, rowIndex: null, value: "" });
+  const [criterionModal, setCriterionModal] = useState({ visible: false, indicatorId: null, rowIndex: null });
+  const { width: viewportWidth } = useWindowDimensions();
   const initialOutcome = route.params?.outcome;
   const [outcome, setOutcome] = useState(initialOutcome);
   const [editingIndicator, setEditingIndicator] = useState(null);
@@ -741,46 +808,64 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
   }
 
   function handleDeleteIndicator(indicatorToDelete) {
-    setDeletingIndicator(indicatorToDelete);
+    // Optionally, show a confirmation dialog here
+    setOutcome((prev) => {
+      const indicators = (prev.indicators || []).filter((ind) => String(ind.id) !== String(indicatorToDelete.id)).map((ind, idx) => ({ ...ind, number: idx + 1 }));
+      return { ...prev, indicators };
+    });
   }
 
-  async function confirmDeleteIndicator() {
-    if (!deletingIndicator) return;
+  const indicators = outcome?.indicators || [];
+  const maxCriteriaRows = Math.max(2, ...indicators.map((indicator) => (indicator.criteria || []).length));
+  const criteriaColWidth = 90;
+  const plusColWidth = 48;
+  const tableChromePadding = 64;
+  const availablePiWidth = viewportWidth - criteriaColWidth - plusColWidth - tableChromePadding;
+  const piColumnWidth = indicators.length <= 1
+    ? Math.max(220, Math.min(320, availablePiWidth))
+    : 260;
 
-    try {
-      setSavingIndicator(true);
-      setError("");
+  function handleAddCriterion(indicatorId, rowIndex) {
+    setInlineAdd({ indicatorId, rowIndex, value: "" });
+  }
 
-      const allOutcomes = await fetchStudentOutcomesMobile();
-      const updatedOutcomes = allOutcomes.map((item) => {
-        if (String(item.id) !== String(outcome.id)) return item;
+  function handleInlineChange(text) {
+    setInlineAdd((prev) => ({ ...prev, value: text }));
+  }
 
-        const nextIndicators = (item.indicators || [])
-          .filter((indicator) => String(indicator.id) !== String(deletingIndicator.id))
-          .map((indicator, index) => ({
-            ...indicator,
-            number: index + 1,
-          }));
-
-        return {
-          ...item,
-          indicators: nextIndicators,
-        };
+  function handleInlineSave() {
+    if (!inlineAdd.indicatorId || !inlineAdd.value.trim()) return setInlineAdd({ indicatorId: null, rowIndex: null, value: "" });
+    setOutcome((prev) => {
+      const indicators = (prev.indicators || []).map((ind) => {
+        if (String(ind.id) !== String(inlineAdd.indicatorId)) return ind;
+        const criteria = ind.criteria ? [...ind.criteria] : [];
+        if (inlineAdd.rowIndex != null && criteria.length > inlineAdd.rowIndex) {
+          criteria[inlineAdd.rowIndex] = { id: `crit_${Date.now()}`, name: inlineAdd.value.trim() };
+        } else {
+          criteria.push({ id: `crit_${Date.now()}`, name: inlineAdd.value.trim() });
+        }
+        return { ...ind, criteria };
       });
+      return { ...prev, indicators };
+    });
+    setInlineAdd({ indicatorId: null, rowIndex: null, value: "" });
+  }
 
-      const savedOutcomes = await saveStudentOutcomesMobile(updatedOutcomes);
-      const savedCurrent = savedOutcomes.find((item) => String(item.id) === String(outcome.id));
+  function handleInlineCancel() {
+    setInlineAdd({ indicatorId: null, rowIndex: null, value: "" });
+  }
 
-      if (savedCurrent) {
-        setOutcome(savedCurrent);
-      }
-
-      setDeletingIndicator(null);
-    } catch (saveError) {
-      setError(saveError.response?.data?.detail || saveError.message || "Failed to delete performance indicator.");
-    } finally {
-      setSavingIndicator(false);
-    }
+  function handleAddCriterionRow() {
+    setAddingRow(true);
+    setOutcome((prev) => {
+      const indicators = (prev.indicators || []).map((ind) => {
+        const criteria = ind.criteria ? [...ind.criteria] : [];
+        criteria.push({ id: `crit_${Date.now()}`, name: "" });
+        return { ...ind, criteria };
+      });
+      return { ...prev, indicators };
+    });
+    setTimeout(() => setAddingRow(false), 300);
   }
 
   return (
@@ -804,52 +889,147 @@ export function ProgramChairOutcomeRubricScreen({ route }) {
         </InfoCard>
       ) : null}
 
-      <InfoCard title={`SO ${outcome.number}`}>
-        {outcome.indicators.length === 0 ? (
+      <InfoCard>
+        <View style={styles.rubricTopRow}>
+          <View style={styles.rubricTopLeft}>
+            <View style={styles.numberBoxCompact}>
+              <Text style={styles.numberTextCompact}>{outcome.number}</Text>
+            </View>
+            <Text style={styles.rubricPanelTitle}>{outcome.title} - Rubric</Text>
+          </View>
+          <Text style={styles.rubricCloseText}>×</Text>
+        </View>
+        <Text numberOfLines={2} ellipsizeMode="tail" style={styles.rubricPanelSubtitle}>
+          {outcome.description}
+        </Text>
+
+        {indicators.length === 0 ? (
           <Text style={styles.mutedText}>No performance indicators yet.</Text>
         ) : (
-          outcome.indicators.map((indicator, index) => (
-            <View key={indicator.id} style={styles.rubricCard}>
-              <View style={styles.rubricHeaderRow}>
-                <Text style={styles.rubricLabel}>PI {index + 1}</Text>
-                <View style={styles.rubricActions}>
-                  <Pressable
-                    onPress={() => {
-                      setEditingIndicator(indicator);
-                      setEditingVisible(true);
-                    }}
-                    style={styles.editPiButton}
-                    disabled={savingIndicator}
-                  >
-                    <Text style={styles.editPiButtonText}>Edit PI</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => handleDeleteIndicator(indicator)}
-                    style={styles.deletePiButton}
-                    disabled={savingIndicator}
-                  >
-                    <Text style={styles.deletePiButtonText}>Delete PI</Text>
-                  </Pressable>
+          <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.rubricTableScrollContent}>
+            <View
+              style={[
+                styles.rubricTable,
+                {
+                  minWidth: criteriaColWidth + indicators.length * piColumnWidth + plusColWidth,
+                },
+              ]}
+            >
+              <View style={styles.rubricTableHeaderRow}>
+                <View style={[styles.rubricHeaderCell, styles.criteriaCol]}>
+                  <Text style={styles.rubricHeaderCellText}>Criteria</Text>
                 </View>
-              </View>
-              <Text style={styles.rubricTitle}>{indicator.description}</Text>
-              {indicator.criteria.length > 0 ? (
-                indicator.criteria.map((criterion, criterionIndex) => (
-                  <View key={criterion.id} style={styles.criterionRow}>
-                    <View style={styles.criterionBadgePill}>
-                      <Text style={styles.criterionBadge}>PC {criterionIndex + 1}</Text>
+                {indicators.map((indicator, index) => (
+                  <View key={`header_${indicator.id}`} style={[styles.piHeaderCol, { width: piColumnWidth }]}>
+                    <View style={styles.piHeaderTitleRow}>
+                      <Text style={styles.rubricHeaderCellText}>{`PI ${index + 1}`}</Text>
+                      <View style={styles.piHeaderIcons}>
+                        <Pressable
+                          onPress={() => {
+                            setEditingIndicator(indicator);
+                            setEditingVisible(true);
+                          }}
+                          style={styles.piHeaderIconButton}
+                        >
+                          <Feather name="edit-2" size={12} color="#D1D5DB" />
+                        </Pressable>
+                        <Pressable onPress={() => handleDeleteIndicator(indicator)} style={styles.piHeaderIconButton}>
+                          <Feather name="trash-2" size={12} color="#FCA5A5" />
+                        </Pressable>
+                      </View>
                     </View>
-                    <Text style={styles.criterionText}>{criterion.name}</Text>
                   </View>
-                ))
-              ) : (
-                <Text style={styles.mutedText}>No criteria for this indicator.</Text>
-              )}
+                ))}
+                <Pressable onPress={() => setAddingVisible(true)} style={styles.plusHeaderCol}>
+                  <Text style={styles.plusHeaderText}>+</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.rubricTableBodyRow}>
+                <View style={[styles.rubricBodyCell, styles.criteriaCol]}>
+                  <View style={styles.criteriaChip}><Text style={styles.criteriaChipText}>Desc</Text></View>
+                </View>
+                {indicators.map((indicator) => (
+                  <View key={`desc_${indicator.id}`} style={[styles.piBodyCol, { width: piColumnWidth }]}>
+                    <Text style={styles.rubricBodyCellText}>
+                      {indicator.description}
+                    </Text>
+                  </View>
+                ))}
+                <View style={styles.plusBodyCol} />
+              </View>
+
+              {Array.from({ length: maxCriteriaRows }).map((_, rowIndex) => (
+                <View key={`row_${rowIndex}`} style={styles.rubricTableBodyRow}>
+                  <View style={[styles.rubricBodyCell, styles.criteriaCol]}>
+                    <View style={styles.criteriaChip}><Text style={styles.criteriaChipText}>{`PC ${rowIndex + 1}`}</Text></View>
+                  </View>
+                  {indicators.map((indicator) => {
+                    const criterion = (indicator.criteria || [])[rowIndex];
+                    const isInline = inlineAdd.indicatorId === indicator.id && inlineAdd.rowIndex === rowIndex;
+                    return (
+                      <View key={`criterion_${indicator.id}_${rowIndex}`} style={[styles.piBodyCol, { width: piColumnWidth }]}> 
+                        {isInline ? (
+                          <View style={{ flexDirection: "row", alignItems: "center" }}>
+                            <TextInput
+                              style={[styles.rubricBodyCellText, { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 6, paddingHorizontal: 8, marginRight: 6 }]}
+                              placeholder="Criterion name..."
+                              value={inlineAdd.value}
+                              onChangeText={handleInlineChange}
+                              autoFocus
+                            />
+                            <Pressable onPress={handleInlineSave} style={{ backgroundColor: 'black', borderRadius: 6, padding: 4, marginRight: 4 }}>
+                              <Text style={{ color: 'white', fontSize: 16 }}>✓</Text>
+                            </Pressable>
+                            <Pressable onPress={handleInlineCancel} style={{ backgroundColor: '#eee', borderRadius: 6, padding: 4 }}>
+                              <Text style={{ color: 'black', fontSize: 16 }}>✗</Text>
+                            </Pressable>
+                          </View>
+                        ) : criterion && criterion.name ? (
+                          <Text style={styles.rubricBodyCellText}>{criterion.name}</Text>
+                        ) : (
+                          <Pressable onPress={() => handleAddCriterion(indicator.id, rowIndex)}>
+                            <Text style={[styles.rubricBodyCellText, { color: BLACK }]}>+ Add</Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    );
+                  })}
+                  <View style={styles.plusBodyCol} />
+                </View>
+              ))}
+
+              <View style={styles.rubricTableBodyRow}>
+                <View style={[styles.rubricBodyCell, styles.criteriaCol]} />
+                {indicators.map((indicator) => (
+                  <View key={`add_${indicator.id}`} style={[styles.piBodyCol, { width: piColumnWidth }]}> 
+                    <Pressable onPress={() => handleAddCriterion(indicator.id, (indicator.criteria || []).length)}>
+                      <Text style={[styles.rubricBodyCellText, { color: BLACK }]}>+ Add Criterion</Text>
+                    </Pressable>
+                  </View>
+                ))}
+                <View style={styles.plusBodyCol} />
+              </View>
             </View>
-          ))
+          </ScrollView>
         )}
+
+        <View style={styles.rubricFooterActions}>
+          <Pressable style={styles.rubricCancelBtn}>
+            <Text style={styles.rubricCancelBtnText}>Cancel</Text>
+          </Pressable>
+          <Pressable style={styles.rubricSaveBtn}>
+            <Text style={styles.rubricSaveBtnText}>Save Rubric</Text>
+          </Pressable>
+        </View>
       </InfoCard>
 
+      <CriterionAddModal
+        visible={criterionModal.visible}
+        saving={false}
+        onClose={() => setCriterionModal({ visible: false, indicatorId: null, rowIndex: null })}
+        onSave={handleSaveCriterion}
+      />
       <IndicatorEditModal
         indicator={editingIndicator}
         onClose={() => {
@@ -1088,9 +1268,297 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  webOutcomeCard: {
+    borderColor: "rgba(0,0,0,0.16)",
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  outcomeHeaderRow: {
+    alignItems: "flex-start",
+    backgroundColor: WHITE,
+    borderBottomColor: "rgba(0,0,0,0.08)",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  numberBoxCompact: {
+    alignItems: "center",
+    backgroundColor: BLACK,
+    borderRadius: 8,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  numberTextCompact: {
+    color: YELLOW,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  iconActionRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginLeft: 8,
+  },
+  iconActionButton: {
+    alignItems: "center",
+    height: 24,
+    justifyContent: "center",
+    width: 24,
+  },
+  tableSection: {
+    backgroundColor: "#F3F4F6",
+    padding: 10,
+  },
+  tableSectionLabel: {
+    color: "#6B7280",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+  },
+  tableScrollContent: {
+    paddingTop: 8,
+  },
+  piTable: {
+    backgroundColor: WHITE,
+    borderColor: "rgba(0,0,0,0.16)",
+    borderRadius: 6,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  tableTopBand: {
+    alignItems: "center",
+    backgroundColor: BLACK,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  tableTopBandText: {
+    color: WHITE,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  tableIndicatorsRow: {
+    flexDirection: "row",
+  },
+  tableCell: {
+    borderRightColor: "#D1D5DB",
+    borderRightWidth: 1,
+    minWidth: 180,
+    padding: 10,
+  },
+  tableCellPi: {
+    color: "#9A6700",
+    fontSize: 10,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  tableCellText: {
+    color: BLACK,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  tableCriteriaRow: {
+    backgroundColor: "#F5EFD6",
+    borderTopColor: "#D1D5DB",
+    borderTopWidth: 1,
+    flexDirection: "row",
+  },
+  tableCellCriteria: {
+    borderRightColor: "#D1D5DB",
+    borderRightWidth: 1,
+    minWidth: 180,
+    padding: 10,
+  },
+  tableCriteriaText: {
+    color: BLACK,
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 4,
+  },
+  tableCriteriaMuted: {
+    color: "#6B7280",
+    fontSize: 11,
+    fontStyle: "italic",
+  },
+  rubricTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  rubricTopLeft: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+  },
+  rubricPanelTitle: {
+    color: BLACK,
+    fontSize: 22,
+    fontWeight: "800",
+    lineHeight: 26,
+  },
+  rubricPanelSubtitle: {
+    color: colors.darkAlt,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  rubricCloseText: {
+    color: "#9CA3AF",
+    fontSize: 22,
+  },
+  rubricTableScrollContent: {
+    paddingBottom: 4,
+  },
+  rubricTable: {
+    borderColor: "#D1D5DB",
+    borderRadius: 6,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  rubricTableHeaderRow: {
+    flexDirection: "row",
+  },
+  rubricHeaderCell: {
+    alignItems: "center",
+    backgroundColor: BLACK,
+    borderRightColor: "#4B5563",
+    borderRightWidth: 1,
+    justifyContent: "center",
+    minHeight: 48,
+    paddingHorizontal: 10,
+  },
+  criteriaCol: {
+    minWidth: 90,
+  },
+  rubricHeaderCellText: {
+    color: WHITE,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  piHeaderCol: {
+    backgroundColor: BLACK,
+    borderRightColor: "#4B5563",
+    borderRightWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  piHeaderTitleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  piHeaderIcons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  piHeaderIconButton: {
+    alignItems: "center",
+    height: 18,
+    justifyContent: "center",
+    width: 18,
+  },
+  plusHeaderCol: {
+    alignItems: "center",
+    backgroundColor: BLACK,
+    justifyContent: "center",
+    minWidth: 48,
+  },
+  plusHeaderText: {
+    color: WHITE,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  rubricTableBodyRow: {
+    flexDirection: "row",
+  },
+  rubricBodyCell: {
+    alignItems: "center",
+    backgroundColor: WHITE,
+    borderRightColor: "#D1D5DB",
+    borderRightWidth: 1,
+    borderTopColor: "#D1D5DB",
+    borderTopWidth: 1,
+    minHeight: 48,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  criteriaChip: {
+    backgroundColor: "#F5EECF",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  criteriaChipText: {
+    color: BLACK,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  piBodyCol: {
+    backgroundColor: WHITE,
+    borderRightColor: "#D1D5DB",
+    borderRightWidth: 1,
+    borderTopColor: "#D1D5DB",
+    borderTopWidth: 1,
+    alignItems: "flex-start",
+    minHeight: 48,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  rubricBodyCellText: {
+    color: BLACK,
+    fontSize: 13,
+    lineHeight: 18,
+    flexShrink: 1,
+    width: "100%",
+  },
+  plusBodyCol: {
+    backgroundColor: WHITE,
+    borderTopColor: "#D1D5DB",
+    borderTopWidth: 1,
+    minWidth: 48,
+  },
+  rubricFooterActions: {
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "flex-end",
+    marginTop: 12,
+  },
+  rubricCancelBtn: {
+    alignItems: "center",
+    backgroundColor: WHITE,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    borderWidth: 1,
+    minWidth: 90,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  rubricCancelBtnText: {
+    color: BLACK,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  rubricSaveBtn: {
+    alignItems: "center",
+    backgroundColor: YELLOW,
+    borderRadius: 8,
+    minWidth: 122,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  rubricSaveBtnText: {
+    color: BLACK,
+    fontSize: 14,
+    fontWeight: "800",
+  },
   cardTop: {
     flexDirection: "row",
-    gap: 14,
+    flex: 1,
+    gap: 10,
   },
   outcomeAccentBar: {
     backgroundColor: YELLOW,
@@ -1121,7 +1589,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   outcomeDescription: {
-    color: colors.darkAlt,
+    color: colors.dark,
     fontSize: 14,
     lineHeight: 20,
     marginTop: 6,

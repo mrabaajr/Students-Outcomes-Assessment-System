@@ -11,7 +11,7 @@ import {
 } from "../services/storage";
 
 const AuthContext = createContext(null);
-const BOOTSTRAP_TIMEOUT_MS = 12000;
+const BOOTSTRAP_TIMEOUT_MS = __DEV__ ? 5000 : 12000;
 
 function withTimeout(promise, timeoutMs, label) {
   return Promise.race([

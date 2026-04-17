@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     backgroundColor: colors.darkAlt,
     borderRadius: 999,
-    color: colors.gray,
+    color: colors.surface,
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.8,
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   subtitle: {
-    color: colors.gray,
+    color: colors.surface,
     fontSize: 15,
     lineHeight: 22,
     marginTop: 8,

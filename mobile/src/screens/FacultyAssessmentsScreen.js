@@ -152,7 +152,7 @@ export default function FacultyAssessmentsScreen({ navigation }) {
     selectedSchoolYear,
   ]);
 
-  const coursesForGrid = useMemo(() => {
+  const groupedSections = useMemo(() => {
     const grouped = new Map();
 
     filteredSections.forEach((section) => {
@@ -339,13 +339,13 @@ export default function FacultyAssessmentsScreen({ navigation }) {
     const completion = summaries.length > 0 ? Math.round((assessed / summaries.length) * 100) : 0;
 
     return {
-      courses: coursesForGrid.length,
+      courses: groupedSections.length,
       sections: filteredSections.length,
       assessed,
       incomplete: summaries.filter((item) => item.status === "incomplete").length,
       completion,
     };
-  }, [coursesForGrid.length, filteredSections.length, sectionRequests, summaryMap]);
+  }, [groupedSections.length, filteredSections.length, sectionRequests, summaryMap]);
 
   const exportRows = useMemo(() => {
     if (!selectedCourseCode) {
@@ -499,11 +499,11 @@ export default function FacultyAssessmentsScreen({ navigation }) {
             </View>
           </View>
 
-          <InfoCard title="Courses" rightText={`${coursesForGrid.length} total`}>
-            {coursesForGrid.length === 0 ? (
+          <InfoCard title="Courses" rightText={`${groupedSections.length} total`}>
+            {groupedSections.length === 0 ? (
               <Text style={styles.mutedText}>No courses found for the selected filters.</Text>
             ) : (
-              coursesForGrid.map((course) => {
+              groupedSections.map((course) => {
                 const mappedIds = courseMappings[course.courseCode] || [];
                 const courseSummaries = course.sections.flatMap((section) => {
                   const relevantIds = selectedSOIds.length > 0 ? selectedSOIds : mappedIds;
@@ -522,6 +522,7 @@ export default function FacultyAssessmentsScreen({ navigation }) {
                   aggregateStatus = "assessed";
                 }
 
+                const badge = statusColors(aggregateStatus);
                 return (
                   <Pressable
                     key={course.id}
@@ -1438,5 +1439,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     textTransform: "uppercase",
+  },
+  chooseCourseButtonText: {
+    color: colors.surface, // white for visibility
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  heroHelperText: {
+    color: colors.surface, // white for visibility
+    fontSize: 13,
+    marginTop: 10,
+    marginBottom: 18,
   },
 });
