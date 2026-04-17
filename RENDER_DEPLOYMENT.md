@@ -22,7 +22,7 @@ python-3.11.0
 ```
 
 ### 1.3 Backend - Update `backend/config/settings.py` (Already mostly done, verify)
-```python
+   ```python
 # settings.py should have:
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
