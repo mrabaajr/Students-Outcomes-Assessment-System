@@ -3,15 +3,16 @@ import { apiClient } from "./apiClient";
 function normalizeCourse(course) {
   return {
     id: course.id,
+    course: course.course ?? null,
     code: course.code || course.course_code || "No Code",
     name: course.name || course.course_name || "Untitled Course",
     curriculum:
       course.curriculum_year || course.curriculum || course.curriculumYear || "Not set",
     semester: course.semester || "Not set",
     academicYear: course.academic_year || course.academicYear || "Not set",
-    mappedSOs: course.mappedSOs || course.mapped_sos || [],
+    mappedSOs: (course.mappedSOs || course.mapped_sos || []).map((value) => String(value)),
     credits: course.credits || 0,
-    yearLevel: course.year_level || "Not set",
+    yearLevel: course.year_level || course.yearLevel || "Not set",
   };
 }
 

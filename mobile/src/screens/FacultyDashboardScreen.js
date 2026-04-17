@@ -1,5 +1,5 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 
 import AppScreen from "../components/layout/AppScreen";
 import InfoCard from "../components/ui/InfoCard";
@@ -10,6 +10,10 @@ import { colors } from "../theme/colors";
 export default function FacultyDashboardScreen({ navigation }) {
   const { user, signOut } = useAuth();
   const [state, setState] = useState({ loading: true, error: "", data: null });
+  const heroAnim = useRef(new Animated.Value(0)).current;
+  const statsAnim = useRef(new Animated.Value(0)).current;
+  const actionsAnim = useRef(new Animated.Value(0)).current;
+  const lowerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +49,52 @@ export default function FacultyDashboardScreen({ navigation }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    Animated.stagger(110, [
+      Animated.timing(heroAnim, {
+        toValue: 1,
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(statsAnim, {
+        toValue: 1,
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(actionsAnim, {
+        toValue: 1,
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(lowerAnim, {
+        toValue: 1,
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [actionsAnim, heroAnim, lowerAnim, statsAnim]);
+
+  const heroTranslate = heroAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, 0],
+  });
+  const statsTranslate = statsAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, 0],
+  });
+  const actionsTranslate = actionsAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, 0],
+  });
+  const lowerTranslate = lowerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, 0],
+  });
 
   const facultyName = useMemo(() => {
     const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim();
@@ -110,6 +160,7 @@ export default function FacultyDashboardScreen({ navigation }) {
     <AppScreen
       eyebrow="Faculty"
       title="Faculty dashboard"
+      titleStyle={styles.dashboardTitle}
       subtitle="Manage your sections, input assessment scores, and track student performance across assigned classes."
     >
       {state.loading ? (
@@ -123,97 +174,105 @@ export default function FacultyDashboardScreen({ navigation }) {
         </InfoCard>
       ) : (
         <>
-          <InfoCard>
-            <View style={styles.heroBlock}>
-              <View style={styles.heroBadge}>
-                <Text style={styles.heroBadgeText}>FACULTY PORTAL</Text>
-              </View>
-              <Text style={styles.heroTitle}>Welcome, {facultyName}</Text>
-              <Text style={styles.heroSubtitle}>
-                Keep your classes on track and monitor progress with quick access to grading and reports.
-              </Text>
-              <View style={styles.heroActions}>
-                <Pressable style={styles.heroPrimaryAction} onPress={() => navigation.navigate("FacultyAssessments")}>
-                  <Text style={styles.heroPrimaryActionText}>Input Grades</Text>
-                </Pressable>
-                <Pressable style={styles.heroSecondaryAction} onPress={() => navigation.navigate("FacultyReports")}>
-                  <Text style={styles.heroSecondaryActionText}>View Reports</Text>
-                </Pressable>
-              </View>
-            </View>
-          </InfoCard>
-
-          <View style={styles.statsGrid}>
-            {stats.map((stat, index) => (
-              <View key={stat.label} style={styles.statTile}>
-                <View style={styles.statTopRow}>
-                  <Text style={styles.statLabel}>{stat.label}</Text>
-                  <View style={styles.statDeltaChip}>
-                    <Text style={styles.statDeltaText}>{index % 2 === 0 ? "+5%" : "-3%"}</Text>
-                  </View>
+          <Animated.View style={{ opacity: heroAnim, transform: [{ translateY: heroTranslate }] }}>
+            <InfoCard>
+              <View style={styles.heroBlock}>
+                <View style={styles.heroBadge}>
+                  <Text style={styles.heroBadgeText}>FACULTY PORTAL</Text>
                 </View>
-                <Text style={styles.statValue}>{stat.value}</Text>
-                <Text style={styles.statSublabel}>{stat.sublabel}</Text>
-              </View>
-            ))}
-          </View>
-
-          <InfoCard title="Quick actions">
-            <View style={styles.quickActionGrid}>
-              {quickActions.map((action) => (
-                <Pressable key={action.key} onPress={action.onPress} style={styles.quickActionCard}>
-                  <View style={[styles.quickActionDot, { backgroundColor: action.accent }]} />
-                  <Text style={styles.quickActionTitle}>{action.title}</Text>
-                  <Text style={styles.quickActionDescription}>{action.description}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </InfoCard>
-
-          <View style={styles.bottomGrid}>
-            <InfoCard title="My sections" rightText="Live">
-              <View style={styles.stack}>
-                {sectionRows.map((section) => {
-                  const widthPercent = Math.max(
-                    8,
-                    Math.round(((Number(section.studentCount) || 0) / maxStudents) * 100)
-                  );
-
-                  return (
-                    <View key={section.id} style={styles.sectionRow}>
-                      <View style={styles.rowHeader}>
-                        <Text style={styles.rowTitle}>
-                          {section.courseCode} • {section.name}
-                        </Text>
-                        <Text style={styles.rowMeta}>{section.studentCount} students</Text>
-                      </View>
-                      <Text style={styles.rowSub}>
-                        {section.academicYear} • {section.semester}
-                      </Text>
-                      <View style={styles.progressTrack}>
-                        <View style={[styles.progressFill, { width: `${widthPercent}%` }]} />
-                      </View>
-                    </View>
-                  );
-                })}
+                <Text style={styles.heroTitle}>Welcome, {facultyName}</Text>
+                <Text style={styles.heroSubtitle}>
+                  Keep your classes on track and monitor progress with quick access to grading and reports.
+                </Text>
+                <View style={styles.heroActions}>
+                  <Pressable style={styles.heroPrimaryAction} onPress={() => navigation.navigate("FacultyAssessments")}>
+                    <Text style={styles.heroPrimaryActionText}>Input Grades</Text>
+                  </Pressable>
+                  <Pressable style={styles.heroSecondaryAction} onPress={() => navigation.navigate("FacultyReports")}>
+                    <Text style={styles.heroSecondaryActionText}>View Reports</Text>
+                  </Pressable>
+                </View>
               </View>
             </InfoCard>
+          </Animated.View>
 
-            <InfoCard title="Recent activity">
-              <View style={styles.stack}>
-                {activityFeed.map((item) => (
-                  <View key={item.id} style={styles.activityRow}>
-                    <View style={styles.activityDot} />
-                    <View style={styles.activityMain}>
-                      <Text style={styles.activityTitle}>{item.title}</Text>
-                      <Text style={styles.activityDetail}>{item.detail}</Text>
+          <Animated.View style={{ opacity: statsAnim, transform: [{ translateY: statsTranslate }] }}>
+            <View style={styles.statsGrid}>
+              {stats.map((stat, index) => (
+                <View key={stat.label} style={styles.statTile}>
+                  <View style={styles.statTopRow}>
+                    <Text style={styles.statLabel}>{stat.label}</Text>
+                    <View style={styles.statDeltaChip}>
+                      <Text style={styles.statDeltaText}>{index % 2 === 0 ? "+5%" : "-3%"}</Text>
                     </View>
-                    <Text style={styles.activityTime}>{item.time}</Text>
                   </View>
+                  <Text style={styles.statValue}>{stat.value}</Text>
+                  <Text style={styles.statSublabel}>{stat.sublabel}</Text>
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+
+          <Animated.View style={{ opacity: actionsAnim, transform: [{ translateY: actionsTranslate }] }}>
+            <InfoCard title="Quick actions">
+              <View style={styles.quickActionGrid}>
+                {quickActions.map((action) => (
+                  <Pressable key={action.key} onPress={action.onPress} style={styles.quickActionCard}>
+                    <View style={[styles.quickActionDot, { backgroundColor: action.accent }]} />
+                    <Text style={styles.quickActionTitle}>{action.title}</Text>
+                    <Text style={styles.quickActionDescription}>{action.description}</Text>
+                  </Pressable>
                 ))}
               </View>
             </InfoCard>
+          </Animated.View>
+
+          <Animated.View style={{ opacity: lowerAnim, transform: [{ translateY: lowerTranslate }] }}>
+            <View style={styles.bottomGrid}>
+              <InfoCard title="My sections" rightText="Live">
+                <View style={styles.stack}>
+                  {sectionRows.map((section) => {
+                    const widthPercent = Math.max(
+                      8,
+                      Math.round(((Number(section.studentCount) || 0) / maxStudents) * 100)
+                    );
+
+                    return (
+                      <View key={section.id} style={styles.sectionRow}>
+                        <View style={styles.rowHeader}>
+                          <Text style={styles.rowTitle}>
+                            {section.courseCode} • {section.name}
+                          </Text>
+                          <Text style={styles.rowMeta}>{section.studentCount} students</Text>
+                        </View>
+                        <Text style={styles.rowSub}>
+                          {section.academicYear} • {section.semester}
+                        </Text>
+                        <View style={styles.progressTrack}>
+                          <View style={[styles.progressFill, { width: `${widthPercent}%` }]} />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </InfoCard>
+
+              <InfoCard title="Recent activity">
+                <View style={styles.stack}>
+                  {activityFeed.map((item) => (
+                    <View key={item.id} style={styles.activityRow}>
+                      <View style={styles.activityDot} />
+                      <View style={styles.activityMain}>
+                        <Text style={styles.activityTitle}>{item.title}</Text>
+                        <Text style={styles.activityDetail}>{item.detail}</Text>
+                      </View>
+                      <Text style={styles.activityTime}>{item.time}</Text>
+                    </View>
+                  ))}
+                </View>
+              </InfoCard>
           </View>
+          </Animated.View>
         </>
       )}
     </AppScreen>
@@ -221,6 +280,10 @@ export default function FacultyDashboardScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  dashboardTitle: {
+    fontSize: 28,
+    lineHeight: 34,
+  },
   centered: {
     alignItems: "center",
     gap: 10,

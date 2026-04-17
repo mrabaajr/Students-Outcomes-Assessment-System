@@ -32,10 +32,13 @@ class CourseSOMappingViewSet(viewsets.ModelViewSet):
 
         curriculum = self.request.query_params.get('curriculum')
         if curriculum:
-            if str(curriculum).isdigit():
-                queryset = queryset.filter(curriculum_id=int(curriculum))
-            else:
+            curriculum_str = str(curriculum).strip()
+            if Curriculum.objects.filter(year=curriculum_str).exists():
                 queryset = queryset.filter(curriculum__year=curriculum)
+            elif curriculum_str.isdigit():
+                queryset = queryset.filter(curriculum_id=int(curriculum_str))
+            else:
+                queryset = queryset.filter(curriculum__year=curriculum_str)
 
         year_level = self.request.query_params.get('year_level')
         if year_level:
@@ -123,9 +126,12 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
 
         curriculum = self.request.query_params.get('curriculum')
         if curriculum:
-            if str(curriculum).isdigit():
-                queryset = queryset.filter(curriculum_id=int(curriculum))
+            curriculum_str = str(curriculum).strip()
+            if Curriculum.objects.filter(year=curriculum_str).exists():
+                queryset = queryset.filter(curriculum__year=curriculum_str)
+            elif curriculum_str.isdigit():
+                queryset = queryset.filter(curriculum_id=int(curriculum_str))
             else:
-                queryset = queryset.filter(curriculum__year=curriculum)
+                queryset = queryset.filter(curriculum__year=curriculum_str)
 
         return queryset
