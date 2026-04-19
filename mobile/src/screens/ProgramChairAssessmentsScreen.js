@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 
 import AppScreen from "../components/layout/AppScreen";
 import InfoCard from "../components/ui/InfoCard";
@@ -56,6 +60,8 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
   const [selectedFaculty, setSelectedFaculty] = useState("");
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("");
   const [summaryMap, setSummaryMap] = useState({});
+  const [filterPickerVisible, setFilterPickerVisible] = useState(false);
+  const [activeFilterKey, setActiveFilterKey] = useState("outcome");
 
   useEffect(() => {
     let cancelled = false;
@@ -194,6 +200,95 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
     [filteredSections]
   );
 
+  const filterConfigs = useMemo(
+    () => ({
+      outcome: {
+        label: "Student Outcome",
+        value: selectedSOIds.length > 0 ? String(selectedSOIds[0]) : "",
+        displayValue:
+          selectedSOIds.length > 0
+            ? studentOutcomes.find((item) => String(item.id) === String(selectedSOIds[0]))?.code || "Selected"
+            : "All Outcomes",
+        options: [{ label: "All Outcomes", value: "" }].concat(
+          studentOutcomes.map((item) => ({ label: item.code, value: String(item.id) }))
+        ),
+        onSelect: (value) => setSelectedSOIds(value ? [Number(value)] : []),
+      },
+      course: {
+        label: "Course",
+        value: selectedCourseCode,
+        displayValue: selectedCourseCode || "All Courses",
+        options: [{ label: "All Courses", value: "" }].concat(
+          courseOptions.map((item) => ({ label: `${item.code} - ${item.name}`, value: item.code }))
+        ),
+        onSelect: setSelectedCourseCode,
+      },
+      section: {
+        label: "Section",
+        value: selectedSectionName,
+        displayValue: selectedSectionName || "All Sections",
+        options: [{ label: "All Sections", value: "" }].concat(
+          sectionOptions.map((item) => ({ label: item, value: item }))
+        ),
+        onSelect: setSelectedSectionName,
+      },
+      semester: {
+        label: "Semester",
+        value: selectedSemester,
+        displayValue: selectedSemester || "All Semesters",
+        options: [{ label: "All Semesters", value: "" }].concat(
+          semesterOptions.map((item) => ({ label: item, value: item }))
+        ),
+        onSelect: setSelectedSemester,
+      },
+      faculty: {
+        label: "Faculty",
+        value: selectedFaculty,
+        displayValue: selectedFaculty || "All Faculty",
+        options: [{ label: "All Faculty", value: "" }].concat(
+          facultyOptions.map((item) => ({ label: item, value: item }))
+        ),
+        onSelect: setSelectedFaculty,
+      },
+      schoolYear: {
+        label: "School Year",
+        value: selectedSchoolYear,
+        displayValue: selectedSchoolYear || "All School Years",
+        options: [{ label: "All School Years", value: "" }].concat(
+          schoolYearOptions.map((item) => ({ label: item, value: item }))
+        ),
+        onSelect: setSelectedSchoolYear,
+      },
+    }),
+    [
+      courseOptions,
+      facultyOptions,
+      schoolYearOptions,
+      sectionOptions,
+      selectedCourseCode,
+      selectedFaculty,
+      selectedSOIds,
+      selectedSchoolYear,
+      selectedSectionName,
+      selectedSemester,
+      semesterOptions,
+      studentOutcomes,
+    ]
+  );
+
+  function openFilterPicker(key) {
+    setActiveFilterKey(key);
+    setFilterPickerVisible(true);
+  }
+
+  function handleFilterSelect(value) {
+    const config = filterConfigs[activeFilterKey];
+    if (config?.onSelect) {
+      config.onSelect(value);
+    }
+    setFilterPickerVisible(false);
+  }
+
   function clearAllFilters() {
     setSelectedSOIds([]);
     setSelectedCourseCode("");
@@ -212,11 +307,154 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
     selectedSchoolYear,
   ].filter(Boolean).length;
 
+  const assessmentSnapshot = useMemo(() => {
+    const keys = sectionRequests.map(
+      (request) => `${request.section_id}:${request.so_id}:${request.school_year || ""}`
+    );
+    const summaries = keys.map((key) => summaryMap[key]).filter(Boolean);
+    const assessed = summaries.filter((item) => item.status === "assessed").length;
+    const incomplete = summaries.filter((item) => item.status === "incomplete").length;
+    const completion = summaries.length > 0 ? Math.round((assessed / summaries.length) * 100) : 0;
+
+    return {
+      courses: coursesForGrid.length,
+      sections: filteredSections.length,
+      assessed,
+      incomplete,
+      completion,
+    };
+  }, [coursesForGrid.length, filteredSections.length, sectionRequests, summaryMap]);
+
+  const exportRows = useMemo(() => {
+    if (!selectedCourseCode) {
+      return [];
+    }
+
+    return coursesForGrid.map((course) => {
+      const mappedIds = courseMappings[course.courseCode] || [];
+      const courseSummaries = course.sections.flatMap((section) => {
+        const relevantIds = selectedSOIds.length > 0 ? selectedSOIds : mappedIds;
+        return relevantIds
+          .map((soId) => summaryMap[`${section.id}:${soId}:${section.schoolYear || ""}`])
+          .filter(Boolean);
+      });
+
+      let aggregateStatus = "not-yet";
+      if (courseSummaries.some((item) => item.status === "incomplete")) {
+        aggregateStatus = "incomplete";
+      } else if (courseSummaries.length > 0 && courseSummaries.every((item) => item.status === "assessed")) {
+        aggregateStatus = "assessed";
+      }
+
+      return {
+        courseCode: course.courseCode,
+        courseName: course.courseName,
+        sections: course.sections.length,
+        students: course.studentCount,
+        mappedSOs: mappedIds.length,
+        status: statusColors(aggregateStatus).label,
+        completion: assessmentSnapshot.courses > 0 ? `${Math.round((courseSummaries.filter((item) => item.status === "assessed").length / Math.max(courseSummaries.length, 1)) * 100)}%` : "0%",
+        sectionNames: course.sections.map((section) => section.name).join(" | "),
+      };
+    });
+  }, [assessmentSnapshot.courses, courseMappings, coursesForGrid, selectedCourseCode, selectedSOIds, summaryMap]);
+
+  function toCsvField(value) {
+    const text = value == null ? "" : String(value);
+    if (/[",\n\r]/.test(text)) {
+      return `"${text.replaceAll('"', '""')}"`;
+    }
+    return text;
+  }
+
+  function buildReportCsv(rows) {
+    const header = [
+      "Course Code",
+      "Course Name",
+      "Sections",
+      "Section Names",
+      "Students",
+      "Mapped SOs",
+      "Status",
+      "Completion",
+    ];
+
+    const body = rows.map((row) =>
+      [
+        row.courseCode,
+        row.courseName,
+        row.sections,
+        row.sectionNames,
+        row.students,
+        row.mappedSOs,
+        row.status,
+        row.completion,
+      ]
+        .map(toCsvField)
+        .join(",")
+    );
+
+    return `${header.map(toCsvField).join(",")}\n${body.join("\n")}`;
+  }
+
+  async function handleExportCsv() {
+    try {
+      if (!selectedCourseCode) {
+        Alert.alert("Select a course", "Choose a course filter before exporting the CSV.");
+        return;
+      }
+
+      if (!exportRows.length) {
+        Alert.alert("No data to export", "No assessment rows are available for the selected course.");
+        return;
+      }
+
+      const csv = buildReportCsv(exportRows);
+      const fileUri = `${FileSystem.cacheDirectory}program-chair-course-${String(selectedCourseCode).replace(/[^a-z0-9_-]/gi, "-")}-${Date.now()}.csv`;
+      await FileSystem.writeAsStringAsync(fileUri, csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "text/csv",
+          dialogTitle: "Export course CSV",
+          UTI: "public.comma-separated-values-text",
+        });
+      } else {
+        Alert.alert("Export ready", "CSV file was created, but sharing is not available on this device.");
+      }
+    } catch (exportError) {
+      Alert.alert("CSV export failed", exportError.message || "Unable to export course CSV.");
+    }
+  }
+
   return (
     <AppScreen
       eyebrow="Assessment"
       title={"SO\nAssessment"}
       subtitle="Filter by outcome, course, section, and term before opening a class for grading."
+      showMeta={false}
+      enableScrollTopButton={true}
+      heroFooter={
+        <View style={styles.heroFooterWrap}>
+          <View style={styles.heroActionRow}>
+            <Pressable onPress={() => openFilterPicker("course")} style={styles.chooseCourseButton}>
+              <Text style={styles.chooseCourseButtonText}>
+                {selectedCourseCode ? `Selected: ${selectedCourseCode}` : "Choose Course"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleExportCsv}
+              style={[styles.exportButton, !selectedCourseCode ? styles.exportButtonDisabled : null]}
+              disabled={!selectedCourseCode}
+            >
+              <Text style={styles.exportButtonText}>Export Course CSV</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.heroHelperText}>Pick a course first, then export its assessment data.</Text>
+        </View>
+      }
     >
       {loading ? (
         <InfoCard title="Loading">
@@ -232,72 +470,61 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
       ) : (
         <>
           <InfoCard title="Filters">
-            <Text style={styles.filterLabel}>Student Outcomes</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.soRow}>
-                {studentOutcomes.map((outcome) => {
-                  const active = selectedSOIds.includes(outcome.id);
-                  return (
-                    <Pressable
-                      key={outcome.id}
-                      onPress={() =>
-                        setSelectedSOIds((prev) =>
-                          active ? prev.filter((id) => id !== outcome.id) : [...prev, outcome.id]
-                        )
-                      }
-                      style={[styles.soChip, active ? styles.soChipActive : null]}
-                    >
-                      <Text style={[styles.soChipText, active ? styles.soChipTextActive : null]}>
-                        {outcome.code}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
-
-            <View style={styles.optionSection}>
-              <Text style={styles.filterLabel}>Quick filters</Text>
-              <View style={styles.optionWrap}>
-                {[{ label: "Course", value: selectedCourseCode || "All", options: courseOptions.map((item) => item.code), setter: setSelectedCourseCode },
-                  { label: "Section", value: selectedSectionName || "All", options: sectionOptions, setter: setSelectedSectionName },
-                  { label: "Semester", value: selectedSemester || "All", options: semesterOptions, setter: setSelectedSemester },
-                  { label: "Faculty", value: selectedFaculty || "All", options: facultyOptions, setter: setSelectedFaculty },
-                  { label: "School Year", value: selectedSchoolYear || "All", options: schoolYearOptions, setter: setSelectedSchoolYear }].map((group) => (
-                  <ScrollView key={group.label} horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={styles.groupRow}>
-                      <Text style={styles.groupLabel}>{group.label}</Text>
-                      <Pressable onPress={() => group.setter("")} style={[styles.optionPill, group.value === "All" ? styles.optionPillActive : null]}>
-                        <Text style={[styles.optionText, group.value === "All" ? styles.optionTextActive : null]}>All</Text>
-                      </Pressable>
-                      {group.options.map((option) => (
-                        <Pressable
-                          key={`${group.label}-${option}`}
-                          onPress={() => group.setter(option)}
-                          style={[styles.optionPill, group.value === option ? styles.optionPillActive : null]}
-                        >
-                          <Text style={[styles.optionText, group.value === option ? styles.optionTextActive : null]}>
-                            {option}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </ScrollView>
-                ))}
-              </View>
+            <View style={styles.filterCompactGrid}>
+              {[
+                { key: "outcome", label: "Outcome" },
+                { key: "course", label: "Course" },
+                { key: "section", label: "Section" },
+                { key: "semester", label: "Semester" },
+                { key: "faculty", label: "Faculty" },
+                { key: "schoolYear", label: "School Year" },
+              ].map((item) => (
+                <Pressable
+                  key={item.key}
+                  style={styles.filterCompactButton}
+                  onPress={() => openFilterPicker(item.key)}
+                >
+                  <Text style={styles.filterCompactLabel}>{item.label}</Text>
+                  <Text numberOfLines={1} style={styles.filterCompactValue}>
+                    {filterConfigs[item.key].displayValue}
+                    <Text style={styles.dropdownChevron}>▾</Text>
+                  </Text>
+                </Pressable>
+              ))}
             </View>
 
             <View style={styles.filterFooter}>
               <Text style={styles.mutedText}>
                 {activeFilterCount > 0 ? `${activeFilterCount} active filter(s)` : "No active filters"}
               </Text>
-              {activeFilterCount > 0 ? (
-                <Pressable onPress={clearAllFilters} style={styles.clearButton}>
-                  <Text style={styles.clearButtonText}>Clear All</Text>
-                </Pressable>
-              ) : null}
+              <View style={styles.filterFooterActions}>
+                {activeFilterCount > 0 ? (
+                  <Pressable onPress={clearAllFilters} style={styles.clearButton}>
+                    <Text style={styles.clearButtonText}>Clear All</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           </InfoCard>
+
+          <View style={styles.snapshotGrid}>
+            <View style={styles.snapshotTile}>
+              <Text style={styles.snapshotLabel}>Courses</Text>
+              <Text style={styles.snapshotValue}>{assessmentSnapshot.courses}</Text>
+            </View>
+            <View style={styles.snapshotTile}>
+              <Text style={styles.snapshotLabel}>Sections</Text>
+              <Text style={styles.snapshotValue}>{assessmentSnapshot.sections}</Text>
+            </View>
+            <View style={styles.snapshotTile}>
+              <Text style={styles.snapshotLabel}>Assessed</Text>
+              <Text style={styles.snapshotValue}>{assessmentSnapshot.assessed}</Text>
+            </View>
+            <View style={styles.snapshotTileHighlight}>
+              <Text style={styles.snapshotLabelHighlight}>Completion</Text>
+              <Text style={styles.snapshotValueHighlight}>{assessmentSnapshot.completion}%</Text>
+            </View>
+          </View>
 
           <InfoCard title="Courses" rightText={`${coursesForGrid.length} total`}>
             {coursesForGrid.length === 0 ? (
@@ -337,6 +564,7 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
                     }
                     style={styles.courseCard}
                   >
+                    <View style={styles.courseAccentBar} />
                     <View style={styles.courseHeader}>
                       <View style={styles.courseMain}>
                         <Text style={styles.courseCode}>{course.courseCode}</Text>
@@ -351,6 +579,11 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
                       {course.studentCount} students • {course.sections.length} sections
                     </Text>
 
+                    <View style={styles.courseMetaRow}>
+                      <Text style={styles.courseMetaSoft}>Tap card to open assessment entry</Text>
+                      <Text style={styles.courseMetaStrong}>{mappedIds.length} mapped SOs</Text>
+                    </View>
+
                     {mappedIds.length > 0 ? (
                       <View style={styles.mappedRow}>
                         {studentOutcomes
@@ -362,6 +595,11 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
                           ))}
                       </View>
                     ) : null}
+
+                    <View style={styles.openCourseRow}>
+                      <Text style={styles.openCourseText}>Open Assessment</Text>
+                      <Text style={styles.openCourseArrow}>→</Text>
+                    </View>
                   </Pressable>
                 );
               })
@@ -369,11 +607,41 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
           </InfoCard>
         </>
       )}
+
+      <Modal animationType="fade" transparent visible={filterPickerVisible}>
+        <View style={styles.modalOverlaySoft}>
+          <View style={styles.pickerCard}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>{filterConfigs[activeFilterKey]?.label || "Select"}</Text>
+              <Pressable onPress={() => setFilterPickerVisible(false)} style={styles.pickerCloseButton}>
+                <Text style={styles.pickerCloseText}>Close</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.pickerList}>
+              {(filterConfigs[activeFilterKey]?.options || []).map((option) => {
+                const selected = String(filterConfigs[activeFilterKey]?.value || "") === String(option.value);
+                return (
+                  <Pressable
+                    key={`${activeFilterKey}-${option.value}`}
+                    onPress={() => handleFilterSelect(option.value)}
+                    style={[styles.pickerOption, selected && styles.pickerOptionActive]}
+                  >
+                    <Text style={[styles.pickerOptionText, selected && styles.pickerOptionTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </AppScreen>
   );
 }
 
-export function ProgramChairAssessmentEntryScreen({ route }) {
+export function ProgramChairAssessmentEntryScreen({ route, navigation }) {
   const { course, studentOutcomes, courseMappings, summaryMap } = route.params;
   const [selectedSection, setSelectedSection] = useState(course.sections?.[0] || null);
   const [selectedSOId, setSelectedSOId] = useState(() => {
@@ -383,7 +651,13 @@ export function ProgramChairAssessmentEntryScreen({ route }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [successVisible, setSuccessVisible] = useState(false);
   const [error, setError] = useState("");
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const [liveSummary, setLiveSummary] = useState(null);
+  const autosaveTimeoutRef = useRef(null);
+  const hydratedSelectionRef = useRef(false);
+  const lastSavedSignatureRef = useRef("");
 
   const selectedSO = useMemo(
     () => studentOutcomes.find((item) => item.id === selectedSOId) || null,
@@ -403,10 +677,42 @@ export function ProgramChairAssessmentEntryScreen({ route }) {
     });
   }, [selectedSO]);
 
+  function buildGradesPayload(studentList) {
+    const grades = {};
+    studentList.forEach((student) => {
+      grades[student.id] = {};
+      Object.entries(student.grades || {}).forEach(([key, score]) => {
+        if (score !== null && score !== undefined && score !== "") {
+          grades[student.id][key] = score;
+        }
+      });
+    });
+    return grades;
+  }
+
+  function buildSaveSignature(section, so, studentList) {
+    if (!section || !so) return "";
+    return JSON.stringify({
+      sectionId: section.id,
+      soId: so.id,
+      schoolYear: section.schoolYear || "",
+      grades: buildGradesPayload(studentList),
+    });
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadGradesForSelection() {
+      hydratedSelectionRef.current = false;
+      clearTimeout(autosaveTimeoutRef.current);
+      setSaveStatus("idle");
+      setLiveSummary(
+        selectedSection && selectedSO
+          ? summaryMap[`${selectedSection.id}:${selectedSO.id}:${selectedSection.schoolYear || ""}`] || null
+          : null
+      );
+
       if (!selectedSection || !selectedSO) {
         setStudents([]);
         return;
@@ -432,6 +738,8 @@ export function ProgramChairAssessmentEntryScreen({ route }) {
 
         if (!cancelled) {
           setStudents(nextStudents);
+          lastSavedSignatureRef.current = buildSaveSignature(selectedSection, selectedSO, nextStudents);
+          hydratedSelectionRef.current = true;
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -446,9 +754,17 @@ export function ProgramChairAssessmentEntryScreen({ route }) {
     return () => {
       cancelled = true;
     };
-  }, [selectedSection, selectedSO]);
+  }, [selectedSection, selectedSO, summaryMap]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(autosaveTimeoutRef.current);
+    };
+  }, []);
 
   function updateGrade(studentId, basisKey, value) {
+    setError("");
+    setSaveStatus("pending");
     setStudents((prev) =>
       prev.map((student) =>
         student.id === studentId
@@ -464,43 +780,85 @@ export function ProgramChairAssessmentEntryScreen({ route }) {
     );
   }
 
-  async function handleSave() {
-    if (!selectedSection || !selectedSO) return;
-
-    const grades = {};
-    students.forEach((student) => {
-      grades[student.id] = {};
-      Object.entries(student.grades || {}).forEach(([key, score]) => {
-        if (score !== null && score !== undefined && score !== "") {
-          grades[student.id][key] = score;
-        }
-      });
-    });
-
-    try {
-      setSaving(true);
-      setError("");
-      await saveAssessmentGrades({
-        sectionId: selectedSection.id,
-        soId: selectedSO.id,
-        schoolYear: selectedSection.schoolYear,
-        grades,
-      });
-    } catch (saveError) {
-      setError(saveError.response?.data?.detail || saveError.message || "Failed to save assessment.");
-    } finally {
-      setSaving(false);
+  useEffect(() => {
+    if (!selectedSection || !selectedSO || loading || !hydratedSelectionRef.current) {
+      return undefined;
     }
-  }
+
+    const nextSignature = buildSaveSignature(selectedSection, selectedSO, students);
+    if (!nextSignature || nextSignature === lastSavedSignatureRef.current) {
+      return undefined;
+    }
+
+    clearTimeout(autosaveTimeoutRef.current);
+    autosaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        setSaving(true);
+        setSaveStatus("saving");
+        setError("");
+
+        await saveAssessmentGrades({
+          sectionId: selectedSection.id,
+          soId: selectedSO.id,
+          schoolYear: selectedSection.schoolYear,
+          grades: buildGradesPayload(students),
+        });
+
+        lastSavedSignatureRef.current = nextSignature;
+        setSaveStatus("saved");
+
+        const summaries = await fetchAssessmentSummaries([
+          {
+            section_id: selectedSection.id,
+            so_id: selectedSO.id,
+            school_year: selectedSection.schoolYear || "",
+          },
+        ]);
+        setLiveSummary(summaries[0] || null);
+      } catch (saveError) {
+        setSaveStatus("error");
+        setError(saveError.response?.data?.detail || saveError.message || "Failed to save assessment.");
+      } finally {
+        setSaving(false);
+      }
+    }, 700);
+
+    return () => {
+      clearTimeout(autosaveTimeoutRef.current);
+    };
+  }, [students, selectedSection, selectedSO, loading]);
 
   const currentSummary =
     selectedSection && selectedSO
-      ? summaryMap[`${selectedSection.id}:${selectedSO.id}:${selectedSection.schoolYear || ""}`]
+      ? liveSummary || summaryMap[`${selectedSection.id}:${selectedSO.id}:${selectedSection.schoolYear || ""}`]
       : null;
 
+  const autoSaveMessage =
+    saveStatus === "saving"
+      ? "Saving assessment automatically..."
+      : saveStatus === "saved"
+      ? "Assessment saved automatically."
+      : saveStatus === "pending"
+      ? "Saving your latest grade changes..."
+      : saveStatus === "error"
+      ? "Autosave failed. Changes will retry when you update a grade."
+      : "Changes save automatically as you grade.";
+
   return (
-    <AppScreen eyebrow="Assessment Entry" title={course.courseCode} subtitle={course.courseName}>
+    <AppScreen
+      eyebrow="Assessment Entry"
+      title={course.courseCode}
+      subtitle={course.courseName}
+      showMeta={false}
+      enableScrollTopButton={true}
+    >
       <InfoCard title="Selection">
+        <View style={styles.entryTopRow}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.entryBackButton}>
+            <Text style={styles.entryBackButtonText}>← Back to Assessments</Text>
+          </Pressable>
+        </View>
+
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.soRow}>
             {(course.sections || []).map((section) => (
@@ -545,12 +903,28 @@ export function ProgramChairAssessmentEntryScreen({ route }) {
 
         {currentSummary ? (
           <View style={styles.summaryInline}>
-            <Text style={styles.summaryInlineText}>
-              Status: {statusColors(currentSummary.status).label}
-            </Text>
-            <Text style={styles.summaryInlineText}>
-              Graded: {currentSummary.graded_students}/{currentSummary.total_students}
-            </Text>
+            <View style={[styles.summaryPill, styles.summaryPillStatus]}>
+              <Text style={styles.summaryPillLabel}>Status</Text>
+              <Text
+                style={[
+                  styles.summaryPillValue,
+                  currentSummary.status === "assessed"
+                    ? styles.summaryPillValueGood
+                    : currentSummary.status === "incomplete"
+                    ? styles.summaryPillValueWarn
+                    : styles.summaryPillValueNeutral,
+                ]}
+              >
+                {statusColors(currentSummary.status).label}
+              </Text>
+            </View>
+
+            <View style={[styles.summaryPill, styles.summaryPillGraded]}>
+              <Text style={styles.summaryPillLabel}>Graded</Text>
+              <Text style={styles.summaryPillValue}>
+                {currentSummary.graded_students}/{currentSummary.total_students}
+              </Text>
+            </View>
           </View>
         ) : null}
       </InfoCard>
@@ -602,15 +976,44 @@ export function ProgramChairAssessmentEntryScreen({ route }) {
             </InfoCard>
           ) : null}
 
-          <Pressable onPress={handleSave} style={[styles.saveAction, saving && styles.saveActionDisabled]} disabled={saving}>
-            {saving ? <ActivityIndicator color={colors.dark} /> : <Text style={styles.saveActionText}>Save Assessment</Text>}
-          </Pressable>
+          <View
+            style={[
+              styles.autoSaveBanner,
+              saveStatus === "error" ? styles.autoSaveBannerError : null,
+            ]}
+          >
+            {saving ? <ActivityIndicator color={colors.dark} size="small" /> : null}
+            <Text style={styles.autoSaveText}>{autoSaveMessage}</Text>
+          </View>
         </>
       ) : (
         <InfoCard title="No assessment data">
           <Text style={styles.mutedText}>Choose a section and mapped student outcome to start grading.</Text>
         </InfoCard>
       )}
+
+      <Modal animationType="fade" transparent visible={successVisible}>
+        <View style={styles.successOverlay}>
+          <View style={styles.successCard}>
+            <View style={styles.successIconWrap}>
+              <Text style={styles.successIcon}>✓</Text>
+            </View>
+            <Text style={styles.successTitle}>Saved Successfully</Text>
+            <Text style={styles.successMessage}>
+              Assessment grades have been saved to the system.
+            </Text>
+            <Pressable
+              onPress={() => {
+                setSuccessVisible(false);
+                navigation.goBack();
+              }}
+              style={styles.successButton}
+            >
+              <Text style={styles.successButtonText}>Back To Assessments</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </AppScreen>
   );
 }
@@ -635,7 +1038,121 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: 13,
     fontWeight: "700",
-    marginBottom: 10,
+    marginBottom: 6,
+  },
+  filterDropdownStack: {
+    gap: 10,
+  },
+  filterBlock: {
+    gap: 6,
+  },
+  filterCompactGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  filterCompactButton: {
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexBasis: "47%",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  filterCompactLabel: {
+    color: colors.gray,
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  filterCompactValue: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  dropdownButton: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  dropdownValue: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+    marginRight: 8,
+  },
+  dropdownChevron: {
+    color: colors.gray,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  modalOverlaySoft: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    padding: 18,
+  },
+  pickerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.graySoft,
+    padding: 14,
+    maxHeight: "70%",
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  pickerTitle: {
+    color: colors.dark,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  pickerCloseButton: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pickerCloseText: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  pickerList: {
+    marginTop: 4,
+  },
+  pickerOption: {
+    borderColor: colors.graySoft,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  pickerOptionActive: {
+    backgroundColor: colors.dark,
+    borderColor: colors.dark,
+  },
+  pickerOptionText: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  pickerOptionTextActive: {
+    color: colors.yellow,
   },
   soRow: {
     flexDirection: "row",
@@ -706,6 +1223,111 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 16,
   },
+  filterFooterActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  heroFooterWrap: {
+    gap: 10,
+  },
+  heroActionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  chooseCourseButton: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.graySoft,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexGrow: 1,
+    flexBasis: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  chooseCourseButtonText: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  exportButton: {
+    alignSelf: "flex-start",
+    alignItems: "center",
+    backgroundColor: colors.yellow,
+    borderColor: colors.yellowAlt,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexGrow: 1,
+    flexBasis: 0,
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  exportButtonDisabled: {
+    opacity: 0.55,
+  },
+  exportButtonText: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  heroHelperText: {
+    color: colors.yellow,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  snapshotGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  snapshotTile: {
+    flex: 1,
+    minWidth: "47%",
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  snapshotTileHighlight: {
+    flex: 1,
+    minWidth: "47%",
+    backgroundColor: colors.dark,
+    borderColor: colors.dark,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  snapshotLabel: {
+    color: colors.gray,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  snapshotValue: {
+    color: colors.dark,
+    fontSize: 24,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  snapshotLabelHighlight: {
+    color: "#ffe9a0",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  snapshotValueHighlight: {
+    color: colors.yellow,
+    fontSize: 24,
+    fontWeight: "900",
+    marginTop: 4,
+  },
   clearButton: {
     backgroundColor: colors.yellow,
     borderRadius: 10,
@@ -724,6 +1346,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 12,
     padding: 16,
+  },
+  courseAccentBar: {
+    width: 42,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: colors.yellow,
+    marginBottom: 10,
   },
   courseHeader: {
     flexDirection: "row",
@@ -757,6 +1386,24 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: 13,
     marginTop: 10,
+    fontWeight: "700",
+  },
+  courseMetaRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  courseMetaSoft: {
+    color: colors.gray,
+    fontSize: 12,
+    flex: 1,
+  },
+  courseMetaStrong: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "800",
   },
   mappedRow: {
     flexDirection: "row",
@@ -775,17 +1422,88 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
   },
+  openCourseRow: {
+    marginTop: 12,
+    borderTopColor: colors.graySoft,
+    borderTopWidth: 1,
+    paddingTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  openCourseText: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  openCourseArrow: {
+    color: colors.yellowAlt,
+    fontSize: 18,
+    fontWeight: "900",
+    lineHeight: 18,
+  },
   selectionSpacer: {
     marginTop: 10,
   },
-  summaryInline: {
-    gap: 4,
-    marginTop: 12,
+  entryTopRow: {
+    marginBottom: 10,
   },
-  summaryInlineText: {
+  entryBackButton: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  entryBackButtonText: {
     color: colors.dark,
     fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  summaryInline: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12,
+  },
+  summaryPill: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  summaryPillStatus: {
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+  },
+  summaryPillGraded: {
+    backgroundColor: "#fff8db",
+    borderColor: colors.yellow,
+  },
+  summaryPillLabel: {
+    color: colors.gray,
+    fontSize: 11,
     fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  summaryPillValue: {
+    color: colors.dark,
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  summaryPillValueGood: {
+    color: "#15803d",
+  },
+  summaryPillValueWarn: {
+    color: "#b45309",
+  },
+  summaryPillValueNeutral: {
+    color: "#4b5563",
   },
   studentGrades: {
     gap: 14,
@@ -825,6 +1543,27 @@ const styles = StyleSheet.create({
   scoreChipTextActive: {
     color: colors.dark,
   },
+  autoSaveBanner: {
+    alignItems: "center",
+    backgroundColor: "#fff8db",
+    borderColor: colors.yellow,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  autoSaveBannerError: {
+    backgroundColor: "#fff1f2",
+    borderColor: "#fecdd3",
+  },
+  autoSaveText: {
+    color: colors.dark,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "800",
+  },
   saveAction: {
     alignItems: "center",
     backgroundColor: colors.yellow,
@@ -838,5 +1577,65 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: 15,
     fontWeight: "800",
+  },
+  successOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    padding: 24,
+  },
+  successCard: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.graySoft,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    alignItems: "center",
+  },
+  successIconWrap: {
+    width: 58,
+    height: 58,
+    borderRadius: 999,
+    backgroundColor: colors.yellow,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  successIcon: {
+    color: colors.dark,
+    fontSize: 28,
+    fontWeight: "900",
+    lineHeight: 30,
+  },
+  successTitle: {
+    color: colors.dark,
+    fontSize: 21,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  successMessage: {
+    color: colors.gray,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  successButton: {
+    marginTop: 16,
+    width: "100%",
+    alignItems: "center",
+    backgroundColor: colors.yellow,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  successButtonText: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
 });

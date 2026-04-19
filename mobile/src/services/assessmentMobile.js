@@ -92,6 +92,64 @@ export async function fetchAssessmentScreenData() {
   };
 }
 
+export async function fetchFacultyAssessmentScreenData() {
+  const [soRes, sectionsRes, mappingRes] = await Promise.all([
+    apiClient.get("/student-outcomes/"),
+    apiClient.get("/sections/"),
+    apiClient.get("/course-so-mappings/"),
+  ]);
+
+  const studentOutcomes = (Array.isArray(soRes.data) ? soRes.data : soRes.data.results || []).map(
+    normalizeOutcome
+  );
+
+  const sections = (Array.isArray(sectionsRes.data) ? sectionsRes.data : [])
+    .filter((section) => section.is_active !== false)
+    .map((section) => ({
+      id: section.id,
+      name: section.name || "Unnamed Section",
+      courseCode: section.course_code || "No Course Code",
+      courseName: section.course_name || "Untitled Course",
+      semester: section.semester || "",
+      schoolYear: section.academic_year || "",
+      facultyName:
+        section.faculty?.name ||
+        [section.faculty?.first_name, section.faculty?.last_name].filter(Boolean).join(" ").trim() ||
+        section.faculty?.email ||
+        "Assigned Faculty",
+      studentCount:
+        section.student_count ??
+        section.studentCount ??
+        (Array.isArray(section.students) ? section.students.length : 0),
+      isActive: section.is_active !== false,
+    }));
+
+  const courseMappings = {};
+  const courses = Array.isArray(mappingRes.data) ? mappingRes.data : mappingRes.data.results || [];
+
+  courses.forEach((course) => {
+    const soList =
+      course.mappedSOs ||
+      course.mapped_sos ||
+      course.mapped_sos_details?.map((item) => item.id) ||
+      [];
+    const soIds = (Array.isArray(soList) ? soList : [])
+      .map((item) => (typeof item === "object" ? item.id : parseInt(item, 10)))
+      .filter((item) => Number.isInteger(item));
+
+    if (course.code && soIds.length > 0) {
+      const existingIds = courseMappings[course.code] || [];
+      courseMappings[course.code] = [...new Set([...existingIds, ...soIds])];
+    }
+  });
+
+  return {
+    studentOutcomes,
+    sections,
+    courseMappings,
+  };
+}
+
 export async function fetchAssessmentSummaries(requests) {
   if (!requests.length) return [];
   const response = await apiClient.post("/assessments/summary/", { requests });

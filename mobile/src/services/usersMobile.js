@@ -16,3 +16,15 @@ export async function createFacultyAccount(payload) {
 
   return response.data;
 }
+
+export async function updateFacultyAccount(userId, payload) {
+  const response = await apiClient.patch(`/users/${userId}/`, {
+    email: payload.email,
+    first_name: payload.firstName,
+    last_name: payload.lastName,
+    role: "staff",
+    department: payload.department || "",
+  });
+
+  return response.data;
+}

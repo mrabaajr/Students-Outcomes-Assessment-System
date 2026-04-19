@@ -3,7 +3,12 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../context/AuthContext";
 import FacultyClassesScreen from "../screens/FacultyClassesScreen";
+import FacultyAssessmentsScreen, {
+  FacultyAssessmentEntryScreen,
+} from "../screens/FacultyAssessmentsScreen";
 import FacultyDashboardScreen from "../screens/FacultyDashboardScreen";
+import FacultyPastReportsScreen from "../screens/FacultyPastReportsScreen";
+import FacultyReportsScreen from "../screens/FacultyReportsScreen";
 import LoginScreen from "../screens/LoginScreen";
 import PlaceholderScreen from "../screens/PlaceholderScreen";
 import ProgramChairAssessmentsScreen, {
@@ -12,6 +17,7 @@ import ProgramChairAssessmentsScreen, {
 import ProgramChairClassesScreen from "../screens/ProgramChairClassesScreen";
 import ProgramChairCoursesScreen from "../screens/ProgramChairCoursesScreen";
 import ProgramChairDashboardScreen from "../screens/ProgramChairDashboardScreen";
+import ProgramChairPastReportsScreen from "../screens/ProgramChairPastReportsScreen";
 import ProgramChairReportsScreen from "../screens/ProgramChairReportsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import ProgramChairStudentOutcomesScreen, {
@@ -62,44 +68,49 @@ export default function RootNavigator() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="ProgramChairCourses"
-            component={ProgramChairCoursesScreen}
-            options={{ title: "Courses" }}
-          />
-          <Stack.Screen
-            name="ProgramChairClasses"
-            component={ProgramChairClassesScreen}
-            options={{ title: "Classes" }}
-          />
-          <Stack.Screen
             name="ProgramChairStudentOutcomes"
             component={ProgramChairStudentOutcomesScreen}
-            options={{ title: "Student Outcomes" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairOutcomeRubric"
             component={ProgramChairOutcomeRubricScreen}
-            options={{ title: "Rubric" }}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ProgramChairCourses"
+            component={ProgramChairCoursesScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ProgramChairClasses"
+            component={ProgramChairClassesScreen}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairAssessments"
             component={ProgramChairAssessmentsScreen}
-            options={{ title: "Assessments" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairAssessmentEntry"
             component={ProgramChairAssessmentEntryScreen}
-            options={{ title: "Assessment Entry" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairReports"
             component={ProgramChairReportsScreen}
-            options={{ title: "Reports" }}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ProgramChairPastReports"
+            component={ProgramChairPastReportsScreen}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProgramChairSettings"
             component={SettingsScreen}
-            options={{ title: "Settings" }}
+            options={{ headerShown: false }}
           />
         </>
       ) : (
@@ -112,34 +123,32 @@ export default function RootNavigator() {
           <Stack.Screen
             name="FacultyClasses"
             component={FacultyClassesScreen}
-            options={{ title: "My Classes" }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="FacultyAssessments"
-            component={PlaceholderScreen}
-            initialParams={{
-              eyebrow: "Faculty",
-              title: "Assessments",
-              subtitle: "This screen will host faculty assessment entry and grading tools.",
-              icon: "assignment",
-            }}
-            options={{ title: "Assessments" }}
+            component={FacultyAssessmentsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="FacultyAssessmentEntry"
+            component={FacultyAssessmentEntryScreen}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="FacultyReports"
-            component={PlaceholderScreen}
-            initialParams={{
-              eyebrow: "Faculty",
-              title: "Reports",
-              subtitle: "This screen will hold faculty-facing summaries and report exports.",
-              icon: "description",
-            }}
-            options={{ title: "Reports" }}
+            component={FacultyReportsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="FacultyPastReports"
+            component={FacultyPastReportsScreen}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="FacultySettings"
             component={SettingsScreen}
-            options={{ title: "Settings" }}
+            options={{ headerShown: false }}
           />
         </>
       )}

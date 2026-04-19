@@ -22,7 +22,10 @@ const Index = () => {
   const [showFacultyModal, setShowFacultyModal] = useState(false);
   
   const location = useLocation();
-  const isProgramChair = location.pathname.startsWith('/programchair');
+  const storedRole = String(localStorage.getItem("userRole") || "").toLowerCase();
+  const isProgramChair =
+    location.pathname.startsWith("/programchair") ||
+    ["admin", "program_chair", "program-chair", "programchair", "chair"].includes(storedRole);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
