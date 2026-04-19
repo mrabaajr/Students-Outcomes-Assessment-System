@@ -17,4 +17,3 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Frontend server running on port ${PORT}`);
 });
-});
