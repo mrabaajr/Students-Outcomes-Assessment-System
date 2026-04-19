@@ -206,6 +206,20 @@ python manage.py createsuperuser
 - Check VITE_API_URL environment variable
 - Check browser console for errors
 
+**404 Error on Refresh (SPA Routing Issue)**
+- This happens when the frontend is deployed as a Static Site - it tries to find that exact URL path instead of routing to index.html
+- **Solution**: The project now includes:
+  1. `render.yaml` - Configuration file for Render deployment
+  2. `frontend/server.js` - Express server for proper SPA routing
+  3. Updated `frontend/package.json` - Includes express dependency and start script
+- **To deploy**:
+  ```bash
+  git add render.yaml frontend/server.js frontend/package.json
+  git commit -m "Fix SPA routing for Render deployment"
+  git push
+  ```
+  Then redeploy on Render dashboard. The frontend will now be deployed as a Web Service (not Static Site) with proper SPA routing.
+
 **Database connection errors?**
 - Verify DATABASE_URL is correct
 - Run migrations through Shell
