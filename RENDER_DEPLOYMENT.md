@@ -96,6 +96,8 @@ gunicorn==21.2.0
    ```
 7. Click **Create Static Site**
 
+**Note**: The project includes a `_redirects` file in `frontend/public/` that handles SPA routing for all non-file requests.
+
 ## Step 3: Update Backend for Production
 
 ### 3.1 Update `backend/config/settings.py`
@@ -207,18 +209,20 @@ python manage.py createsuperuser
 - Check browser console for errors
 
 **404 Error on Refresh (SPA Routing Issue)**
-- This happens when the frontend is deployed as a Static Site - it tries to find that exact URL path instead of routing to index.html
+- This happens when the frontend is deployed as a Static Site without proper routing configuration
 - **Solution**: The project now includes:
-  1. `render.yaml` - Configuration file for Render deployment
-  2. `frontend/server.js` - Express server for proper SPA routing
-  3. Updated `frontend/package.json` - Includes express dependency and start script
+  1. `frontend/public/_redirects` - Render's configuration file for SPA routing
+  2. Updated `frontend/vite.config.js` - Ensures `_redirects` is copied to `dist/` during build
 - **To deploy**:
   ```bash
-  git add render.yaml frontend/server.js frontend/package.json
-  git commit -m "Fix SPA routing for Render deployment"
+  git add frontend/public/_redirects frontend/vite.config.js
+  git commit -m "Fix SPA routing for Render static site"
   git push
   ```
-  Then redeploy on Render dashboard. The frontend will now be deployed as a Web Service (not Static Site) with proper SPA routing.
+  Then trigger a **manual redeploy** on Render dashboard:
+  1. Go to your `soms-frontend` service
+  2. Click the **three-dot menu** → **Manual Deploy** → **Deploy latest commit**
+  3. The `_redirects` file will now be included in the build
 
 **Database connection errors?**
 - Verify DATABASE_URL is correct
