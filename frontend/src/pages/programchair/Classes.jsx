@@ -11,8 +11,9 @@ import StudentFormDialog from "@/components/classes/StudentFormDialog";
 import FacultyFormDialog from "@/components/classes/FacultyFormDialog";
 import DeleteConfirmDialog from "@/components/classes/DeleteConfirmDialog";
 import FacultyAccountModal from "@/components/accounts/FacultyAccountModal";
-import { sections as initialSections, faculty as initialFaculty } from "@/data/classesData";
 import { toast } from "@/hooks/use-toast";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -42,18 +43,23 @@ const Index = () => {
     setSearchParams(nextParams, { replace: true });
   };
 
-  // Load data from backend on mount; fall back to mock data
+  // Load data from backend on mount.
   useEffect(() => {
     const loadData = async () => {
       try {
-        const response = await axios.get('/api/sections/load_all/');
+        const response = await axios.get(`${API_BASE_URL}/sections/load_all/`);
         const { sections, faculty } = response.data;
-        setSectionsData(Array.isArray(sections) ? sections : initialSections);
-        setFacultyData(Array.isArray(faculty) ? faculty : initialFaculty);
+        setSectionsData(Array.isArray(sections) ? sections : []);
+        setFacultyData(Array.isArray(faculty) ? faculty : []);
       } catch (error) {
-        console.error('Failed to load classes from backend:', error);
-        setSectionsData(initialSections);
-        setFacultyData(initialFaculty);
+        console.error("Failed to load classes from backend:", error);
+        setSectionsData([]);
+        setFacultyData([]);
+        toast({
+          title: "Unable to load classes",
+          description: error.response?.data?.detail || "The classes page could not reach the backend.",
+          variant: "destructive",
+        });
       }
       setIsLoading(false);
       hasLoadedRef.current = true;
@@ -430,7 +436,7 @@ const Index = () => {
     setIsSaving(true);
 
     try {
-      await axios.delete(`/api/users/${deletingFacultyId}/`, {
+      await axios.delete(`${API_BASE_URL}/users/${deletingFacultyId}/`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
         },
@@ -506,7 +512,7 @@ const Index = () => {
       formData.append('file', file);
 
       const response = await axios.post(
-        `/api/sections/${importCSVModal.sectionId}/import-csv/`,
+        `${API_BASE_URL}/sections/${importCSVModal.sectionId}/import-csv/`,
         formData,
         {
           headers: {
@@ -532,7 +538,7 @@ const Index = () => {
         setHasUnsavedChanges(true);
         // Reload sections from backend to sync with database
         try {
-          const reloadRes = await axios.get('/api/sections/load_all/');
+          const reloadRes = await axios.get(`${API_BASE_URL}/sections/load_all/`);
           const { sections } = reloadRes.data;
           if (Array.isArray(sections)) {
             setSectionsData(sections);
@@ -574,7 +580,7 @@ const Index = () => {
 
     setIsSaving(true);
     try {
-      const response = await axios.post('/api/sections/bulk_save/', {
+      const response = await axios.post(`${API_BASE_URL}/sections/bulk_save/`, {
         sections: sectionsData,
         faculty: facultyData,
         deletedFacultyIds,
@@ -584,7 +590,7 @@ const Index = () => {
         setDeletedFacultyIds([]);
         // Reload data from backend so IDs are synced with DB
         try {
-          const reloadRes = await axios.get('/api/sections/load_all/');
+          const reloadRes = await axios.get(`${API_BASE_URL}/sections/load_all/`);
           const { sections, faculty } = reloadRes.data;
           setSectionsData(Array.isArray(sections) ? sections : []);
           setFacultyData(Array.isArray(faculty) ? faculty : []);
