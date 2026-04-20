@@ -19,9 +19,11 @@ function normalizeCourse(course) {
 function normalizeSection(section) {
   return {
     id: section.id,
+    courseId: section.course_id || section.courseId || null,
     courseCode: section.course_code || section.courseCode || "No Course Code",
     courseName: section.course_name || section.courseName || "Untitled Course",
     name: section.name || section.sectionName || "Unnamed Section",
+    facultyId: section.faculty_id || section.facultyId || null,
     semester: section.semester || "Not set",
     academicYear: section.academic_year || section.academicYear || section.schoolYear || "Not set",
     isActive: typeof section.is_active === "boolean" ? section.is_active : section.isActive !== false,

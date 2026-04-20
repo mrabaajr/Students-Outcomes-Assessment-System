@@ -327,9 +327,11 @@ class SectionViewSet(viewsets.ModelViewSet):
             sections_payload.append(
                 {
                     "id": str(sec.id),
+                    "courseId": str(sec.course_id),
                     "name": sec.name,
                     "courseCode": sec.course.code,
                     "courseName": sec.course.name,
+                    "facultyId": str(sec.faculty_id) if sec.faculty_id else None,
                     "facultyName": build_faculty_name(sec.faculty),
                     "curriculum": sec.course.curriculum.year if sec.course.curriculum else "",
                     "isActive": sec.is_active,

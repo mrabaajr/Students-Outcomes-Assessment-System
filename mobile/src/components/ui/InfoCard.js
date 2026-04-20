@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   rightText: {
-    color: colors.gray,
+    color: colors.surface,
     fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase",

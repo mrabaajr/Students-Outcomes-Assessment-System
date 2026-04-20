@@ -71,7 +71,7 @@ const Login = () => {
         localStorage.removeItem("userRole");
         localStorage.removeItem("userId");
         setError(
-          `This account is ${userRole === "admin" ? "Program Chair" : "Faculty"}. Please select the correct role.`
+          `Invalid Credentials`
         );
         setLoading(false);
         return;
@@ -250,18 +250,12 @@ const Login = () => {
               className="w-full group bg-yellow"
               disabled={!selectedRole || loading}
             >
-              {loading ? "Signing in..." : `Sign In as ${selectedRole === "admin" ? "Program Chair" : selectedRole === "staff" ? "Staff" : "..."}`}
+              {loading ? "Signing in..." : `Sign In as ${selectedRole === "admin" ? "Program Chair" : selectedRole === "staff" ? "Faculty" : "..."}`}
               {!loading && <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />}
             </Button>
           </form>
 
-          {/* Footer text */}
-          <p className="text-center text-sm mt-8 text-dark-gray">
-            By continuing, you agree to our{' '}
-            <button className="text-yellow-400 hover:underline">Terms of Service</button>
-            {' '}and{' '}
-            <button className="text-yellow-400 hover:underline">Privacy Policy</button>
-          </p>
+          
         </div>
       </div>
     </div>

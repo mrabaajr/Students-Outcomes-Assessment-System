@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,40 @@ const Index = () => {
     location.pathname.startsWith("/programchair") ||
     ["admin", "program_chair", "program-chair", "programchair", "chair"].includes(storedRole);
 
+  useEffect(() => {
+    const accessToken = localStorage.getItem("accessToken");
+    if (!accessToken) return;
+
+    let isMounted = true;
+
+    async function loadCurrentUser() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/me/`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!response.ok) return;
+
+        const currentUser = await response.json();
+        if (isMounted) {
+          setEmail(currentUser.email || "");
+        }
+      } catch {
+        if (isMounted) {
+          setEmail("");
+        }
+      }
+    }
+
+    loadCurrentUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage("");
@@ -49,17 +83,38 @@ const Index = () => {
 
     setIsSubmitting(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) {
+        throw new Error("You must be signed in to update your password.");
+      }
+
+      const response = await fetch(`${API_BASE_URL}/users/change_password/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          current_password: oldPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.detail || "Failed to update password. Please try again.");
+      }
       
-      setSuccessMessage("Password updated successfully!");
+      setSuccessMessage(payload.message || "Password updated successfully!");
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
       
       setTimeout(() => setSuccessMessage(""), 5000);
     } catch (error) {
-      setErrorMessage("Failed to update password. Please try again.");
+      setErrorMessage(error.message || "Failed to update password. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -128,10 +183,13 @@ const Index = () => {
                       type="email"
                       placeholder="Enter your email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      readOnly
                       autoComplete="off"
-                      className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
+                      className="mt-2 bg-[#F3F4F6] border-[#D1D5DB] text-[#231F20]"
                     />
+                    <p className="text-xs text-[#6B6B6B] mt-1.5">
+                      This is the email attached to your signed-in account.
+                    </p>
                   </div>
 
                   {/* Current Password */}

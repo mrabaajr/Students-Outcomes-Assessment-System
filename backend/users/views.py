@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import authenticate
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from .models import User
 from .serializers import UserSerializer, UserDetailSerializer, UserCreateSerializer
 from .utils import generate_temporary_password, send_account_creation_email
@@ -30,6 +32,43 @@ class UserViewSet(viewsets.ModelViewSet):
         """Get current user"""
         serializer = UserDetailSerializer(request.user)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def change_password(self, request):
+        """Change the current user's password after verifying the old password."""
+        current_password = request.data.get('current_password') or request.data.get('old_password')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+
+        if not current_password or not new_password or not confirm_password:
+            return Response(
+                {'detail': 'Current password, new password, and confirmation are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if new_password != confirm_password:
+            return Response(
+                {'detail': 'New passwords do not match.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not request.user.check_password(current_password):
+            return Response(
+                {'detail': 'Current password is incorrect.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            validate_password(new_password, request.user)
+        except ValidationError as error:
+            return Response(
+                {'detail': ' '.join(error.messages)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        request.user.set_password(new_password)
+        request.user.save(update_fields=['password'])
+        return Response({'message': 'Password updated successfully.'}, status=status.HTTP_200_OK)
     
     @action(detail=False, methods=['post'], permission_classes=[AllowAny])
     def login(self, request):

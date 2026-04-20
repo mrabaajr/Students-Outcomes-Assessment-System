@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -13,7 +13,7 @@ import {
 import AppScreen from "../components/layout/AppScreen";
 import InfoCard from "../components/ui/InfoCard";
 import { useAuth } from "../context/AuthContext";
-import { createFacultyAccount } from "../services/usersMobile";
+import { changePassword, createFacultyAccount } from "../services/usersMobile";
 import { colors } from "../theme/colors";
 
 function FacultyAccountModal({ visible, onClose, onCreated }) {
@@ -139,6 +139,10 @@ export default function SettingsScreen() {
 
   const isProgramChair = session.userRole === "admin";
 
+  useEffect(() => {
+    setEmail(user?.email || "");
+  }, [user?.email]);
+
   const securityTips = useMemo(
     () => [
       "Use a unique password not used on other accounts",
@@ -171,11 +175,17 @@ export default function SettingsScreen() {
 
     setSubmitting(true);
     try {
-      // The current backend does not expose a password-change endpoint yet.
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setErrorMessage(
-        "The mobile UI is ready, but the backend password-change endpoint is not available yet."
-      );
+      const result = await changePassword({
+        currentPassword: oldPassword,
+        newPassword,
+        confirmPassword,
+      });
+      setSuccessMessage(result.message || "Password updated successfully.");
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      setErrorMessage(error.response?.data?.detail || error.message || "Failed to update password.");
     } finally {
       setSubmitting(false);
     }
@@ -215,9 +225,11 @@ export default function SettingsScreen() {
                     onChangeText={setEmail}
                     placeholder="Enter your email"
                     placeholderTextColor={colors.gray}
-                    style={styles.input}
+                    editable={false}
+                    style={[styles.input, styles.disabledInput]}
                     value={email}
                   />
+                  <Text style={styles.helperText}>This is the email attached to your signed-in account.</Text>
                 </View>
 
                 <View>
@@ -346,6 +358,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  disabledInput: {
+    backgroundColor: colors.surfaceMuted,
+    color: colors.darkAlt,
   },
   helperText: {
     color: colors.gray,

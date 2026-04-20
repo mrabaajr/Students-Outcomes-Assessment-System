@@ -22,6 +22,7 @@ import { colors } from "../theme/colors";
 export default function FacultyClassesScreen() {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState("card");
@@ -42,9 +43,17 @@ export default function FacultyClassesScreen() {
   const [manualYearLevel, setManualYearLevel] = useState("1");
   const [manualLoading, setManualLoading] = useState(false);
 
-  async function refreshClasses() {
-    const data = await fetchFacultyClasses();
-    setClasses(data);
+  async function refreshClasses(refresh = false) {
+    try {
+      if (refresh) setRefreshing(true);
+      setError("");
+      const data = await fetchFacultyClasses();
+      setClasses(data);
+    } catch (loadError) {
+      setError(loadError.response?.data?.detail || loadError.message || "Failed to load classes.");
+    } finally {
+      if (refresh) setRefreshing(false);
+    }
   }
 
   useEffect(() => {
@@ -327,6 +336,8 @@ export default function FacultyClassesScreen() {
       subtitle="View only the sections assigned to you. Active classes are actionable, while inactive classes stay visible for reference only."
       showMeta={false}
       enableScrollTopButton={true}
+      onRefresh={() => refreshClasses(true)}
+      refreshing={refreshing}
     >
       <InfoCard title="View Mode">
         <View style={styles.segmentedControl}>
@@ -353,7 +364,7 @@ export default function FacultyClassesScreen() {
         <TextInput
           onChangeText={setQuery}
           placeholder="Course, section, year, or student"
-          placeholderTextColor="#7b8a86"
+          placeholderTextColor={colors.darkAlt}
           style={styles.input}
           value={query}
         />

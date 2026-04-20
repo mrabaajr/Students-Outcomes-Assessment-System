@@ -63,60 +63,143 @@ function getSectionOwner(section, facultyMembers) {
   return owner ? { id: owner.id, name: owner.name || "Faculty member" } : null;
 }
 
-function SectionFormModal({ visible, section, facultyOptions, saving, errors, onClose, onSave, onFieldChange }) {
+function SectionFormModal({
+  visible,
+  section,
+  facultyOptions,
+  courseOptions,
+  saving,
+  errors,
+  onClose,
+  onSave,
+  onFieldChange,
+}) {
+  const isEditing = Boolean(section?.id);
+  const [courseId, setCourseId] = useState("");
   const [name, setName] = useState("");
   const [semester, setSemester] = useState("");
   const [academicYear, setAcademicYear] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [facultyId, setFacultyId] = useState("");
   const [facultyDropdownOpen, setFacultyDropdownOpen] = useState(false);
+  const [courseDropdownOpen, setCourseDropdownOpen] = useState(false);
+  const [semesterDropdownOpen, setSemesterDropdownOpen] = useState(false);
+
+  const semesterOptions = ["1st Semester", "2nd Semester", "Summer"];
 
   useEffect(() => {
     if (!visible) return;
 
+    setCourseId(section?.courseId ? String(section.courseId) : "");
     setName(section?.name || "");
     setSemester(section?.semester || "");
     setAcademicYear(section?.academicYear || section?.schoolYear || "");
     setIsActive(section?.isActive !== false);
-
-    const matchedFaculty = facultyOptions.find((faculty) => faculty.name === section?.facultyName);
-    setFacultyId(matchedFaculty ? String(matchedFaculty.id) : "");
+    setFacultyId(section?.facultyId ? String(section.facultyId) : "");
     setFacultyDropdownOpen(false);
-  }, [facultyOptions, section, visible]);
+    setCourseDropdownOpen(false);
+    setSemesterDropdownOpen(false);
+  }, [section, visible]);
 
   const selectedFacultyLabel =
     facultyOptions.find((faculty) => String(faculty.id) === facultyId)?.name || "Unassigned";
+  const selectedCourseLabel =
+    courseOptions.find((course) => String(course.id) === courseId)?.label || "Select course";
 
   return (
     <Modal animationType="slide" transparent visible={visible}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Edit Section</Text>
-          <Text style={styles.modalSubtitle}>Update the section details and assignment.</Text>
+          <Text style={styles.modalTitle}>{isEditing ? "Edit Section" : "Add Section"}</Text>
+          <Text style={styles.modalSubtitle}>
+            {isEditing ? "Update the section details and assignment." : "Create a new section and assign it if needed."}
+          </Text>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+            <Text style={styles.modalSectionLabel}>Course</Text>
+            <Pressable
+              onPress={() => setCourseDropdownOpen((current) => !current)}
+              style={styles.dropdownButton}
+            >
+              <Text style={styles.dropdownButtonText}>{selectedCourseLabel}</Text>
+              <Text style={styles.dropdownChevron}>{courseDropdownOpen ? "▲" : "▼"}</Text>
+            </Pressable>
+
+            {courseDropdownOpen ? (
+              <View style={styles.dropdownList}>
+                <ScrollView nestedScrollEnabled style={styles.dropdownScroll}>
+                  {courseOptions.map((course) => {
+                    const selected = courseId === String(course.id);
+
+                    return (
+                      <Pressable
+                        key={course.id}
+                        onPress={() => {
+                          setCourseId(String(course.id));
+                          onFieldChange?.("courseId");
+                          setCourseDropdownOpen(false);
+                        }}
+                        style={[styles.dropdownItem, selected ? styles.dropdownItemSelected : null]}
+                      >
+                        <Text style={[styles.dropdownItemText, selected ? styles.dropdownItemTextSelected : null]}>
+                          {course.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            ) : null}
+            {errors?.courseId ? <Text style={styles.fieldError}>{errors.courseId}</Text> : null}
+
+            <Text style={styles.formFieldLabel}>Section</Text>
             <TextInput
               onChangeText={(value) => {
                 setName(value);
                 onFieldChange?.("name");
               }}
-              placeholder="e.g. 3A or A"
+              placeholder="e.g. CPE11S1"
               placeholderTextColor={colors.gray}
               style={styles.modalInput}
               value={name}
             />
             {errors?.name ? <Text style={styles.fieldError}>{errors.name}</Text> : null}
-            <TextInput
-              onChangeText={(value) => {
-                setSemester(value);
-                onFieldChange?.("semester");
-              }}
-              placeholder="e.g. 1st Semester"
-              placeholderTextColor={colors.gray}
-              style={styles.modalInput}
-              value={semester}
-            />
+
+            <Text style={styles.formFieldLabel}>Term</Text>
+            <Pressable
+              onPress={() => setSemesterDropdownOpen((current) => !current)}
+              style={styles.dropdownButton}
+            >
+              <Text style={styles.dropdownButtonText}>{semester || "Select term"}</Text>
+              <Text style={styles.dropdownChevron}>{semesterDropdownOpen ? "▲" : "▼"}</Text>
+            </Pressable>
+
+            {semesterDropdownOpen ? (
+              <View style={styles.dropdownList}>
+                {semesterOptions.map((option) => {
+                  const selected = semester === option;
+
+                  return (
+                    <Pressable
+                      key={option}
+                      onPress={() => {
+                        setSemester(option);
+                        onFieldChange?.("semester");
+                        setSemesterDropdownOpen(false);
+                      }}
+                      style={[styles.dropdownItem, selected ? styles.dropdownItemSelected : null]}
+                    >
+                      <Text style={[styles.dropdownItemText, selected ? styles.dropdownItemTextSelected : null]}>
+                        {option}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
             {errors?.semester ? <Text style={styles.fieldError}>{errors.semester}</Text> : null}
+
+            <Text style={styles.formFieldLabel}>School Year</Text>
             <TextInput
               onChangeText={(value) => {
                 setAcademicYear(value);
@@ -211,6 +294,7 @@ function SectionFormModal({ visible, section, facultyOptions, saving, errors, on
             <Pressable
               onPress={() =>
                 onSave({
+                  courseId: courseId ? Number(courseId) : null,
                   name: name.trim(),
                   semester: semester.trim(),
                   academicYear: academicYear.trim(),
@@ -221,7 +305,7 @@ function SectionFormModal({ visible, section, facultyOptions, saving, errors, on
               style={[styles.modalPrimaryButton, saving && styles.modalButtonDisabled]}
               disabled={saving}
             >
-              <Text style={styles.modalPrimaryButtonText}>{saving ? "Saving..." : "Save Changes"}</Text>
+              <Text style={styles.modalPrimaryButtonText}>{saving ? "Saving..." : isEditing ? "Save Changes" : "Create Section"}</Text>
             </Pressable>
           </View>
         </View>
@@ -258,17 +342,19 @@ function StudentFormModal({ visible, sectionName, student, saving, errors, onClo
           </Text>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+            <Text style={styles.formFieldLabel}>Student Number</Text>
             <TextInput
               onChangeText={(value) => {
                 setStudentId(value);
                 onFieldChange?.("studentId");
               }}
-              placeholder="e.g. 2024-0001"
+              placeholder="e.g. 2310111"
               placeholderTextColor={colors.gray}
               style={styles.modalInput}
               value={studentId}
             />
             {errors?.studentId ? <Text style={styles.fieldError}>{errors.studentId}</Text> : null}
+            <Text style={styles.formFieldLabel}>First Name</Text>
             <TextInput
               onChangeText={(value) => {
                 setFirstName(value);
@@ -280,6 +366,7 @@ function StudentFormModal({ visible, sectionName, student, saving, errors, onClo
               value={firstName}
             />
             {errors?.firstName ? <Text style={styles.fieldError}>{errors.firstName}</Text> : null}
+            <Text style={styles.formFieldLabel}>Last Name</Text>
             <TextInput
               onChangeText={(value) => {
                 setLastName(value);
@@ -291,6 +378,7 @@ function StudentFormModal({ visible, sectionName, student, saving, errors, onClo
               value={lastName}
             />
             {errors?.lastName ? <Text style={styles.fieldError}>{errors.lastName}</Text> : null}
+            <Text style={styles.formFieldLabel}>Program</Text>
             <TextInput
               onChangeText={(value) => {
                 setProgram(value);
@@ -302,6 +390,7 @@ function StudentFormModal({ visible, sectionName, student, saving, errors, onClo
               value={program}
             />
             {errors?.program ? <Text style={styles.fieldError}>{errors.program}</Text> : null}
+            <Text style={styles.formFieldLabel}>Year Level</Text>
             <TextInput
               keyboardType="number-pad"
               onChangeText={(value) => {
@@ -591,6 +680,7 @@ function FacultyAccountModal({ visible, saving, editingFaculty, sections, facult
 
 export default function ProgramChairClassesScreen() {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [payload, setPayload] = useState({ sections: [], faculty: [] });
   const [mode, setMode] = useState("sections");
@@ -619,29 +709,28 @@ export default function ProgramChairClassesScreen() {
   const [sectionFilterPickerVisible, setSectionFilterPickerVisible] = useState(false);
   const [activeSectionFilter, setActiveSectionFilter] = useState("status");
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadClasses() {
-      try {
-        const data = await fetchProgramChairClasses();
-        if (!cancelled) {
-          setPayload(data);
-          setLoading(false);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError.response?.data?.detail || loadError.message || "Failed to load classes.");
-          setLoading(false);
-        }
+  async function loadClasses(refresh = false) {
+    try {
+      if (refresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
       }
+      const data = await fetchProgramChairClasses();
+      setPayload(data);
+      setError("");
+    } catch (loadError) {
+      setError(loadError.response?.data?.detail || loadError.message || "Failed to load classes.");
+    } finally {
+      if (refresh) {
+        setRefreshing(false);
+      }
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     loadClasses();
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   useEffect(() => {
@@ -694,6 +783,7 @@ export default function ProgramChairClassesScreen() {
 
   function validateSectionForm(data) {
     const errors = {};
+    if (!data.courseId) errors.courseId = "Course is required.";
     if (!data.name) errors.name = "Section name is required.";
     if (!data.semester) errors.semester = "Semester is required.";
     if (!data.academicYear) errors.academicYear = "School year is required.";
@@ -724,6 +814,7 @@ export default function ProgramChairClassesScreen() {
     if (!data || typeof data !== "object") return {};
 
     const fieldMap = {
+      course: "courseId",
       name: "name",
       semester: "semester",
       academic_year: "academicYear",
@@ -822,6 +913,18 @@ export default function ProgramChairClassesScreen() {
 
     return { courses };
   }, [payload.faculty]);
+
+  const sectionCoursePickerOptions = useMemo(() => {
+    const seen = new Map();
+    payload.sections.forEach((section) => {
+      if (!section.courseId || seen.has(String(section.courseId))) return;
+      seen.set(String(section.courseId), {
+        id: section.courseId,
+        label: `${section.courseCode} - ${section.courseName}`,
+      });
+    });
+    return Array.from(seen.values()).sort((left, right) => left.label.localeCompare(right.label));
+  }, [payload.sections]);
 
   const filteredSections = useMemo(() => {
     const normalized = sectionQuery.trim().toLowerCase();
@@ -959,6 +1062,12 @@ export default function ProgramChairClassesScreen() {
     setSectionFormVisible(true);
   }
 
+  function openSectionCreator() {
+    setSectionFormErrors({});
+    setEditingSection(null);
+    setSectionFormVisible(true);
+  }
+
   function openStudentEditor(section, student) {
     setStudentFormErrors({});
     setStudentSection(section);
@@ -967,13 +1076,10 @@ export default function ProgramChairClassesScreen() {
   }
 
   async function refreshClasses() {
-    const data = await fetchProgramChairClasses();
-    setPayload(data);
+    await loadClasses(true);
   }
 
   async function handleSaveSection(data) {
-    if (!editingSection) return;
-
     const validationErrors = validateSectionForm(data);
     if (Object.keys(validationErrors).length > 0) {
       setSectionFormErrors(validationErrors);
@@ -983,13 +1089,24 @@ export default function ProgramChairClassesScreen() {
     try {
       setSectionSaving(true);
       setSectionFormErrors({});
-      await apiClient.patch(`/sections/${editingSection.id}/`, {
-        name: data.name,
-        semester: data.semester,
-        academic_year: data.academicYear,
-        is_active: data.isActive,
-        faculty_id: data.facultyId,
-      });
+      if (editingSection?.id) {
+        await apiClient.patch(`/sections/${editingSection.id}/`, {
+          name: data.name,
+          semester: data.semester,
+          academic_year: data.academicYear,
+          is_active: data.isActive,
+          faculty_id: data.facultyId,
+        });
+      } else {
+        await apiClient.post("/sections/", {
+          course: data.courseId,
+          name: data.name,
+          semester: data.semester,
+          academic_year: data.academicYear,
+          is_active: data.isActive,
+          faculty_id: data.facultyId,
+        });
+      }
       await refreshClasses();
       setSectionFormVisible(false);
       setEditingSection(null);
@@ -1286,6 +1403,8 @@ export default function ProgramChairClassesScreen() {
       subtitle="Review sections and faculty assignments in a compact mobile layout that keeps the same information hierarchy as the desktop view."
       showMeta={false}
       enableScrollTopButton={true}
+      onRefresh={refreshClasses}
+      refreshing={refreshing}
     >
       <InfoCard title="Overview" rightText={`${payload.sections.length} sections`}>
         <View style={styles.summaryGrid}>
@@ -1341,10 +1460,17 @@ export default function ProgramChairClassesScreen() {
       ) : mode === "sections" ? (
         <View style={styles.stack}>
           <InfoCard title="Search and filters">
+            <View style={styles.sectionToolbar}>
+              <Text style={styles.helperText}>Create, search, and manage active class sections.</Text>
+              <Pressable onPress={openSectionCreator} style={styles.addSectionButton}>
+                <Text style={styles.addSectionButtonText}>Add Section</Text>
+              </Pressable>
+            </View>
+
             <TextInput
               onChangeText={setSectionQuery}
               placeholder="Search section, course, year, or semester"
-              placeholderTextColor="#7b8a86"
+              placeholderTextColor={colors.darkAlt}
               style={styles.input}
               value={sectionQuery}
             />
@@ -1516,7 +1642,7 @@ export default function ProgramChairClassesScreen() {
             <TextInput
               onChangeText={setFacultyQuery}
               placeholder="Search name, email, or course"
-              placeholderTextColor="#7b8a86"
+              placeholderTextColor={colors.darkAlt}
               style={styles.input}
               value={facultyQuery}
             />
@@ -1618,6 +1744,7 @@ export default function ProgramChairClassesScreen() {
         visible={sectionFormVisible}
         section={editingSection}
         facultyOptions={payload.faculty}
+        courseOptions={sectionCoursePickerOptions}
         saving={sectionSaving}
         errors={sectionFormErrors}
         onClose={() => {
@@ -1797,6 +1924,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+  sectionToolbar: {
+    gap: 10,
+    marginBottom: 12,
+  },
+  addSectionButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: colors.yellow,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  addSectionButtonText: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "800",
+  },
   facultyHeaderRow: {
     alignItems: "center",
     flexDirection: "row",
@@ -1886,6 +2030,7 @@ const styles = StyleSheet.create({
   metaText: {
     color: colors.darkAlt,
     fontSize: 12,
+    lineHeight: 18,
   },
   metaStrong: {
     color: colors.yellowAlt,
@@ -2355,13 +2500,13 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   sectionCardHeader: {
-    gap: 4,
+    gap: 8,
     marginBottom: 12,
     backgroundColor: colors.surfaceMuted,
     borderColor: colors.graySoft,
     borderRadius: 14,
     borderWidth: 1,
-    padding: 10,
+    padding: 12,
   },
   badgeRow: {
     alignItems: "center",
@@ -2373,11 +2518,17 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: 16,
     fontWeight: "800",
+    lineHeight: 22,
     marginTop: 2,
   },
   sectionLine: {
     color: colors.gray,
     fontSize: 13,
+    lineHeight: 18,
+  },
+  metaGrid: {
+    gap: 4,
+    marginBottom: 12,
   },
   importButton: {
     alignItems: "center",
