@@ -13,6 +13,11 @@
     },
     "ios": {
       "bundleIdentifier": "com.skool.somsmobile"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6db1513f-5796-451b-b967-1b821c8e1bc4"
+      }
     }
   }
 }

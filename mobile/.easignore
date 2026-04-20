@@ -1,0 +1,19 @@
+# start from the current app folder only
+../backend
+../frontend
+../tools
+../.idea
+../.vscode
+../node_modules
+../*.md
+../*.csv
+../*.png
+../*.json
+
+# normal local ignores
+node_modules
+.expo
+.expo-shared
+android/.gradle
+android/build
+android/app/build
