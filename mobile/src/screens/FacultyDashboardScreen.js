@@ -10,44 +10,43 @@ import { colors } from "../theme/colors";
 export default function FacultyDashboardScreen({ navigation }) {
   const { user, signOut } = useAuth();
   const [state, setState] = useState({ loading: true, error: "", data: null });
+  const [refreshing, setRefreshing] = useState(false);
   const heroAnim = useRef(new Animated.Value(0)).current;
   const statsAnim = useRef(new Animated.Value(0)).current;
   const actionsAnim = useRef(new Animated.Value(0)).current;
   const lowerAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const data = await fetchFacultyDashboardData();
-        if (!cancelled) {
-          setState({ loading: false, error: "", data });
-        }
-      } catch (error) {
-        const isAuthError =
-          error.response?.status === 401 ||
-          String(error.response?.data?.detail || error.message || "").toLowerCase().includes("token not valid");
-
-        if (isAuthError) {
-          await signOut();
-          return;
-        }
-
-        if (!cancelled) {
-          setState({
-            loading: false,
-            error: error.response?.data?.detail || error.message || "Failed to load dashboard.",
-            data: null,
-          });
-        }
+  async function loadDashboard(refresh = false) {
+    try {
+      if (refresh) {
+        setRefreshing(true);
+      } else {
+        setState((current) => ({ ...current, loading: true, error: "" }));
       }
-    }
+      const data = await fetchFacultyDashboardData();
+      setState({ loading: false, error: "", data });
+    } catch (error) {
+      const isAuthError =
+        error.response?.status === 401 ||
+        String(error.response?.data?.detail || error.message || "").toLowerCase().includes("token not valid");
 
-    load();
-    return () => {
-      cancelled = true;
-    };
+      if (isAuthError) {
+        await signOut();
+        return;
+      }
+
+      setState({
+        loading: false,
+        error: error.response?.data?.detail || error.message || "Failed to load dashboard.",
+        data: null,
+      });
+    } finally {
+      if (refresh) setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    loadDashboard();
   }, []);
 
   useEffect(() => {
@@ -162,6 +161,8 @@ export default function FacultyDashboardScreen({ navigation }) {
       title="Faculty dashboard"
       titleStyle={styles.dashboardTitle}
       subtitle="Manage your sections, input assessment scores, and track student performance across assigned classes."
+      onRefresh={() => loadDashboard(true)}
+      refreshing={refreshing}
     >
       {state.loading ? (
         <View style={styles.centered}>
@@ -231,7 +232,12 @@ export default function FacultyDashboardScreen({ navigation }) {
             <View style={styles.bottomGrid}>
               <InfoCard title="My sections" rightText="Live">
                 <View style={styles.stack}>
-                  {sectionRows.map((section) => {
+                  {sectionRows.length === 0 ? (
+                    <EmptyState
+                      title="No sections found"
+                      message="No class sections are currently assigned to your faculty account."
+                    />
+                  ) : sectionRows.map((section) => {
                     const widthPercent = Math.max(
                       8,
                       Math.round(((Number(section.studentCount) || 0) / maxStudents) * 100)
@@ -259,7 +265,12 @@ export default function FacultyDashboardScreen({ navigation }) {
 
               <InfoCard title="Recent activity">
                 <View style={styles.stack}>
-                  {activityFeed.map((item) => (
+                  {activityFeed.length === 0 ? (
+                    <EmptyState
+                      title="No recent activity"
+                      message="No dashboard activity is available yet. New class or assessment updates will appear here."
+                    />
+                  ) : activityFeed.map((item) => (
                     <View key={item.id} style={styles.activityRow}>
                       <View style={styles.activityDot} />
                       <View style={styles.activityMain}>
@@ -276,6 +287,15 @@ export default function FacultyDashboardScreen({ navigation }) {
         </>
       )}
     </AppScreen>
+  );
+}
+
+function EmptyState({ title, message }) {
+  return (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyMessage}>{message}</Text>
+    </View>
   );
 }
 
@@ -439,6 +459,25 @@ const styles = StyleSheet.create({
   },
   stack: {
     gap: 12,
+  },
+  emptyState: {
+    backgroundColor: "#F9FAFB",
+    borderColor: colors.graySoft,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+  },
+  emptyTitle: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  emptyMessage: {
+    color: colors.gray,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
   },
   sectionRow: {
     borderBottomColor: colors.graySoft,

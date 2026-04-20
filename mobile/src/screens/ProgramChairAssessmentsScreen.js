@@ -49,6 +49,7 @@ function statusColors(status) {
 
 export default function ProgramChairAssessmentsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [studentOutcomes, setStudentOutcomes] = useState([]);
   const [sections, setSections] = useState([]);
@@ -63,22 +64,34 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
   const [filterPickerVisible, setFilterPickerVisible] = useState(false);
   const [activeFilterKey, setActiveFilterKey] = useState("outcome");
 
+  async function loadAssessmentData(refresh = false) {
+    try {
+      if (refresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError("");
+      const data = await fetchAssessmentScreenData();
+      setStudentOutcomes(data.studentOutcomes);
+      setSections(data.sections);
+      setCourseMappings(data.courseMappings);
+    } catch (loadError) {
+      setError(loadError.response?.data?.detail || loadError.message || "Failed to load assessment data.");
+    } finally {
+      if (refresh) {
+        setRefreshing(false);
+      }
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      try {
-        const data = await fetchAssessmentScreenData();
-        if (cancelled) return;
-        setStudentOutcomes(data.studentOutcomes);
-        setSections(data.sections);
-        setCourseMappings(data.courseMappings);
-        setLoading(false);
-      } catch (loadError) {
-        if (cancelled) return;
-        setError(loadError.response?.data?.detail || loadError.message || "Failed to load assessment data.");
-        setLoading(false);
-      }
+      if (cancelled) return;
+      await loadAssessmentData();
     }
 
     load();
@@ -110,6 +123,98 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
     selectedSemester,
     selectedFaculty,
     selectedSchoolYear,
+  ]);
+
+  const sectionsForSectionOptions = useMemo(() => {
+    return sections.filter((section) => {
+      const mappedSOs = courseMappings[section.courseCode] || [];
+      const matchesSO =
+        selectedSOIds.length === 0 ||
+        selectedSOIds.some((selectedId) => mappedSOs.some((soId) => parseInt(soId, 10) === parseInt(selectedId, 10)));
+      const matchesCourse = !selectedCourseCode || section.courseCode === selectedCourseCode;
+      const matchesSemester = !selectedSemester || section.semester === selectedSemester;
+      const matchesFaculty = !selectedFaculty || section.facultyName === selectedFaculty;
+      const matchesYear = !selectedSchoolYear || section.schoolYear === selectedSchoolYear;
+
+      return matchesSO && matchesCourse && matchesSemester && matchesFaculty && matchesYear;
+    });
+  }, [
+    sections,
+    courseMappings,
+    selectedSOIds,
+    selectedCourseCode,
+    selectedSemester,
+    selectedFaculty,
+    selectedSchoolYear,
+  ]);
+
+  const sectionsForSemesterOptions = useMemo(() => {
+    return sections.filter((section) => {
+      const mappedSOs = courseMappings[section.courseCode] || [];
+      const matchesSO =
+        selectedSOIds.length === 0 ||
+        selectedSOIds.some((selectedId) => mappedSOs.some((soId) => parseInt(soId, 10) === parseInt(selectedId, 10)));
+      const matchesCourse = !selectedCourseCode || section.courseCode === selectedCourseCode;
+      const matchesSection = !selectedSectionName || section.name === selectedSectionName;
+      const matchesFaculty = !selectedFaculty || section.facultyName === selectedFaculty;
+      const matchesYear = !selectedSchoolYear || section.schoolYear === selectedSchoolYear;
+
+      return matchesSO && matchesCourse && matchesSection && matchesFaculty && matchesYear;
+    });
+  }, [
+    sections,
+    courseMappings,
+    selectedSOIds,
+    selectedCourseCode,
+    selectedSectionName,
+    selectedFaculty,
+    selectedSchoolYear,
+  ]);
+
+  const sectionsForFacultyOptions = useMemo(() => {
+    return sections.filter((section) => {
+      const mappedSOs = courseMappings[section.courseCode] || [];
+      const matchesSO =
+        selectedSOIds.length === 0 ||
+        selectedSOIds.some((selectedId) => mappedSOs.some((soId) => parseInt(soId, 10) === parseInt(selectedId, 10)));
+      const matchesCourse = !selectedCourseCode || section.courseCode === selectedCourseCode;
+      const matchesSection = !selectedSectionName || section.name === selectedSectionName;
+      const matchesSemester = !selectedSemester || section.semester === selectedSemester;
+      const matchesYear = !selectedSchoolYear || section.schoolYear === selectedSchoolYear;
+
+      return matchesSO && matchesCourse && matchesSection && matchesSemester && matchesYear;
+    });
+  }, [
+    sections,
+    courseMappings,
+    selectedSOIds,
+    selectedCourseCode,
+    selectedSectionName,
+    selectedSemester,
+    selectedSchoolYear,
+  ]);
+
+  const sectionsForSchoolYearOptions = useMemo(() => {
+    return sections.filter((section) => {
+      const mappedSOs = courseMappings[section.courseCode] || [];
+      const matchesSO =
+        selectedSOIds.length === 0 ||
+        selectedSOIds.some((selectedId) => mappedSOs.some((soId) => parseInt(soId, 10) === parseInt(selectedId, 10)));
+      const matchesCourse = !selectedCourseCode || section.courseCode === selectedCourseCode;
+      const matchesSection = !selectedSectionName || section.name === selectedSectionName;
+      const matchesSemester = !selectedSemester || section.semester === selectedSemester;
+      const matchesFaculty = !selectedFaculty || section.facultyName === selectedFaculty;
+
+      return matchesSO && matchesCourse && matchesSection && matchesSemester && matchesFaculty;
+    });
+  }, [
+    sections,
+    courseMappings,
+    selectedSOIds,
+    selectedCourseCode,
+    selectedSectionName,
+    selectedSemester,
+    selectedFaculty,
   ]);
 
   const coursesForGrid = useMemo(() => {
@@ -184,20 +289,20 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
   }, [sections]);
 
   const sectionOptions = useMemo(
-    () => [...new Set(filteredSections.map((section) => section.name))],
-    [filteredSections]
+    () => [...new Set(sectionsForSectionOptions.map((section) => section.name))],
+    [sectionsForSectionOptions]
   );
   const semesterOptions = useMemo(
-    () => [...new Set(filteredSections.map((section) => section.semester).filter(Boolean))],
-    [filteredSections]
+    () => [...new Set(sectionsForSemesterOptions.map((section) => section.semester).filter(Boolean))],
+    [sectionsForSemesterOptions]
   );
   const facultyOptions = useMemo(
-    () => [...new Set(filteredSections.map((section) => section.facultyName).filter(Boolean))],
-    [filteredSections]
+    () => [...new Set(sectionsForFacultyOptions.map((section) => section.facultyName).filter(Boolean))],
+    [sectionsForFacultyOptions]
   );
   const schoolYearOptions = useMemo(
-    () => [...new Set(filteredSections.map((section) => section.schoolYear).filter(Boolean))],
-    [filteredSections]
+    () => [...new Set(sectionsForSchoolYearOptions.map((section) => section.schoolYear).filter(Boolean))],
+    [sectionsForSchoolYearOptions]
   );
 
   const filterConfigs = useMemo(
@@ -436,6 +541,8 @@ export default function ProgramChairAssessmentsScreen({ navigation }) {
       subtitle="Filter by outcome, course, section, and term before opening a class for grading."
       showMeta={false}
       enableScrollTopButton={true}
+      onRefresh={() => loadAssessmentData(true)}
+      refreshing={refreshing}
       heroFooter={
         <View style={styles.heroFooterWrap}>
           <View style={styles.heroActionRow}>

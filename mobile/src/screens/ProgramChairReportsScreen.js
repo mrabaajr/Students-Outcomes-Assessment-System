@@ -10,6 +10,13 @@ import StatCard from "../components/ui/StatCard";
 import { fetchReportsDashboard } from "../services/reportsMobile";
 import { colors } from "../theme/colors";
 
+const DEFAULT_REPORT_FILTERS = {
+  schoolYear: "",
+  course: "",
+  section: "",
+  outcome: "",
+};
+
 function getFlattenedReportRows(data) {
   if (!data) return [];
 
@@ -53,6 +60,39 @@ function formatListValue(value) {
   }
 
   return String(value.number || value.name || value.code || value.title || "");
+}
+
+function formatTableNumber(value, fractionDigits = 2) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "-";
+  return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(fractionDigits);
+}
+
+function buildSoIndicatorRows(table) {
+  const grouped = new Map();
+
+  (table?.courses || []).forEach((course) => {
+    (course.indicators || []).forEach((indicator, index) => {
+      const key = String(indicator.indicator_id || indicator.indicator_label || index);
+      const current = grouped.get(key) || {
+        label: indicator.indicator_label || `P${index + 1}`,
+        answeredCount: 0,
+        satisfactoryCount: 0,
+      };
+
+      current.answeredCount += Number(indicator.answered_count) || 0;
+      current.satisfactoryCount += Number(indicator.satisfactory_count) || 0;
+      grouped.set(key, current);
+    });
+  });
+
+  return Array.from(grouped.values()).map((row) => ({
+    ...row,
+    percent:
+      row.answeredCount > 0
+        ? ((row.satisfactoryCount / row.answeredCount) * 100).toFixed(2)
+        : "0.00",
+  }));
 }
 
 function buildPdfHtml({ metrics, rows }) {
@@ -137,36 +177,41 @@ function FilterRow({ label, value, onPress }) {
 
 export default function ProgramChairReportsScreen({ navigation }) {
   const [reportLevel, setReportLevel] = useState("course");
-  const [filters, setFilters] = useState({
-    schoolYear: "",
-    course: "",
-    section: "",
-    outcome: "",
-  });
+  const [filters, setFilters] = useState(DEFAULT_REPORT_FILTERS);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
   const [filterPickerVisible, setFilterPickerVisible] = useState(false);
   const [activeFilterKey, setActiveFilterKey] = useState("schoolYear");
   const [editableSoOverview, setEditableSoOverview] = useState({});
 
+  async function loadReports(refresh = false) {
+    try {
+      if (refresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError("");
+      const payload = await fetchReportsDashboard(filters);
+      setData(payload);
+    } catch (loadError) {
+      setError(loadError.response?.data?.detail || loadError.message || "Failed to load reports.");
+    } finally {
+      if (refresh) {
+        setRefreshing(false);
+      }
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      try {
-        setLoading(true);
-        setError("");
-        const payload = await fetchReportsDashboard(filters);
-        if (!cancelled) {
-          setData(payload);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError.response?.data?.detail || loadError.message || "Failed to load reports.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+      if (!cancelled) {
+        await loadReports();
       }
     }
 
@@ -295,6 +340,10 @@ export default function ProgramChairReportsScreen({ navigation }) {
     setFilterPickerVisible(false);
   }
 
+  function clearAllFilters() {
+    setFilters(DEFAULT_REPORT_FILTERS);
+  }
+
   function handleSoOverviewEdit(tableKey, field, value) {
     setEditableSoOverview((prev) => ({
       ...prev,
@@ -361,6 +410,8 @@ export default function ProgramChairReportsScreen({ navigation }) {
       title={"Assessment Reports\n& Performance Summary"}
       subtitle="Overview of student outcomes and course performance across selected filters."
       enableScrollTopButton={true}
+      onRefresh={() => loadReports(true)}
+      refreshing={refreshing}
       heroFooter={
         <View style={styles.heroFooterWrap}>
           <View style={styles.heroActionsTop}>
@@ -445,6 +496,12 @@ export default function ProgramChairReportsScreen({ navigation }) {
                 onPress={() => openFilterPicker("schoolYear")}
                 value={reportFilterConfigs.schoolYear.displayValue}
               />
+
+              <View style={styles.filterActionsRow}>
+                <Pressable onPress={clearAllFilters} style={styles.clearFiltersButton}>
+                  <Text style={styles.clearFiltersButtonText}>Clear Filters</Text>
+                </Pressable>
+              </View>
             </View>
           </InfoCard>
 
@@ -465,6 +522,8 @@ export default function ProgramChairReportsScreen({ navigation }) {
                       {(() => {
                         const tableKey = String(table.so_id || table.so_number || "");
                         const editable = editableSoOverview[tableKey] || {};
+                        const courseRows = table.courses || [];
+                        const indicatorRows = buildSoIndicatorRows(table);
                         return (
                           <>
                       <View style={styles.assessmentTopRow}>
@@ -524,41 +583,31 @@ export default function ProgramChairReportsScreen({ navigation }) {
                             <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Students Answered</Text>
                             <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Virtual Class Size</Text>
                           </View>
-                          <View style={styles.assessmentTableRow}>
-                            <Text style={styles.assessmentTableCell}>{table.program}</Text>
-                            <View style={styles.assessmentTableInputCell}>
-                              <TextInput
-                                style={styles.assessmentTableInput}
-                                keyboardType="numeric"
-                                value={editable.classSize}
-                                onChangeText={(value) => handleSoOverviewEdit(tableKey, "classSize", value)}
-                              />
+                          {courseRows.length === 0 ? (
+                            <View style={styles.assessmentTableRow}>
+                              <Text style={styles.assessmentTableEmpty}>No course overview data available.</Text>
                             </View>
-                            <View style={styles.assessmentTableInputCell}>
-                              <TextInput
-                                style={styles.assessmentTableInput}
-                                keyboardType="numeric"
-                                value={editable.percentCli}
-                                onChangeText={(value) => handleSoOverviewEdit(tableKey, "percentCli", value)}
-                              />
-                            </View>
-                            <View style={styles.assessmentTableInputCell}>
-                              <TextInput
-                                style={styles.assessmentTableInput}
-                                keyboardType="numeric"
-                                value={editable.studentsAnswered}
-                                onChangeText={(value) => handleSoOverviewEdit(tableKey, "studentsAnswered", value)}
-                              />
-                            </View>
-                            <View style={styles.assessmentTableInputCell}>
-                              <TextInput
-                                style={styles.assessmentTableInput}
-                                keyboardType="numeric"
-                                value={editable.virtualClassSize}
-                                onChangeText={(value) => handleSoOverviewEdit(tableKey, "virtualClassSize", value)}
-                              />
-                            </View>
-                          </View>
+                          ) : (
+                            courseRows.map((course) => (
+                              <View key={`course-row-${table.so_id}-${course.course_id}`} style={styles.assessmentTableRow}>
+                                <Text style={styles.assessmentTableCell}>
+                                  {course.course_code || course.course_name || "-"}
+                                </Text>
+                                <Text style={styles.assessmentTableCell}>
+                                  {formatTableNumber(course.actual_class_size, 0)}
+                                </Text>
+                                <Text style={styles.assessmentTableCell}>
+                                  {formatTableNumber((Number(course.cli) || 0) * 100)}%
+                                </Text>
+                                <Text style={styles.assessmentTableCell}>
+                                  {formatTableNumber(course.answered_count, 0)}
+                                </Text>
+                                <Text style={styles.assessmentTableCell}>
+                                  {formatTableNumber(course.virtual_class_size)}
+                                </Text>
+                              </View>
+                            ))
+                          )}
                         </View>
                       </View>
 
@@ -570,13 +619,19 @@ export default function ProgramChairReportsScreen({ navigation }) {
                             <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableHeader]}>Met</Text>
                             <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableHeader]}>%</Text>
                           </View>
-                          {(table.indicators || []).map((indicator, idx) => (
-                            <View key={`ind-${idx}`} style={styles.assessmentIndicatorRow}>
-                              <Text style={styles.assessmentIndicatorCell}>P{idx + 1}</Text>
-                              <Text style={styles.assessmentIndicatorCell}>{indicator.met ?? 0}</Text>
-                              <Text style={styles.assessmentIndicatorCell}>{indicator.percent ?? 0}%</Text>
+                          {indicatorRows.length === 0 ? (
+                            <View style={styles.assessmentIndicatorRow}>
+                              <Text style={styles.assessmentTableEmpty}>No indicator performance data available.</Text>
                             </View>
-                          ))}
+                          ) : (
+                            indicatorRows.map((indicator) => (
+                              <View key={`ind-${table.so_id}-${indicator.label}`} style={styles.assessmentIndicatorRow}>
+                                <Text style={styles.assessmentIndicatorCell}>{indicator.label}</Text>
+                                <Text style={styles.assessmentIndicatorCell}>{indicator.satisfactoryCount}</Text>
+                                <Text style={styles.assessmentIndicatorCell}>{indicator.percent}%</Text>
+                              </View>
+                            ))
+                          )}
                         </View>
                       </View>
 
@@ -871,6 +926,10 @@ const styles = StyleSheet.create({
   filterRow: {
     gap: 6,
   },
+  filterActionsRow: {
+    alignItems: "flex-end",
+    marginTop: 4,
+  },
   filterLabel: {
     color: colors.dark,
     fontSize: 13,
@@ -897,6 +956,18 @@ const styles = StyleSheet.create({
   dropdownChevron: {
     color: colors.gray,
     fontSize: 14,
+    fontWeight: "800",
+  },
+  clearFiltersButton: {
+    alignItems: "center",
+    backgroundColor: colors.yellow,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  clearFiltersButtonText: {
+    color: colors.dark,
+    fontSize: 12,
     fontWeight: "800",
   },
   modalOverlay: {
@@ -1267,6 +1338,14 @@ const styles = StyleSheet.create({
   },
   assessmentTableCell: {
     color: colors.dark,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
+    padding: 10,
+    textAlign: "center",
+  },
+  assessmentTableEmpty: {
+    color: colors.gray,
     flex: 1,
     fontSize: 12,
     fontWeight: "600",

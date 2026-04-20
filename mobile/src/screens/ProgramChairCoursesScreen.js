@@ -11,6 +11,7 @@ import { colors } from "../theme/colors";
 export default function ProgramChairCoursesScreen() {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [selectedSemester, setSelectedSemester] = useState("All Semesters");
@@ -98,6 +99,18 @@ export default function ProgramChairCoursesScreen() {
     const data = await fetchProgramChairCourses();
     setCourses(data);
     return data;
+  }
+
+  async function refreshCourses() {
+    try {
+      setRefreshing(true);
+      setError("");
+      await loadCourses();
+    } catch (loadError) {
+      setError(getErrorMessage(loadError, "Failed to load courses."));
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   function updateCourseForm(field, value) {
@@ -719,6 +732,8 @@ export default function ProgramChairCoursesScreen() {
         subtitle="Manage courses and student outcome mappings from one mobile workspace."
         showMeta={false}
         enableScrollTopButton={true}
+        onRefresh={refreshCourses}
+        refreshing={refreshing}
       >
       <InfoCard>
         <View style={styles.toolbarTop}>

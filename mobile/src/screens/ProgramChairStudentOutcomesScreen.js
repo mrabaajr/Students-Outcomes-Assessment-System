@@ -454,6 +454,8 @@ export default function ProgramChairStudentOutcomesScreen({ navigation }) {
         subtitle="Define and manage student outcomes, performance indicators, and evaluation criteria for your program assessment."
         showMeta={false}
         enableScrollTopButton={true}
+        onRefresh={() => loadOutcomes(true)}
+        refreshing={refreshing}
         heroFooter={
           <Pressable
             onPress={() => {
@@ -1257,6 +1259,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   filterOptionTextActive: {
+    color: WHITE,
     fontWeight: "800",
   },
   actionRow: {

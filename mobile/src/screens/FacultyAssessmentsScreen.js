@@ -92,6 +92,7 @@ function buildAssessmentCsv(rows) {
 
 export default function FacultyAssessmentsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [studentOutcomes, setStudentOutcomes] = useState([]);
   const [sections, setSections] = useState([]);
@@ -105,28 +106,30 @@ export default function FacultyAssessmentsScreen({ navigation }) {
   const [filterPickerVisible, setFilterPickerVisible] = useState(false);
   const [activeFilterKey, setActiveFilterKey] = useState("outcome");
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const data = await fetchFacultyAssessmentScreenData();
-        if (cancelled) return;
-        setStudentOutcomes(data.studentOutcomes);
-        setSections(data.sections);
-        setCourseMappings(data.courseMappings);
-        setLoading(false);
-      } catch (loadError) {
-        if (cancelled) return;
-        setError(loadError.response?.data?.detail || loadError.message || "Failed to load assessment data.");
-        setLoading(false);
+  async function loadAssessmentData(refresh = false) {
+    try {
+      if (refresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
       }
+      setError("");
+      const data = await fetchFacultyAssessmentScreenData();
+      setStudentOutcomes(data.studentOutcomes);
+      setSections(data.sections);
+      setCourseMappings(data.courseMappings);
+    } catch (loadError) {
+      setError(loadError.response?.data?.detail || loadError.message || "Failed to load assessment data.");
+    } finally {
+      if (refresh) {
+        setRefreshing(false);
+      }
+      setLoading(false);
     }
+  }
 
-    load();
-    return () => {
-      cancelled = true;
-    };
+  useEffect(() => {
+    loadAssessmentData();
   }, []);
 
   const filteredSections = useMemo(() => {
@@ -416,6 +419,8 @@ export default function FacultyAssessmentsScreen({ navigation }) {
       subtitle="Filter by outcome, course, section, and term before opening a class for grading."
       showMeta={false}
       enableScrollTopButton={true}
+      onRefresh={() => loadAssessmentData(true)}
+      refreshing={refreshing}
       heroFooter={
         <View style={styles.heroFooterWrap}>
           <View style={styles.heroActionRow}>

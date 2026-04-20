@@ -97,12 +97,20 @@ export function AuthProvider({ children }) {
       isBootstrapping,
       bootstrapError,
       isAuthenticated: Boolean(session.accessToken),
-      async signIn(email, password) {
+      async signIn(email, password, expectedRole) {
         const loginResult = await loginWithEmail(email, password);
+        const actualRole = normalizeRole(loginResult.user.role);
+
+        if (expectedRole && actualRole !== expectedRole) {
+          throw new Error(
+            `This account is ${actualRole === "admin" ? "Program Chair" : "Faculty"}. Please select the correct role.`
+          );
+        }
+
         const nextSession = {
           accessToken: loginResult.accessToken,
           refreshToken: loginResult.refreshToken,
-          userRole: normalizeRole(loginResult.user.role),
+          userRole: actualRole,
         };
 
         await saveSession(nextSession);

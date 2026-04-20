@@ -24,6 +24,7 @@ function formatDateByIndex(index) {
 export default function FacultyPastReportsScreen({ navigation }) {
   const { signOut } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [reports, setReports] = useState([]);
   const [search, setSearch] = useState("");
@@ -108,6 +109,49 @@ export default function FacultyPastReportsScreen({ navigation }) {
     });
   }, [reports, search, selectedYear, selectedType]);
 
+  async function refreshPastReports() {
+    try {
+      setRefreshing(true);
+      setError("");
+      const payload = await fetchReportsDashboard();
+      const courseRows = payload?.course_summary || [];
+
+      const generated = courseRows.map((course, index) => {
+        const type = index % 3 === 0 ? "Course Detailed" : "Course Summary";
+        const year = index % 2 === 0 ? "2025" : "2024";
+        return {
+          id: `${course.code}-${index}`,
+          title:
+            type === "Course Detailed"
+              ? `${course.code} Detailed Report`
+              : `${course.code} Assessment Summary`,
+          subtitle: `${year} â€¢ ${type}`,
+          type,
+          year,
+          status: "Completed",
+          updatedAt: formatDateByIndex(index),
+        };
+      });
+
+      setReports(generated);
+    } catch (loadError) {
+      const isAuthError =
+        loadError.response?.status === 401 ||
+        String(loadError.response?.data?.detail || loadError.message || "")
+          .toLowerCase()
+          .includes("token not valid");
+
+      if (isAuthError) {
+        await signOut();
+        return;
+      }
+
+      setError(loadError.response?.data?.detail || loadError.message || "Failed to load past reports.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   function handleView(item) {
     Alert.alert("View report", `${item.title}\n\nPreview screen can be added next.`);
   }
@@ -120,6 +164,8 @@ export default function FacultyPastReportsScreen({ navigation }) {
     <AppScreen
       title={"Past\nReports"}
       subtitle="View and download previously submitted assessment reports."
+      onRefresh={refreshPastReports}
+      refreshing={refreshing}
       heroFooter={
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back to Current Reports</Text>

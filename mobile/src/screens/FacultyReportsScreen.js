@@ -251,45 +251,44 @@ function buildPdfHtml({ metrics, rows }) {
 export default function FacultyReportsScreen({ navigation }) {
   const { signOut } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
+  async function loadReports(refresh = false) {
+    try {
+      if (refresh) {
+        setRefreshing(true);
+      } else {
         setLoading(true);
-        setError("");
-        const payload = await fetchReportsDashboard();
-        if (!cancelled) {
-          setData(payload);
-        }
-      } catch (loadError) {
-        const isAuthError =
-          loadError.response?.status === 401 ||
-          String(loadError.response?.data?.detail || loadError.message || "")
-            .toLowerCase()
-            .includes("token not valid");
-
-        if (!cancelled && isAuthError) {
-          await signOut();
-          return;
-        }
-
-        if (!cancelled) {
-          setError(loadError.response?.data?.detail || loadError.message || "Failed to load reports.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
-    }
+      setError("");
+      const payload = await fetchReportsDashboard();
+      setData(payload);
+    } catch (loadError) {
+      const isAuthError =
+        loadError.response?.status === 401 ||
+        String(loadError.response?.data?.detail || loadError.message || "")
+          .toLowerCase()
+          .includes("token not valid");
 
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [signOut]);
+      if (isAuthError) {
+        await signOut();
+        return;
+      }
+
+      setError(loadError.response?.data?.detail || loadError.message || "Failed to load reports.");
+    } finally {
+      if (refresh) {
+        setRefreshing(false);
+      }
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadReports();
+  }, []);
 
   const metricCards = useMemo(() => {
     const metrics = data?.metrics || {};
@@ -384,6 +383,8 @@ export default function FacultyReportsScreen({ navigation }) {
       title={"Assessment Reports\n& Performance Summary"}
       subtitle="Review your class-level assessment performance and course summaries using the same reports data as the website."
       enableScrollTopButton={true}
+      onRefresh={() => loadReports(true)}
+      refreshing={refreshing}
       heroFooter={
         <View style={styles.actionRow}>
           <Pressable onPress={handleViewPastReports} style={styles.secondaryAction}>

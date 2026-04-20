@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,16 +17,17 @@ import {
 
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
-import { normalizeRole, roleLabel } from "../utils/roles";
 
 export default function LoginScreen() {
-  const { signIn, signOut } = useAuth();
+  const { signIn } = useAuth();
+  const scrollRef = useRef(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [selectedRole, setSelectedRole] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const heroAnim = useRef(new Animated.Value(0)).current;
   const formAnim = useRef(new Animated.Value(0)).current;
@@ -78,6 +80,20 @@ export default function LoginScreen() {
 
   }, [ctaAnim, ctaPulseAnim, formAnim, heroAnim]);
 
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", (event) => {
+      setKeyboardHeight(event.endCoordinates?.height || 0);
+    });
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
   const formTranslate = formAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [34, 0],
@@ -93,6 +109,12 @@ export default function LoginScreen() {
     outputRange: [1, 1.02],
   });
 
+  function scrollFormIntoView() {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+  }
+
   async function handleLogin() {
     if (!email || !password) {
       setError("Enter email and password.");
@@ -107,21 +129,17 @@ export default function LoginScreen() {
     try {
       setIsSubmitting(true);
       setError("");
-      const user = await signIn(email.trim(), password);
-      const actualRole = normalizeRole(user?.role);
-
-      if (actualRole !== selectedRole) {
-        await signOut();
-        throw new Error(
-          `This account is ${roleLabel(actualRole)}. Please select the correct role.`
-        );
-      }
+      await signIn(email.trim(), password, selectedRole);
     } catch (err) {
-      setError(
+      const rawError =
         err.response?.data?.detail ||
-          err.message ||
-          "Unable to sign in."
-      );
+        err.message ||
+        "Invalid login credentials.";
+      const nextError = rawError.toLowerCase().includes("please select the correct role")
+        ? "Invalid login credentials."
+        : rawError;
+
+      setError(nextError);
     } finally {
       setIsSubmitting(false);
     }
@@ -130,10 +148,18 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            keyboardHeight > 0 ? { paddingBottom: keyboardHeight + 24 } : null,
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <Animated.View
             style={[
               styles.hero,
@@ -215,6 +241,7 @@ export default function LoginScreen() {
               autoCapitalize="none"
               keyboardType="email-address"
               onChangeText={setEmail}
+              onFocus={scrollFormIntoView}
               placeholder="Email Address"
               placeholderTextColor={colors.gray}
               style={styles.input}
@@ -224,6 +251,7 @@ export default function LoginScreen() {
             <View style={styles.passwordWrap}>
               <TextInput
                 onChangeText={setPassword}
+                onFocus={scrollFormIntoView}
                 placeholder="Password"
                 placeholderTextColor={colors.gray}
                 secureTextEntry={!showPassword}
@@ -371,7 +399,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginHorizontal: 14,
     marginTop: 50,
-    flex: 1,
     minHeight: 460,
     paddingHorizontal: 16,
     paddingTop: 26,
