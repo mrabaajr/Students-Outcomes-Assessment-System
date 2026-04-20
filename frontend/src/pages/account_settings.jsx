@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,49 @@ const Index = () => {
   const isProgramChair =
     location.pathname.startsWith("/programchair") ||
     ["admin", "program_chair", "program-chair", "programchair", "chair"].includes(storedRole);
+
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    const token = localStorage.getItem("accessToken");
+
+    if (!userId || !token) {
+      setEmail("");
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadUserEmail = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/${userId}/`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to load user profile");
+        }
+
+        const data = await response.json();
+        const nextEmail = String(data?.email || "").trim();
+
+        if (isMounted) {
+          setEmail(nextEmail);
+        }
+      } catch {
+        if (isMounted) {
+          setEmail("");
+        }
+      }
+    };
+
+    loadUserEmail();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -124,14 +167,9 @@ const Index = () => {
                   {/* Email */}
                   <div>
                     <Label className="text-sm font-semibold text-[#231F20]">Email</Label>
-                    <Input
-                      type="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      autoComplete="off"
-                      className="mt-2 bg-white border-[#D1D5DB] text-[#231F20]"
-                    />
+                    <div className="mt-2 px-3 py-2.5 rounded-md border border-[#D1D5DB] bg-[#F9FAFB] text-[#6B6B6B] min-h-[42px] flex items-center">
+                      {email || "No email available"}
+                    </div>
                   </div>
 
                   {/* Current Password */}
