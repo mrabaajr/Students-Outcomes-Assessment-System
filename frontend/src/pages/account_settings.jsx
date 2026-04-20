@@ -31,6 +31,8 @@ const Index = () => {
     const accessToken = localStorage.getItem("accessToken");
     if (!accessToken) return;
 
+    let isMounted = true;
+
     async function loadCurrentUser() {
       try {
         const response = await fetch(`${API_BASE_URL}/users/me/`, {
@@ -42,13 +44,21 @@ const Index = () => {
         if (!response.ok) return;
 
         const currentUser = await response.json();
-        setEmail(currentUser.email || "");
+        if (isMounted) {
+          setEmail(currentUser.email || "");
+        }
       } catch {
-        // Keep the settings page usable even if profile prefill fails.
+        if (isMounted) {
+          setEmail("");
+        }
       }
     }
 
     loadCurrentUser();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleSubmit = async (e) => {

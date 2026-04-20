@@ -236,7 +236,7 @@ const PAGE_GUIDES = [
       },
       {
         text: "Review encoded scores before finalizing each section.",
-        imageSrc: "",
+        imageSrc: "/getting-started/Assessment_6.png",
         imageAlt: "Review encoded scores",
       },
     ],

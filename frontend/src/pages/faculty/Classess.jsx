@@ -447,7 +447,7 @@ export default function FacultyClasses() {
               </button>
             </div>
 
-            <div className="mt-4 text-sm text-[#6B6B6B]">
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#6B6B6B]">
               <span>
                 Showing <span className="font-semibold text-[#231F20]">{filteredSections.length}</span> of{" "}
                 <span className="font-semibold text-[#231F20]">{sections.length}</span> assigned
@@ -730,7 +730,11 @@ export default function FacultyClasses() {
               )}
 
               {filteredSections.length === 0 && (
-                <div className="text-center py-12 bg-white rounded-lg border border-[#E5E7EB]">
+                <div
+                  className={`text-center py-12 bg-white rounded-lg border border-[#E5E7EB] ${
+                    viewMode === "card" ? "w-full md:col-span-2 xl:col-span-3" : ""
+                  }`}
+                >
                   <Users className="w-12 h-12 text-[#A5A8AB] mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-[#231F20] mb-2">
                     {sections.length === 0 ? "No Assigned Classes Yet" : "No Matching Classes"}

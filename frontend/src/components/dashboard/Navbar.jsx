@@ -21,6 +21,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isGettingStartedOpen, setIsGettingStartedOpen] = useState(false);
+  const [displayName, setDisplayName] = useState("");
 
   // Determine if user is on faculty or program chair pages
   const isFaculty = location.pathname.startsWith('/faculty');
@@ -28,6 +29,9 @@ const Navbar = () => {
   const dashboardLink = isFaculty ? '/faculty/dashboard' : '/programchair/dashboard';
   const userRole = String(localStorage.getItem("userRole") || "").toLowerCase();
   const userId = localStorage.getItem("userId");
+  const token = localStorage.getItem("accessToken");
+  const roleLabel = userRole === "admin" ? "Program Chair" : userRole === "staff" ? "Faculty" : "User";
+  const displayNameStorageKey = useMemo(() => (userId ? `displayName:${userId}` : ""), [userId]);
 
   const gettingStartedStorageKey = useMemo(() => {
     const identity = userId || userRole || "anonymous";
@@ -43,6 +47,57 @@ const Navbar = () => {
     }
   }, [gettingStartedStorageKey, userRole]);
 
+  useEffect(() => {
+    if (!userId || !token) {
+      setDisplayName("");
+      return;
+    }
+
+    const cachedDisplayName =
+      displayNameStorageKey ? localStorage.getItem(displayNameStorageKey) : "";
+    if (cachedDisplayName) {
+      setDisplayName(cachedDisplayName);
+    }
+
+    let isMounted = true;
+
+    const loadDisplayName = async () => {
+      try {
+        const response = await fetch(`http://localhost:8000/api/users/${userId}/`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to load user profile.");
+        }
+
+        const data = await response.json();
+        const firstName = String(data?.first_name || data?.firstName || "").trim();
+        const lastName = String(data?.last_name || data?.lastName || "").trim();
+        const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+
+        if (isMounted) {
+          if (fullName) {
+            setDisplayName(fullName);
+            if (displayNameStorageKey) {
+              localStorage.setItem(displayNameStorageKey, fullName);
+            }
+          }
+        }
+      } catch {
+        // Keep cached/current name on fetch issues to avoid flicker while routing.
+      }
+    };
+
+    loadDisplayName();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [displayNameStorageKey, token, userId]);
+
   const isActive = (link) => {
     if (link === "#") return false;
     return location.pathname === link;
@@ -54,6 +109,10 @@ const Navbar = () => {
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("userRole");
     localStorage.removeItem("userId");
+    if (displayNameStorageKey) {
+      localStorage.removeItem(displayNameStorageKey);
+    }
+    setDisplayName("");
     
     // Redirect to login page
     navigate("/");
@@ -105,6 +164,13 @@ const Navbar = () => {
 
             {/* Right Section: Help, Settings & Logout */}
             <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="hidden lg:flex flex-col items-end mr-1">
+                <span className="text-[10px] uppercase tracking-[0.12em] text-[#A5A8AB] leading-none">
+                  {roleLabel}
+                </span>
+                {displayName && <span className="text-sm font-semibold text-white leading-tight">{displayName}</span>}
+              </div>
+
               <button
                 onClick={() => setIsGettingStartedOpen(true)}
                 className="flex items-center justify-center p-2 rounded-lg transition-colors text-[#FFC20E] hover:bg-[#FFC20E]/20"
