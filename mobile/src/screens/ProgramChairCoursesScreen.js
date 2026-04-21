@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import AppScreen from "../components/layout/AppScreen";
 import InfoCard from "../components/ui/InfoCard";
 import { apiClient } from "../services/apiClient";
-import { fetchProgramChairCourses } from "../services/mobileData";
+import { fetchCurricula, fetchProgramChairCourses, fetchSchoolYears } from "../services/mobileData";
 import { fetchStudentOutcomesMobile } from "../services/studentOutcomes";
 import { colors } from "../theme/colors";
 
@@ -186,9 +186,15 @@ export default function ProgramChairCoursesScreen() {
 
     async function load() {
       try {
-        const data = await loadCourses();
+        const [data, curriculaData, schoolYearsData] = await Promise.all([
+          loadCourses(),
+          fetchCurricula(),
+          fetchSchoolYears(),
+        ]);
         if (!cancelled) {
           setCourses(data);
+          setCustomCurriculums(curriculaData);
+          setCustomAcademicYears(schoolYearsData);
           setLoading(false);
         }
       } catch (loadError) {
@@ -320,6 +326,15 @@ export default function ProgramChairCoursesScreen() {
       return matchesQuery && matchesSemester && matchesCurriculum && matchesAcademicYear;
     });
   }, [courses, query, selectedSemester, selectedCurriculum, selectedAcademicYear]);
+
+  const hasActiveFilters = useMemo(
+    () =>
+      Boolean(query.trim()) ||
+      selectedCurriculum !== "All Curriculums" ||
+      selectedAcademicYear !== "All Years" ||
+      selectedSemester !== "All Semesters",
+    [query, selectedCurriculum, selectedAcademicYear, selectedSemester]
+  );
 
   const stats = useMemo(() => {
     const totalCourses = courses.length;
@@ -461,6 +476,13 @@ export default function ProgramChairCoursesScreen() {
     setFilterPickerVisible(false);
   }
 
+  function handleClearFilters() {
+    setQuery("");
+    setSelectedCurriculum("All Curriculums");
+    setSelectedAcademicYear("All Years");
+    setSelectedSemester("All Semesters");
+  }
+
   function handleCoursePickerSelect(value) {
     if (coursePickerField === "source") {
       if (!value) {
@@ -582,10 +604,11 @@ export default function ProgramChairCoursesScreen() {
 
     try {
       setSavingOption(true);
-      await apiClient.post("/curriculums/", { year: value });
-      setCustomCurriculums((prev) => [value, ...prev]);
-      setSelectedCurriculum(value);
-      setCourseForm((prev) => ({ ...prev, curriculum: value }));
+      const response = await apiClient.post("/curricula/", { year: value });
+      const savedCurriculum = String(response.data?.year || value).trim();
+      setCustomCurriculums((prev) => getUniqueOptions([savedCurriculum, ...prev]));
+      setSelectedCurriculum(savedCurriculum);
+      setCourseForm((prev) => ({ ...prev, curriculum: savedCurriculum }));
       setNewCurriculum("");
       setCurriculumModalVisible(false);
     } catch (saveError) {
@@ -607,10 +630,11 @@ export default function ProgramChairCoursesScreen() {
 
     try {
       setSavingOption(true);
-      await apiClient.post("/school-years/", { year: value });
-      setCustomAcademicYears((prev) => [value, ...prev]);
-      setSelectedAcademicYear(value);
-      setCourseForm((prev) => ({ ...prev, academicYear: value }));
+      const response = await apiClient.post("/school-years/", { year: value });
+      const savedSchoolYear = String(response.data?.year || value).trim();
+      setCustomAcademicYears((prev) => getUniqueOptions([savedSchoolYear, ...prev]));
+      setSelectedAcademicYear(savedSchoolYear);
+      setCourseForm((prev) => ({ ...prev, academicYear: savedSchoolYear }));
       setNewSchoolYear("");
       setSchoolYearModalVisible(false);
     } catch (saveError) {
@@ -782,8 +806,10 @@ export default function ProgramChairCoursesScreen() {
         </View>
       </InfoCard>
 
-      <InfoCard title="Filters" rightText="Smart search">
+      <InfoCard title="Search and filters">
         <View style={styles.stack}>
+          <Text style={styles.helperText}>Search and refine the course list by curriculum, year, and semester.</Text>
+
           <TextInput
             onChangeText={setQuery}
             placeholder="Search code, name, or curriculum"
@@ -816,9 +842,16 @@ export default function ProgramChairCoursesScreen() {
             </Pressable>
           </View>
 
-          <Text style={styles.helperText}>
-            Showing {filteredCourses.length} of {courses.length} courses
-          </Text>
+          <View style={styles.filterFooter}>
+            <Text style={styles.helperText}>
+              Showing {filteredCourses.length} of {courses.length} courses
+            </Text>
+            {hasActiveFilters ? (
+              <Pressable onPress={handleClearFilters} style={styles.resetButton}>
+                <Text style={styles.resetButtonText}>Reset</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       </InfoCard>
 
@@ -1388,6 +1421,25 @@ const styles = StyleSheet.create({
   helperText: {
     color: colors.gray,
     fontSize: 13,
+  },
+  filterFooter: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  resetButton: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.graySoft,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  resetButtonText: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "700",
   },
   centered: {
     alignItems: "center",

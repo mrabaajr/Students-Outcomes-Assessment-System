@@ -435,6 +435,8 @@ function FacultyAccountModal({ visible, saving, editingFaculty, sections, facult
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [department, setDepartment] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
   const [showAssignedElsewhere, setShowAssignedElsewhere] = useState(false);
   const [showCoursePicker, setShowCoursePicker] = useState(false);
@@ -477,6 +479,8 @@ function FacultyAccountModal({ visible, saving, editingFaculty, sections, facult
     setFullName(editingFaculty?.name || "");
     setEmail(editingFaculty?.email || "");
     setDepartment(editingFaculty?.department || "");
+    setPassword("");
+    setPasswordConfirmation("");
     setCourseSearch("");
     setShowAssignedElsewhere(false);
     setShowCoursePicker(false);
@@ -629,13 +633,36 @@ function FacultyAccountModal({ visible, saving, editingFaculty, sections, facult
                 </View>
               </>
             ) : (
-              <TextInput
-                onChangeText={setDepartment}
-                placeholder="Department"
-                placeholderTextColor={colors.gray}
-                style={styles.modalInput}
-                value={department}
-              />
+              <>
+                <Text style={styles.formFieldLabel}>Department</Text>
+                <TextInput
+                  onChangeText={setDepartment}
+                  placeholder="Department"
+                  placeholderTextColor={colors.gray}
+                  style={styles.modalInput}
+                  value={department}
+                />
+
+                <Text style={styles.formFieldLabel}>Password</Text>
+                <TextInput
+                  onChangeText={setPassword}
+                  placeholder="Enter password (min. 8 characters)"
+                  placeholderTextColor={colors.gray}
+                  secureTextEntry
+                  style={styles.modalInput}
+                  value={password}
+                />
+
+                <Text style={styles.formFieldLabel}>Confirm Password</Text>
+                <TextInput
+                  onChangeText={setPasswordConfirmation}
+                  placeholder="Re-enter password"
+                  placeholderTextColor={colors.gray}
+                  secureTextEntry
+                  style={styles.modalInput}
+                  value={passwordConfirmation}
+                />
+              </>
             )}
           </ScrollView>
 
@@ -652,6 +679,8 @@ function FacultyAccountModal({ visible, saving, editingFaculty, sections, facult
                   lastName: parsedName.lastName,
                   email: email.trim(),
                   department: department.trim(),
+                  password,
+                  passwordConfirmation,
                   assignedSectionIds: selectedSectionIds,
                 });
               }}
@@ -1320,6 +1349,23 @@ export default function ProgramChairClassesScreen() {
     if (!payloadData.firstName || !payloadData.lastName || !payloadData.email) {
       Alert.alert("Missing fields", "First name, last name, and email are required.");
       return;
+    }
+
+    if (!editingFaculty?.id) {
+      if (!payloadData.password || !payloadData.passwordConfirmation) {
+        Alert.alert("Missing fields", "Password and confirm password are required.");
+        return;
+      }
+
+      if (payloadData.password.length < 8) {
+        Alert.alert("Weak password", "Password must be at least 8 characters.");
+        return;
+      }
+
+      if (payloadData.password !== payloadData.passwordConfirmation) {
+        Alert.alert("Password mismatch", "Passwords do not match.");
+        return;
+      }
     }
 
     try {
