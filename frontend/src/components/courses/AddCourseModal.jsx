@@ -7,6 +7,7 @@ import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
 import { useToast } from '../../hooks/use-toast';
 import { academicYears as fallbackAcademicYears, semesters } from '../../data/mockCoursesData';
+import { API_BASE_URL, unwrapListResponse } from '@/lib/api';
 
 const yearLevels = [
   '1st Year',
@@ -98,9 +99,9 @@ const AddCourseModal = ({
       }
 
       try {
-        const res = await fetch('/api/curricula/');
+        const res = await fetch(`${API_BASE_URL}/curricula/`);
         const data = await res.json();
-        setCurricula(data);
+        setCurricula(unwrapListResponse(data));
       } catch (err) {
         console.error('Error fetching curricula:', err);
       }
@@ -112,9 +113,9 @@ const AddCourseModal = ({
   useEffect(() => {
     const fetchAcademicYears = async () => {
       try {
-        const res = await fetch('/api/school-years/');
+        const res = await fetch(`${API_BASE_URL}/school-years/`);
         const data = await res.json();
-        const years = (Array.isArray(data) ? data : data.results || [])
+        const years = unwrapListResponse(data)
           .map((item) => item.year)
           .filter(Boolean);
 
@@ -140,9 +141,9 @@ const AddCourseModal = ({
     const fetchDatabaseCourses = async () => {
       setLoadingDatabaseCourses(true);
       try {
-        const res = await fetch(`/api/courses/?curriculum=${formData.curriculum}`);
+        const res = await fetch(`${API_BASE_URL}/courses/?curriculum=${encodeURIComponent(formData.curriculum)}`);
         const data = await res.json();
-        setDatabaseCourses(data.results || data);
+        setDatabaseCourses(unwrapListResponse(data));
       } catch (err) {
         console.error('Error fetching database courses:', err);
         setDatabaseCourses([]);

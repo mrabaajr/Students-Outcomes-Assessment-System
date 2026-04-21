@@ -10,8 +10,8 @@ import SOSummaryTables from "@/components/reports/SOSummaryTables.jsx";
 import ReportsFilter from "@/components/reports/reportsfilter.jsx";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, BookOpen, FileDown, History, Loader2, Tag } from "lucide-react";
+import { API_BASE_URL } from "@/lib/api";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const AUTH_STORAGE_KEYS = ["accessToken", "refreshToken", "userRole"];
 
 const getStoredToken = (key) => {

@@ -12,8 +12,7 @@ import FacultyFormDialog from "@/components/classes/FacultyFormDialog";
 import DeleteConfirmDialog from "@/components/classes/DeleteConfirmDialog";
 import FacultyAccountModal from "@/components/accounts/FacultyAccountModal";
 import { toast } from "@/hooks/use-toast";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+import { API_BASE_URL } from "@/lib/api";
 
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();

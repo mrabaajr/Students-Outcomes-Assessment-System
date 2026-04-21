@@ -5,8 +5,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Download, FileText, Users, TrendingUp, Target, BookOpen, Calendar, CheckCircle2, AlertCircle, Loader2, History } from "lucide-react";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
+import { API_BASE_URL } from "@/lib/api";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 const COURSE_TARGET = 80;
 
 const getAuthHeaders = () => {

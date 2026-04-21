@@ -162,7 +162,7 @@ SIMPLE_JWT = {
 }
 
 # CORS
-CORS_ALLOWED_ORIGINS = [
+DEFAULT_CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:5173',
@@ -173,10 +173,17 @@ CORS_ALLOWED_ORIGINS = [
     'https://students-outcomes-assessment-system-front.onrender.com',
 ]
 
-# Allow additional origins from environment variable
-cors_origins_env = os.getenv('CORS_ALLOWED_ORIGINS', '')
-if cors_origins_env:
-    CORS_ALLOWED_ORIGINS.extend([origin.strip() for origin in cors_origins_env.split(',')])
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CORS_ALLOWED_ORIGINS', ','.join(DEFAULT_CORS_ALLOWED_ORIGINS)).split(',')
+    if origin.strip()
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
 
 CORS_ALLOW_CREDENTIALS = True
 # Email Configuration

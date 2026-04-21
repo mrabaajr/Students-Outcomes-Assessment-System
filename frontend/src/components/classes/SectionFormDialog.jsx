@@ -5,9 +5,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { API_BASE_URL, unwrapListResponse } from "@/lib/api";
 
 
-const API_BASE_URL = "/api";
 const SEMESTER_OPTIONS = ["1st Semester", "2nd Semester", "Summer"];
 
 const getAutofillClassName = (isAutofilled) =>
@@ -38,7 +38,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
     axios
       .get(`${API_BASE_URL}/course-so-mappings/`)
       .then((res) => {
-        const data = Array.isArray(res.data) ? res.data : res.data.results || [];
+        const data = unwrapListResponse(res.data);
         setBackendCourseMappings(data);
       })
       .catch((err) => console.error("Error fetching course mappings:", err))
@@ -50,7 +50,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
     axios
       .get(`${API_BASE_URL}/school-years/`)
       .then((res) => {
-        const data = Array.isArray(res.data) ? res.data : res.data.results || [];
+        const data = unwrapListResponse(res.data);
         setSchoolYears(data.map((item) => item.year).filter(Boolean));
       })
       .catch((err) => {

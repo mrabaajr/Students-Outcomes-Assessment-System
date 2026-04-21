@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+import { API_BASE_URL, unwrapListResponse } from '@/lib/api';
 
 // Helper: Get auth header
 const getAuthHeader = () => {
@@ -78,7 +77,7 @@ export const useStudentOutcomes = () => {
     setError(null);
     try {
       const response = await axios.get(`${API_BASE_URL}/student-outcomes/`);
-      const data = Array.isArray(response.data) ? response.data : response.data.results || [];
+      const data = unwrapListResponse(response.data);
       const transformed = data.map(transformFromBackend);
       setOutcomes(transformed);
     } catch (err) {
@@ -89,7 +88,7 @@ export const useStudentOutcomes = () => {
           const retry = await axios.get(`${API_BASE_URL}/student-outcomes/`, {
             headers: {},
           });
-          const data = Array.isArray(retry.data) ? retry.data : retry.data.results || [];
+          const data = unwrapListResponse(retry.data);
           setOutcomes(data.map(transformFromBackend));
           return;
         } catch (retryErr) {

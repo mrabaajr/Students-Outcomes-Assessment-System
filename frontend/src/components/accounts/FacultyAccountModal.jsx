@@ -5,9 +5,9 @@ import { CheckCircle, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { API_BASE_URL } from "@/lib/api";
 
 
-const API_BASE_URL = "/api";
 const DEFAULT_DEPARTMENT = "Computer Engineering";
 
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { GraduationCap, BookOpen, FileText, BarChart3, Users, Settings, LogOut, CircleHelp } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import GettingStartedModal from "@/components/dashboard/GettingStartedModal";
+import { API_BASE_URL } from "@/lib/api";
 
 const programChairNavItems = [
   { icon: GraduationCap, label: "Student Outcomes", link: "/programchair/student-outcomes" },
@@ -63,7 +64,7 @@ const Navbar = () => {
 
     const loadDisplayName = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/users/${userId}/`, {
+        const response = await fetch(`${API_BASE_URL}/users/${userId}/`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

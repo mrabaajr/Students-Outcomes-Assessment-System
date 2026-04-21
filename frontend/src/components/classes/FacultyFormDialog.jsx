@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, Plus, Search, X } from "lucide-react";
 import axios from "axios";
+import { API_BASE_URL, unwrapListResponse } from "@/lib/api";
 
-const API_BASE_URL = "/api";
 const FIXED_DEPARTMENT = "Computer Engineering";
 
 const FacultyFormDialog = ({ open, onClose, onSave, initialData, availableSections = [], allFaculty = [] }) => {
@@ -27,7 +27,7 @@ const FacultyFormDialog = ({ open, onClose, onSave, initialData, availableSectio
     axios
       .get(`${API_BASE_URL}/courses/`)
       .then((res) => {
-        const data = Array.isArray(res.data) ? res.data : res.data.results || [];
+        const data = unwrapListResponse(res.data);
         setBackendCourses(data);
       })
       .catch((err) => console.error("Error fetching courses:", err))
