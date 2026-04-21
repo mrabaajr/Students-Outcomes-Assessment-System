@@ -13,6 +13,7 @@ import DeleteConfirmDialog from "@/components/classes/DeleteConfirmDialog";
 import FacultyAccountModal from "@/components/accounts/FacultyAccountModal";
 import { sections as initialSections, faculty as initialFaculty } from "@/data/classesData";
 import { toast } from "@/hooks/use-toast";
+import { API_BASE_URL } from "@/lib/api";
 
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -46,7 +47,7 @@ const Index = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const response = await axios.get('/api/sections/load_all/');
+        const response = await axios.get(`${API_BASE_URL}/sections/load_all/`);
         const { sections, faculty } = response.data;
         setSectionsData(Array.isArray(sections) ? sections : initialSections);
         setFacultyData(Array.isArray(faculty) ? faculty : initialFaculty);
@@ -430,7 +431,7 @@ const Index = () => {
     setIsSaving(true);
 
     try {
-      await axios.delete(`/api/users/${deletingFacultyId}/`, {
+      await axios.delete(`${API_BASE_URL}/users/${deletingFacultyId}/`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
         },
@@ -506,7 +507,7 @@ const Index = () => {
       formData.append('file', file);
 
       const response = await axios.post(
-        `/api/sections/${importCSVModal.sectionId}/import-csv/`,
+        `${API_BASE_URL}/sections/${importCSVModal.sectionId}/import-csv/`,
         formData,
         {
           headers: {
@@ -532,7 +533,7 @@ const Index = () => {
         setHasUnsavedChanges(true);
         // Reload sections from backend to sync with database
         try {
-          const reloadRes = await axios.get('/api/sections/load_all/');
+          const reloadRes = await axios.get(`${API_BASE_URL}/sections/load_all/`);
           const { sections } = reloadRes.data;
           if (Array.isArray(sections)) {
             setSectionsData(sections);
@@ -574,7 +575,7 @@ const Index = () => {
 
     setIsSaving(true);
     try {
-      const response = await axios.post('/api/sections/bulk_save/', {
+      const response = await axios.post(`${API_BASE_URL}/sections/bulk_save/`, {
         sections: sectionsData,
         faculty: facultyData,
         deletedFacultyIds,
@@ -584,7 +585,7 @@ const Index = () => {
         setDeletedFacultyIds([]);
         // Reload data from backend so IDs are synced with DB
         try {
-          const reloadRes = await axios.get('/api/sections/load_all/');
+          const reloadRes = await axios.get(`${API_BASE_URL}/sections/load_all/`);
           const { sections, faculty } = reloadRes.data;
           setSectionsData(Array.isArray(sections) ? sections : []);
           setFacultyData(Array.isArray(faculty) ? faculty : []);

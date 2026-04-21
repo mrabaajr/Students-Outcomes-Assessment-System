@@ -30,8 +30,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-
-const API_BASE_URL = "http://localhost:8000/api";
+import { API_BASE_URL } from "@/lib/api";
 
 const soIconList = [Lightbulb, PenTool, MessageSquare, Scale, UsersRound, FlaskConical];
 const getSOIcon = (index) => soIconList[(index >= 0 ? index : 0) % soIconList.length];

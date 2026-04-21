@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:8000/api';
+import { API_BASE_URL, unwrapListResponse } from '@/lib/api';
 
 const normalizeCourse = (course) => ({
   id: course.id,
@@ -76,7 +75,7 @@ export function useCourses() {
         headers: getAuthHeader(),
       });
 
-      const transformed = response.data.map(normalizeCourse);
+      const transformed = unwrapListResponse(response.data).map(normalizeCourse);
 
       setCourses(transformed);
     } catch (err) {

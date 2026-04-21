@@ -15,8 +15,7 @@ import {
 } from "lucide-react";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
-
-const API_BASE_URL = "http://localhost:8000/api";
+import { API_BASE_URL } from "@/lib/api";
 
 const DEFAULT_IMPORT_MODAL = {
   isOpen: false,

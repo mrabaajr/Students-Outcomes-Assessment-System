@@ -4,8 +4,7 @@ import { Link } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
-
-const API_BASE_URL = "http://localhost:8000/api";
+import { API_BASE_URL } from "@/lib/api";
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("accessToken");

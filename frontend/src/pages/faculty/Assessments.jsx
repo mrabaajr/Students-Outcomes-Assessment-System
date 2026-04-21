@@ -37,8 +37,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-
-const API_BASE_URL = "http://localhost:8000/api";
+import { API_BASE_URL } from "@/lib/api";
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("accessToken");

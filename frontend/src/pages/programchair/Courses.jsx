@@ -15,8 +15,7 @@ import { useToast } from '../../hooks/use-toast';
 import { useCourses } from '../../hooks/useCourses';
 import { useStudentOutcomes } from '../../hooks/useStudentOutcomes';
 import { academicYears as fallbackAcademicYears, semesters } from '../../data/mockCoursesData';
-
-const API_BASE_URL = 'http://localhost:8000/api';
+import { API_BASE_URL, unwrapListResponse } from '@/lib/api';
 
 const Courses = () => {
   const { toast } = useToast();
@@ -49,7 +48,7 @@ const Courses = () => {
     const fetchCurriculums = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/curricula/`);
-        const curriculumList = response.data?.results || response.data;
+        const curriculumList = unwrapListResponse(response.data);
         if (Array.isArray(curriculumList)) {
           const curriculumNames = curriculumList.map(c => c.year || c.name || c.id).filter(Boolean);
           setCurriculums(['All Curriculums', ...curriculumNames]);
@@ -70,7 +69,7 @@ const Courses = () => {
     const fetchSchoolYears = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/school-years/`);
-        const schoolYearList = response.data?.results || response.data;
+        const schoolYearList = unwrapListResponse(response.data);
         if (Array.isArray(schoolYearList)) {
           const years = schoolYearList.map(item => item.year).filter(Boolean);
           if (years.length > 0) {

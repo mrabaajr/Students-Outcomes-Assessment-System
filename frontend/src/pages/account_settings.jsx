@@ -7,8 +7,7 @@ import { useLocation } from "react-router-dom";
 import Navbar from "../components/dashboard/Navbar";
 import Footer from "../components/dashboard/Footer";
 import FacultyAccountModal from "@/components/accounts/FacultyAccountModal";
-
-const API_BASE_URL = "http://localhost:8000/api";
+import { API_BASE_URL } from "@/lib/api";
 
 const Index = () => {
   const [email, setEmail] = useState("");

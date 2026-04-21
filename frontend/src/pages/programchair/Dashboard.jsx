@@ -21,8 +21,7 @@ import {
   Loader2,
   CalendarRange,
 } from "lucide-react";
-
-const API_BASE_URL = "http://localhost:8000/api";
+import { API_BASE_URL } from "@/lib/api";
 
 const actions = [
   {

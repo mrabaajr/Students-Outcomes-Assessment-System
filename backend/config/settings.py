@@ -158,7 +158,7 @@ SIMPLE_JWT = {
 }
 
 # CORS
-CORS_ALLOWED_ORIGINS = [
+DEFAULT_CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:5173',
@@ -166,6 +166,18 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:3001',
     'http://127.0.0.1:5173',
     'http://localhost:8000',
+]
+
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CORS_ALLOWED_ORIGINS', ','.join(DEFAULT_CORS_ALLOWED_ORIGINS)).split(',')
+    if origin.strip()
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
 ]
 
 CORS_ALLOW_CREDENTIALS = True

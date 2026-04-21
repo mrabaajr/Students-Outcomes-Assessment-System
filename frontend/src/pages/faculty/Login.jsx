@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { jwtDecode } from 'jwt-decode'
-
-const API_BASE_URL = 'http://localhost:8000/api'
+import { API_BASE_URL } from '@/lib/api'
 
 export default function Login() {
   const [email, setEmail] = useState('')
