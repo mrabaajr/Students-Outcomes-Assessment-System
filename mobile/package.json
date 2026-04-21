@@ -7,6 +7,8 @@
     "node": ">=20 <23"
   },
   "scripts": {
+    "postinstall": "node scripts/patch-expo-gradle-plugin.js",
+    "eas-build-post-install": "node scripts/patch-expo-gradle-plugin.js",
     "start": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android.ps1",
     "start:android": "powershell -ExecutionPolicy Bypass -File ./scripts/start-android.ps1",
     "android": "expo run:android",
