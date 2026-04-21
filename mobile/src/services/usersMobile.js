@@ -6,13 +6,17 @@ export async function fetchCurrentUser() {
 }
 
 export async function createFacultyAccount(payload) {
-  const response = await apiClient.post("/users/create_account/", {
+  const endpoint = payload.password ? "/users/register/" : "/users/create_account/";
+  const body = {
     email: payload.email,
     first_name: payload.firstName,
     last_name: payload.lastName,
     role: "staff",
     department: payload.department || "",
-  });
+    ...(payload.password ? { password: payload.password } : {}),
+  };
+
+  const response = await apiClient.post(endpoint, body);
 
   return response.data;
 }

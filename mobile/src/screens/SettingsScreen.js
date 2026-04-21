@@ -21,13 +21,25 @@ function FacultyAccountModal({ visible, onClose, onCreated }) {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [department, setDepartment] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   async function handleCreate() {
-    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      setError("First name, last name, and email are required.");
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password || !passwordConfirmation) {
+      setError("All fields are required.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (password !== passwordConfirmation) {
+      setError("Passwords do not match.");
       return;
     }
 
@@ -40,13 +52,16 @@ function FacultyAccountModal({ visible, onClose, onCreated }) {
         lastName: lastName.trim(),
         email: email.trim(),
         department: department.trim(),
+        password,
       });
-      setSuccess(result.message || "Faculty account created successfully.");
+      setSuccess("Faculty account created successfully.");
       onCreated?.(result);
       setFirstName("");
       setLastName("");
       setEmail("");
       setDepartment("");
+      setPassword("");
+      setPasswordConfirmation("");
     } catch (createError) {
       setError(createError.response?.data?.detail || "Failed to create faculty account.");
     } finally {
@@ -60,7 +75,7 @@ function FacultyAccountModal({ visible, onClose, onCreated }) {
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>Create Faculty Account</Text>
           <Text style={styles.modalSubtitle}>
-            Create a staff account and send a temporary password by email.
+            Create a staff account with the same required fields used on the web app.
           </Text>
 
           {success ? (
@@ -75,37 +90,80 @@ function FacultyAccountModal({ visible, onClose, onCreated }) {
             </View>
           ) : null}
 
-          <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-            <TextInput
-              onChangeText={setFirstName}
-              placeholder="First Name"
-              placeholderTextColor={colors.gray}
-              style={styles.input}
-              value={firstName}
-            />
-            <TextInput
-              onChangeText={setLastName}
-              placeholder="Last Name"
-              placeholderTextColor={colors.gray}
-              style={styles.input}
-              value={lastName}
-            />
-            <TextInput
-              autoCapitalize="none"
-              keyboardType="email-address"
-              onChangeText={setEmail}
-              placeholder="Email"
-              placeholderTextColor={colors.gray}
-              style={styles.input}
-              value={email}
-            />
-            <TextInput
-              onChangeText={setDepartment}
-              placeholder="Department"
-              placeholderTextColor={colors.gray}
-              style={styles.input}
-              value={department}
-            />
+          <ScrollView
+            style={styles.modalScroll}
+            contentContainerStyle={styles.modalFormStack}
+            showsVerticalScrollIndicator={false}
+          >
+            <View>
+              <Text style={styles.modalFieldLabel}>First Name</Text>
+              <TextInput
+                onChangeText={setFirstName}
+                placeholder="Enter first name"
+                placeholderTextColor={colors.gray}
+                style={styles.input}
+                value={firstName}
+              />
+            </View>
+
+            <View>
+              <Text style={styles.modalFieldLabel}>Last Name</Text>
+              <TextInput
+                onChangeText={setLastName}
+                placeholder="Enter last name"
+                placeholderTextColor={colors.gray}
+                style={styles.input}
+                value={lastName}
+              />
+            </View>
+
+            <View>
+              <Text style={styles.modalFieldLabel}>Email</Text>
+              <TextInput
+                autoCapitalize="none"
+                keyboardType="email-address"
+                onChangeText={setEmail}
+                placeholder="Enter email address"
+                placeholderTextColor={colors.gray}
+                style={styles.input}
+                value={email}
+              />
+            </View>
+
+            <View>
+              <Text style={styles.modalFieldLabel}>Department</Text>
+              <TextInput
+                onChangeText={setDepartment}
+                placeholder="Enter department"
+                placeholderTextColor={colors.gray}
+                style={styles.input}
+                value={department}
+              />
+            </View>
+
+            <View>
+              <Text style={styles.modalFieldLabel}>Password</Text>
+              <TextInput
+                onChangeText={setPassword}
+                placeholder="Enter password (min. 8 characters)"
+                placeholderTextColor={colors.gray}
+                secureTextEntry
+                style={styles.input}
+                value={password}
+              />
+            </View>
+
+            <View>
+              <Text style={styles.modalFieldLabel}>Confirm Password</Text>
+              <TextInput
+                onChangeText={setPasswordConfirmation}
+                placeholder="Re-enter password"
+                placeholderTextColor={colors.gray}
+                secureTextEntry
+                style={styles.input}
+                value={passwordConfirmation}
+              />
+            </View>
           </ScrollView>
 
           <View style={styles.modalActions}>
@@ -482,6 +540,16 @@ const styles = StyleSheet.create({
   modalScroll: {
     marginTop: 16,
     maxHeight: 280,
+  },
+  modalFormStack: {
+    gap: 14,
+    paddingBottom: 4,
+  },
+  modalFieldLabel: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 8,
   },
   modalActions: {
     flexDirection: "row",
