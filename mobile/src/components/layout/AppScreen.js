@@ -52,9 +52,9 @@ export default function AppScreen({
         { label: "Dashboard", route: "ProgramChairDashboard", icon: "dashboard" },
         { label: "Student Outcomes", route: "ProgramChairStudentOutcomes", icon: "analytics" },
         { label: "Courses", route: "ProgramChairCourses", icon: "menu-book" },
+        { label: "Classes", route: "ProgramChairClasses", icon: "groups" },
         { label: "Assessments", route: "ProgramChairAssessments", icon: "assignment" },
         { label: "Reports", route: "ProgramChairReports", icon: "description" },
-        { label: "Classes", route: "ProgramChairClasses", icon: "groups" },
         { label: "Settings", route: "ProgramChairSettings", icon: "settings" },
       ];
     }
