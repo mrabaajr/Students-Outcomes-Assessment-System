@@ -1,15 +1,12 @@
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  LayoutAnimation,
-  Platform,
   Pressable,
   RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  UIManager,
   View,
 } from "react-native";
 
@@ -17,9 +14,10 @@ import AppSidebar from "../navigation/AppSidebar";
 import { useAuth } from "../../context/AuthContext";
 import { colors } from "../../theme/colors";
 
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+const COMPACT_HEADER_ENTER_OFFSET = 88;
+const COMPACT_HEADER_EXIT_OFFSET = 24;
+const SCROLL_TOP_ENTER_OFFSET = 260;
+const SCROLL_TOP_EXIT_OFFSET = 180;
 
 export default function AppScreen({
   eyebrow,
@@ -38,6 +36,8 @@ export default function AppScreen({
   const route = useRoute();
   const { session, signOut, user } = useAuth();
   const scrollRef = useRef(null);
+  const compactHeaderRef = useRef(false);
+  const showScrollTopRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [compactHeader, setCompactHeader] = useState(false);
@@ -68,29 +68,40 @@ export default function AppScreen({
     ];
   }, [isProgramChair]);
 
-  useEffect(() => {
-    LayoutAnimation.configureNext({
-      duration: 180,
-      create: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-      },
-      update: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-      },
-      delete: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-      },
-    });
-  }, [compactHeader]);
+  const handleScroll = useCallback(
+    (event) => {
+      const y = event.nativeEvent.contentOffset?.y || 0;
+      const shouldCompact = compactHeaderRef.current
+        ? y > COMPACT_HEADER_EXIT_OFFSET
+        : y > COMPACT_HEADER_ENTER_OFFSET;
+
+      if (compactHeaderRef.current !== shouldCompact) {
+        compactHeaderRef.current = shouldCompact;
+        setCompactHeader(shouldCompact);
+      }
+
+      if (!enableScrollTopButton) return;
+
+      const shouldShowScrollTop = showScrollTopRef.current
+        ? y > SCROLL_TOP_EXIT_OFFSET
+        : y > SCROLL_TOP_ENTER_OFFSET;
+
+      if (showScrollTopRef.current !== shouldShowScrollTop) {
+        showScrollTopRef.current = shouldShowScrollTop;
+        setShowScrollTop(shouldShowScrollTop);
+      }
+    },
+    [enableScrollTopButton]
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         ref={scrollRef}
+        style={styles.scrollView}
         contentContainerStyle={styles.content}
         stickyHeaderIndices={[0]}
+        removeClippedSubviews={false}
         refreshControl={
           onRefresh ? (
             <RefreshControl
@@ -102,15 +113,14 @@ export default function AppScreen({
             />
           ) : undefined
         }
-        onScroll={(event) => {
-          const y = event.nativeEvent.contentOffset?.y || 0;
-          setCompactHeader(y > 40);
-          if (!enableScrollTopButton) return;
-          setShowScrollTop(y > 260);
-        }}
+        onScroll={handleScroll}
         scrollEventThrottle={16}
       >
-        <View style={[styles.hero, compactHeader ? styles.heroCompact : null]}>
+        <View
+          collapsable={false}
+          renderToHardwareTextureAndroid
+          style={[styles.hero, compactHeader ? styles.heroCompact : null]}
+        >
           {showEyebrow && !compactHeader ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
           <View style={[styles.titleRow, compactHeader ? styles.titleRowCompact : null]}>
             <Pressable
@@ -176,7 +186,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  scrollView: {
+    backgroundColor: colors.background,
+  },
   content: {
+    backgroundColor: colors.background,
     paddingBottom: 28,
   },
   hero: {
@@ -186,6 +200,8 @@ const styles = StyleSheet.create({
     paddingBottom: 18,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
+    overflow: "hidden",
+    zIndex: 1,
   },
   heroCompact: {
     paddingTop: 8,

@@ -48,6 +48,10 @@ function normalizeFacultyMember(faculty) {
   };
 }
 
+function unwrapListResponse(data) {
+  return Array.isArray(data) ? data : data?.results || [];
+}
+
 export async function fetchProgramChairDashboardData() {
   const [studentOutcomesRes, coursesRes, sectionsRes] = await Promise.all([
     apiClient.get("/student-outcomes/"),
@@ -142,8 +146,22 @@ export async function fetchFacultyDashboardData() {
 
 export async function fetchProgramChairCourses() {
   const response = await apiClient.get("/course-so-mappings/");
-  const data = Array.isArray(response.data) ? response.data : response.data.results || [];
+  const data = unwrapListResponse(response.data);
   return data.map(normalizeCourse);
+}
+
+export async function fetchCurricula() {
+  const response = await apiClient.get("/curricula/");
+  return unwrapListResponse(response.data)
+    .map((item) => String(item.year || item.name || item.id || "").trim())
+    .filter(Boolean);
+}
+
+export async function fetchSchoolYears() {
+  const response = await apiClient.get("/school-years/");
+  return unwrapListResponse(response.data)
+    .map((item) => String(item.year || item.name || item.id || "").trim())
+    .filter(Boolean);
 }
 
 export async function fetchProgramChairClasses() {
