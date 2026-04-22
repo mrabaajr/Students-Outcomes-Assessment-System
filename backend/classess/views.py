@@ -403,7 +403,7 @@ class SectionViewSet(viewsets.ModelViewSet):
             )
 
         faculty_payload = ClassesFacultySerializer(
-            User.objects.filter(role="staff")
+            User.objects.filter(role__in=["admin", "staff"])
             .prefetch_related("assigned_sections__course")
             .order_by("first_name", "last_name", "email"),
             many=True,

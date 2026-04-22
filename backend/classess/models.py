@@ -34,7 +34,7 @@ class Section(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         related_name="assigned_sections",
-        limit_choices_to={"role": "staff"},
+        limit_choices_to={"role__in": ["admin", "staff"]},
         blank=True,
         null=True,
     )

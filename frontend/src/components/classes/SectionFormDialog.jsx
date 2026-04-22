@@ -163,7 +163,7 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="facultySelect">Professor</Label>
+            <Label htmlFor="facultySelect">Assigned Instructor</Label>
             <select
               id="facultySelect"
               value={facultyEmail}
@@ -173,7 +173,8 @@ const SectionFormDialog = ({ open, onClose, onSave, initialData, facultyOptions 
               <option value="">-- Leave unassigned --</option>
               {facultyOptions.map((faculty) => (
                 <option key={faculty.id} value={faculty.email}>
-                  {faculty.name} ({faculty.email})
+                  {faculty.name}
+                  {faculty.role === "admin" ? " [Program Chair]" : " [Faculty]"} ({faculty.email})
                 </option>
               ))}
             </select>
