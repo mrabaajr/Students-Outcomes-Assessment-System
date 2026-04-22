@@ -23,7 +23,7 @@ class ClassesFacultySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "name", "department", "email", "courses"]
+        fields = ["id", "name", "department", "email", "role", "courses"]
 
     def get_name(self, obj):
         return " ".join(part for part in [obj.first_name, obj.last_name] if part).strip() or obj.email
@@ -57,7 +57,7 @@ class FacultySerializer(serializers.ModelSerializer):
 class SectionSerializer(serializers.ModelSerializer):
     faculty = FacultySerializer(read_only=True)
     faculty_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(role="staff"),
+        queryset=User.objects.filter(role__in=["admin", "staff"]),
         source="faculty",
         write_only=True,
         required=False,
