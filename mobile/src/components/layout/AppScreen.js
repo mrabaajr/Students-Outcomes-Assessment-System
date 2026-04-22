@@ -3,12 +3,12 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Pressable,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import AppSidebar from "../navigation/AppSidebar";
 import { useAuth } from "../../context/AuthContext";
@@ -35,6 +35,7 @@ export default function AppScreen({
   const navigation = useNavigation();
   const route = useRoute();
   const { session, signOut, user } = useAuth();
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef(null);
   const compactHeaderRef = useRef(false);
   const showScrollTopRef = useRef(false);
@@ -118,15 +119,22 @@ export default function AppScreen({
       >
         <View
           collapsable={false}
-          renderToHardwareTextureAndroid
-          style={[styles.hero, compactHeader ? styles.heroCompact : null]}
+          style={[
+            styles.hero,
+            compactHeader ? styles.heroCompact : null,
+            {
+              paddingTop: compactHeader ? Math.max(8, insets.top + 4) : Math.max(16, insets.top + 8),
+            },
+          ]}
         >
           {showEyebrow && !compactHeader ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
           <View style={[styles.titleRow, compactHeader ? styles.titleRowCompact : null]}>
             <Pressable
               onPress={() => setSidebarOpen(true)}
               style={[styles.menuButton, compactHeader ? styles.menuButtonCompact : null]}
-              hitSlop={8}
+              hitSlop={14}
+              pressRetentionOffset={14}
+              android_ripple={{ color: "rgba(255, 194, 14, 0.18)", borderless: false }}
             >
               <Text style={styles.menuIcon}>≡</Text>
             </Pressable>
@@ -240,6 +248,7 @@ const styles = StyleSheet.create({
   },
   titleInline: {
     flex: 1,
+    flexShrink: 1,
     fontSize: 28,
     lineHeight: 34,
   },
@@ -248,15 +257,23 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   menuButton: {
+    alignItems: "center",
     backgroundColor: "rgba(255, 194, 14, 0.16)",
     borderRadius: 10,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
+    elevation: 3,
+    justifyContent: "center",
+    minHeight: 44,
+    minWidth: 44,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    zIndex: 3,
   },
   menuButtonCompact: {
     borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    minHeight: 40,
+    minWidth: 40,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
   },
   menuIcon: {
     color: colors.yellow,
