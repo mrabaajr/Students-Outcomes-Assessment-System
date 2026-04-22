@@ -10,10 +10,15 @@ const StudentFormDialog = ({ open, onClose, onSave, initialData }) => {
   const [course, setCourse] = useState("");
   const [yearLevel, setYearLevel] = useState("");
 
+  const handleStudentIdChange = (e) => {
+    const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 7);
+    setStudentId(digitsOnly);
+  };
+
   useEffect(() => {
     if (initialData) {
       setName(initialData.name);
-      setStudentId(initialData.studentId);
+      setStudentId((initialData.studentId || "").replace(/\D/g, "").slice(0, 7));
       setCourse(initialData.course);
       setYearLevel(initialData.yearLevel);
     } else {
@@ -23,6 +28,9 @@ const StudentFormDialog = ({ open, onClose, onSave, initialData }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!/^\d{7}$/.test(studentId)) {
+      return;
+    }
     onSave({ name, studentId, course, yearLevel });
     onClose();
   };
@@ -40,12 +48,22 @@ const StudentFormDialog = ({ open, onClose, onSave, initialData }) => {
           </div>
           <div className="space-y-2">
             <Label htmlFor="studentId">Student ID</Label>
-            <Input id="studentId" value={studentId} onChange={e => setStudentId(e.target.value)} placeholder="e.g. 2021-00101" required />
+            <Input
+              id="studentId"
+              value={studentId}
+              onChange={handleStudentIdChange}
+              placeholder="e.g. 2310111"
+              inputMode="numeric"
+              maxLength={7}
+              pattern="\d{7}"
+              title="Student ID must be exactly 7 digits."
+              required
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="course">Course</Label>
-              <Input id="course" value={course} onChange={e => setCourse(e.target.value)} placeholder="e.g. BSIT" required />
+              <Label htmlFor="course">Program</Label>
+              <Input id="course" value={course} onChange={e => setCourse(e.target.value)} placeholder="e.g. CPE" required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="yearLevel">Year Level</Label>
