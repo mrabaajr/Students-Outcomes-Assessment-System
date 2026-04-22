@@ -128,6 +128,8 @@ function SOSummaryCard({ table, onSaveTable, schoolYearOptions = [] }) {
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  const getIndicatorKey = (indicator) => indicator.basis_key ?? String(indicator.indicator_id);
+
   useEffect(() => {
     setSavedTable(normalized);
     setDraftTable(normalized);
@@ -269,14 +271,14 @@ function SOSummaryCard({ table, onSaveTable, schoolYearOptions = [] }) {
                   </thead>
                   <tbody>
                     {course.indicators.map((indicator) => (
-                      <tr key={indicator.indicator_id} className="border-t border-[#F1EADF]">
-                        <td className="px-4 py-3"><TextInput value={indicator.indicator_label} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => row.indicator_id === indicator.indicator_id ? { ...row, indicator_label: value } : row) } : item) }))} /></td>
-                        <td className="px-4 py-3"><TextInput value={indicator.distribution} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => row.indicator_id === indicator.indicator_id ? { ...row, distribution: value } : row) } : item) }))} /></td>
-                        <td className="px-4 py-3"><TextInput type="number" value={indicator.answered_count} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => row.indicator_id === indicator.indicator_id ? { ...row, answered_count: value } : row) } : item) }))} /></td>
-                        <td className="px-4 py-3"><TextInput type="number" value={indicator.satisfactory_count} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => row.indicator_id === indicator.indicator_id ? { ...row, satisfactory_count: value } : row) } : item) }))} /></td>
+                      <tr key={getIndicatorKey(indicator)} className="border-t border-[#F1EADF]">
+                        <td className="px-4 py-3"><TextInput value={indicator.indicator_label} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => getIndicatorKey(row) === getIndicatorKey(indicator) ? { ...row, indicator_label: value } : row) } : item) }))} /></td>
+                        <td className="px-4 py-3"><TextInput value={indicator.distribution} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => getIndicatorKey(row) === getIndicatorKey(indicator) ? { ...row, distribution: value } : row) } : item) }))} /></td>
+                        <td className="px-4 py-3"><TextInput type="number" value={indicator.answered_count} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => getIndicatorKey(row) === getIndicatorKey(indicator) ? { ...row, answered_count: value } : row) } : item) }))} /></td>
+                        <td className="px-4 py-3"><TextInput type="number" value={indicator.satisfactory_count} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => getIndicatorKey(row) === getIndicatorKey(indicator) ? { ...row, satisfactory_count: value } : row) } : item) }))} /></td>
                         {customVariables.map((variable) => (
                           <td key={variable.key} className="px-4 py-3">
-                            <TextInput type="number" value={indicator[variable.key] || 0} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => row.indicator_id === indicator.indicator_id ? { ...row, [variable.key]: value } : row) } : item) }))} />
+                            <TextInput type="number" value={indicator[variable.key] || 0} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, indicators: item.indicators.map((row) => getIndicatorKey(row) === getIndicatorKey(indicator) ? { ...row, [variable.key]: value } : row) } : item) }))} />
                           </td>
                         ))}
                         <td className="px-4 py-3 font-semibold">{fmt(indicator.weighted_value)}</td>

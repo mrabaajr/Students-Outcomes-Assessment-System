@@ -145,14 +145,19 @@ class ReportViewSet(ViewSet):
                 if field in saved_course:
                     merged_course[field] = saved_course[field]
 
-            saved_indicators = {
-                indicator.get("indicator_id"): indicator
-                for indicator in saved_course.get("indicators", [])
-            }
+            saved_indicators = {}
+            for indicator in saved_course.get("indicators", []):
+                indicator_key = indicator.get("basis_key")
+                if indicator_key is None:
+                    indicator_key = str(indicator.get("indicator_id"))
+                saved_indicators[indicator_key] = indicator
             base_indicators = list(merged_course.get("indicators", []))
             merged_course["indicators"] = []
             for indicator in base_indicators:
-                saved_indicator = saved_indicators.get(indicator.get("indicator_id"))
+                indicator_key = indicator.get("basis_key")
+                if indicator_key is None:
+                    indicator_key = str(indicator.get("indicator_id"))
+                saved_indicator = saved_indicators.get(indicator_key)
                 if not saved_indicator:
                     merged_course["indicators"].append(indicator)
                     continue
@@ -320,30 +325,65 @@ class ReportViewSet(ViewSet):
                 population_student_ids = list(enrolled_students.keys()) if enrolled_students else list(answered_students)
 
                 for indicator in indicators:
-                    criteria_count = len(indicator.criteria.all()) or 1
+                    criteria = list(indicator.criteria.all())
+                    criteria_count = len(criteria) or 1
                     distribution = criteria_count / total_criteria
+                    if criteria:
+                        criterion_distribution = 1 / total_criteria
+                        criterion_scores = defaultdict(list)
 
-                    indicator_student_scores = []
-                    for student_id in population_student_ids:
-                        scores = grades_by_student_indicator.get((student_id, indicator.id), [])
-                        if scores:
-                            indicator_student_scores.append(sum(scores) / len(scores))
+                        for assessment in course_assessments:
+                            for grade in assessment.grades.all():
+                                if grade.criterion_id and grade.criterion.performance_indicator_id == indicator.id:
+                                    criterion_scores[(grade.student_id, grade.criterion_id)].append(grade.score)
 
-                    answered_count = len(indicator_student_scores)
-                    satisfactory_count = sum(
-                        1 for avg_score in indicator_student_scores if ((avg_score / 6) * 100) >= 80
-                    )
-                    weighted_value = satisfactory_count * distribution
+                        for criterion in criteria:
+                            criterion_student_scores = []
+                            for student_id in population_student_ids:
+                                scores = criterion_scores.get((student_id, criterion.id), [])
+                                if scores:
+                                    criterion_student_scores.append(sum(scores) / len(scores))
 
-                    indicator_rows.append({
-                        "indicator_id": indicator.id,
-                        "indicator_label": f"P{indicator.number}",
-                        "distribution": round(distribution, 4),
-                        "answered_count": answered_count,
-                        "satisfactory_count": satisfactory_count,
-                        "weighted_value": round(weighted_value, 4),
-                    })
-                    course_weighted_satisfactory += weighted_value
+                            answered_count = len(criterion_student_scores)
+                            satisfactory_count = sum(
+                                1 for avg_score in criterion_student_scores if ((avg_score / 6) * 100) >= 80
+                            )
+                            weighted_value = satisfactory_count * criterion_distribution
+
+                            indicator_rows.append({
+                                "basis_key": f"criterion:{criterion.id}",
+                                "indicator_id": criterion.id,
+                                "parent_indicator_id": indicator.id,
+                                "indicator_label": f"P{indicator.number}.{criterion.order}",
+                                "distribution": round(criterion_distribution, 4),
+                                "answered_count": answered_count,
+                                "satisfactory_count": satisfactory_count,
+                                "weighted_value": round(weighted_value, 4),
+                            })
+                            course_weighted_satisfactory += weighted_value
+                    else:
+                        indicator_student_scores = []
+                        for student_id in population_student_ids:
+                            scores = grades_by_student_indicator.get((student_id, indicator.id), [])
+                            if scores:
+                                indicator_student_scores.append(sum(scores) / len(scores))
+
+                        answered_count = len(indicator_student_scores)
+                        satisfactory_count = sum(
+                            1 for avg_score in indicator_student_scores if ((avg_score / 6) * 100) >= 80
+                        )
+                        weighted_value = satisfactory_count * distribution
+
+                        indicator_rows.append({
+                            "basis_key": f"indicator:{indicator.id}",
+                            "indicator_id": indicator.id,
+                            "indicator_label": f"P{indicator.number}",
+                            "distribution": round(distribution, 4),
+                            "answered_count": answered_count,
+                            "satisfactory_count": satisfactory_count,
+                            "weighted_value": round(weighted_value, 4),
+                        })
+                        course_weighted_satisfactory += weighted_value
 
                 if actual_class_size == 0:
                     actual_class_size = answered_any_count
