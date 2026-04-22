@@ -547,16 +547,26 @@ const Index = () => {
         },
       }));
 
-      // Update local sections data with imported students
+      // CSV import is already persisted by the backend endpoint, so avoid
+      // marking the page dirty and triggering bulk_save with stale roster data.
       if (response.data.created > 0 || response.data.updated > 0) {
-        setHasUnsavedChanges(true);
         // Reload sections from backend to sync with database
         try {
           const reloadRes = await axios.get(`${API_BASE_URL}/sections/load_all/`);
-          const { sections } = reloadRes.data;
+          const { sections, faculty, assignable_users } = reloadRes.data;
           if (Array.isArray(sections)) {
             setSectionsData(sections);
           }
+          if (Array.isArray(faculty)) {
+            setFacultyData(faculty);
+          }
+          setAssignableUsers(
+            Array.isArray(assignable_users) && assignable_users.length > 0
+              ? assignable_users
+              : Array.isArray(faculty)
+                ? faculty
+                : []
+          );
         } catch (e) {
           console.error('Failed to reload sections after import:', e);
         }
