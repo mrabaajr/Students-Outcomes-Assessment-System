@@ -32,6 +32,11 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api";
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("accessToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 const soIconList = [Lightbulb, PenTool, MessageSquare, Scale, UsersRound, FlaskConical];
 const getSOIcon = (index) => soIconList[(index >= 0 ? index : 0) % soIconList.length];
 
@@ -322,6 +327,8 @@ export function AssessStudentsModal({
         so_id: saveContext.selectedSOForSave.id,
         school_year: selectedSection.schoolYear,
         grades: saveContext.gradesPayload,
+      }, {
+        headers: getAuthHeaders(),
       });
 
       lastSavedSignatureRef.current = saveContext.signature;
@@ -555,6 +562,7 @@ export function AssessStudentsModal({
             so_id: soId,
             school_year: schoolYear,
           },
+          headers: getAuthHeaders(),
         }
       );
       const loadedGrades = response.data.grades || {};
@@ -563,7 +571,9 @@ export function AssessStudentsModal({
       
       // Fetch the full SO data directly from backend to ensure we have all criteria
       try {
-        const soResponse = await axios.get(`${API_BASE_URL}/student-outcomes/${soId}/`);
+        const soResponse = await axios.get(`${API_BASE_URL}/student-outcomes/${soId}/`, {
+          headers: getAuthHeaders(),
+        });
         const soData = soResponse.data;
         console.log("Raw SO response from backend:", soData);
         

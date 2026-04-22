@@ -12,13 +12,13 @@ from .models import Assessment, Grade
 from .serializers import AssessmentSerializer
 from classess.models import Section, Student
 from so.models import StudentOutcome, PerformanceCriterion, PerformanceIndicator
+from users.audit import log_audit_event
 
 
 class AssessmentViewSet(viewsets.ModelViewSet):
     queryset = Assessment.objects.prefetch_related('grades').all()
     serializer_class = AssessmentSerializer
     permission_classes = [AllowAny]
-    authentication_classes = []
 
     @action(detail=False, methods=['get'], url_path='load_grades')
     def load_grades(self, request):
@@ -118,6 +118,23 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                                 raise
 
                 print(f"[SAVE GRADES] Successfully saved {created_count} grades")
+                section = Section.objects.select_related("course").filter(id=section_id).first()
+                outcome = StudentOutcome.objects.filter(id=so_id).first()
+                if section and outcome:
+                    log_audit_event(
+                        request,
+                        action="save",
+                        target_type="assessment",
+                        target_name=f"{section.name} - SO {outcome.number}",
+                        description=f"Saved assessment grades for section {section.name} in {section.course.code}.",
+                        metadata={
+                            "section_id": section.id,
+                            "so_id": outcome.id,
+                            "grades_saved": created_count,
+                            "school_year": school_year,
+                        },
+                    )
+
                 return Response({'success': True, 'message': 'Grades saved successfully', 'grades_saved': created_count})
         except Exception as e:
             import traceback

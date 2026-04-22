@@ -9,6 +9,7 @@ from .serializers import (
     StudentOutcomeSerializer,
     PerformanceIndicatorSerializer,
 )
+from users.audit import log_audit_event
 
 
 # ---------------------------------
@@ -27,7 +28,6 @@ class StudentOutcomeViewSet(viewsets.ModelViewSet):
 
     serializer_class = StudentOutcomeSerializer
     permission_classes = [AllowAny]
-    authentication_classes = []
 
     @action(detail=False, methods=['post'], url_path='bulk_save')
     def bulk_save(self, request):
@@ -126,6 +126,14 @@ class StudentOutcomeViewSet(viewsets.ModelViewSet):
                 all_sos = StudentOutcome.objects.prefetch_related(
                     'performance_indicators__criteria'
                 ).all()
+                log_audit_event(
+                    request,
+                    action="save",
+                    target_type="student outcomes",
+                    target_name="Student outcomes library",
+                    description="Saved student outcomes, indicators, and criteria.",
+                    metadata={"outcomes_saved": len(outcomes_data)},
+                )
                 serializer = StudentOutcomeSerializer(all_sos, many=True)
                 return Response({'outcomes': serializer.data, 'success': True})
 
@@ -149,7 +157,6 @@ class PerformanceIndicatorViewSet(viewsets.ModelViewSet):
     queryset = PerformanceIndicator.objects.prefetch_related("criteria").all()
     serializer_class = PerformanceIndicatorSerializer
     permission_classes = [AllowAny]
-    authentication_classes = []
 
     def get_queryset(self):
         queryset = super().get_queryset()

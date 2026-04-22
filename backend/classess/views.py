@@ -10,6 +10,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from courses.models import Course, Curriculum, SchoolYear
+from users.audit import log_audit_event
 from users.models import User
 
 from .models import Enrollment, Section, Student
@@ -51,17 +52,39 @@ class StudentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can create students.")
-        serializer.save()
+        student = serializer.save()
+        log_audit_event(
+            self.request,
+            action="create",
+            target_type="student",
+            target_name=student.student_id,
+            description=f"Created student record for {student.student_id}.",
+        )
 
     def perform_update(self, serializer):
         if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can update students.")
-        serializer.save()
+        student = serializer.save()
+        log_audit_event(
+            self.request,
+            action="update",
+            target_type="student",
+            target_name=student.student_id,
+            description=f"Updated student record for {student.student_id}.",
+        )
 
     def perform_destroy(self, instance):
         if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can delete students.")
+        student_id = instance.student_id
         instance.delete()
+        log_audit_event(
+            self.request,
+            action="delete",
+            target_type="student",
+            target_name=student_id,
+            description=f"Deleted student record for {student_id}.",
+        )
 
     @action(detail=False, methods=["post"], url_path="import-csv")
     def import_csv(self, request):
@@ -106,7 +129,7 @@ class SectionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_authenticators(self):
-        if getattr(self, "action", None) in ("load_all", "bulk_save", "import_csv_into_section"):
+        if getattr(self, "action", None) == "load_all":
             return []
         return super().get_authenticators()
 
@@ -128,17 +151,40 @@ class SectionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can create sections.")
-        serializer.save()
+        section = serializer.save()
+        log_audit_event(
+            self.request,
+            action="create",
+            target_type="section",
+            target_name=section.name,
+            description=f"Created section {section.name} for {section.course.code}.",
+        )
 
     def perform_update(self, serializer):
         if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can update sections.")
-        serializer.save()
+        section = serializer.save()
+        log_audit_event(
+            self.request,
+            action="update",
+            target_type="section",
+            target_name=section.name,
+            description=f"Updated section {section.name} for {section.course.code}.",
+        )
 
     def perform_destroy(self, instance):
         if self.request.user.role != "admin":
             raise PermissionDenied("Only admins can delete sections.")
+        section_name = instance.name
+        course_code = instance.course.code
         instance.delete()
+        log_audit_event(
+            self.request,
+            action="delete",
+            target_type="section",
+            target_name=section_name,
+            description=f"Deleted section {section_name} from {course_code}.",
+        )
 
     def get_object(self):
         obj = super().get_object()
@@ -237,6 +283,19 @@ class SectionViewSet(viewsets.ModelViewSet):
                     except Exception as exc:
                         errors.append(f"Row {row_num}: {str(exc)}")
                         skipped_count += 1
+
+            log_audit_event(
+                request,
+                action="import",
+                target_type="section",
+                target_name=section.name,
+                description=f"Imported students into section {section.name}.",
+                metadata={
+                    "created": created_count,
+                    "updated": updated_count,
+                    "skipped": skipped_count,
+                },
+            )
 
             return Response(
                 {
@@ -473,6 +532,19 @@ class SectionViewSet(viewsets.ModelViewSet):
                 stale_sections = Section.objects.exclude(id__in=saved_section_ids)
                 Enrollment.objects.filter(section__in=stale_sections).delete()
                 stale_sections.delete()
+
+            log_audit_event(
+                request,
+                action="save",
+                target_type="classes",
+                target_name="Classes workspace",
+                description="Saved classes, sections, faculty assignments, and enrollments.",
+                metadata={
+                    "sections": len(sections_data),
+                    "faculty": len(faculty_data),
+                    "deleted_faculty_ids": len(deleted_faculty_ids),
+                },
+            )
 
             return Response({"message": "Classes saved successfully", "success": True})
 

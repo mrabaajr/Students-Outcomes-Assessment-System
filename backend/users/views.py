@@ -6,8 +6,9 @@ from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from .models import User
-from .serializers import UserSerializer, UserDetailSerializer, UserCreateSerializer
+from .audit import log_audit_event
+from .models import AuditLog, User
+from .serializers import AuditLogSerializer, UserSerializer, UserDetailSerializer, UserCreateSerializer
 from .utils import generate_temporary_password, send_account_creation_email
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -25,7 +26,15 @@ class UserViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Only admins can delete user accounts.")
         if instance.role == 'admin':
             raise PermissionDenied("Admin accounts cannot be deleted here.")
+        target_name = instance.email
         instance.delete()
+        log_audit_event(
+            self.request,
+            action="delete",
+            target_type="account",
+            target_name=target_name,
+            description=f"Deleted faculty account {target_name}.",
+        )
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):
@@ -68,6 +77,13 @@ class UserViewSet(viewsets.ModelViewSet):
 
         request.user.set_password(new_password)
         request.user.save(update_fields=['password'])
+        log_audit_event(
+            request,
+            action="security",
+            target_type="account",
+            target_name=request.user.email,
+            description="Changed account password.",
+        )
         return Response({'message': 'Password updated successfully.'}, status=status.HTTP_200_OK)
     
     @action(detail=False, methods=['post'], permission_classes=[AllowAny])
@@ -89,6 +105,14 @@ class UserViewSet(viewsets.ModelViewSet):
         
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
+
+        log_audit_event(
+            user=user,
+            action="login",
+            target_type="account",
+            target_name=user.email,
+            description="Logged into the system.",
+        )
         
         return Response({
             'access': str(refresh.access_token),
@@ -122,6 +146,14 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         
         serializer = UserSerializer(user)
+        log_audit_event(
+            user=user,
+            action="create",
+            target_type="account",
+            target_name=user.email,
+            description="Registered a new account.",
+            metadata={"role": role},
+        )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['post'], permission_classes=[AllowAny])
@@ -166,8 +198,37 @@ class UserViewSet(viewsets.ModelViewSet):
         email_sent = send_account_creation_email(user, temporary_password)
         
         serializer = UserSerializer(user)
+        log_audit_event(
+            request,
+            action="create",
+            target_type="account",
+            target_name=user.email,
+            description=f"Created a {role} account with a temporary password.",
+            metadata={"email_sent": email_sent, "role": role},
+        )
         return Response({
             'user': serializer.data,
             'email_sent': email_sent,
             'message': 'Account created successfully. Temporary password sent to email.'
         }, status=status.HTTP_201_CREATED)
+
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = AuditLog.objects.select_related("actor").all()
+    serializer_class = AuditLogSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.role != "admin":
+            raise PermissionDenied("Only admins can view the audit log.")
+
+        queryset = super().get_queryset()
+
+        limit = self.request.query_params.get("limit")
+        if limit:
+            try:
+                queryset = queryset[: max(1, min(int(limit), 200))]
+            except (TypeError, ValueError):
+                pass
+
+        return queryset

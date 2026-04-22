@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User
+from .models import AuditLog, User
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -24,3 +24,19 @@ class UserCreateSerializer(serializers.ModelSerializer):
         if value not in ['admin', 'staff']:
             raise serializers.ValidationError("Invalid role. Must be 'admin' or 'staff'.")
         return value
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AuditLog
+        fields = (
+            "id",
+            "actor_name",
+            "actor_role",
+            "action",
+            "target_type",
+            "target_name",
+            "description",
+            "metadata",
+            "created_at",
+        )

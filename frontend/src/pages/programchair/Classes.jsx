@@ -15,6 +15,11 @@ import { sections as initialSections, faculty as initialFaculty } from "@/data/c
 import { toast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "@/lib/api";
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("accessToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
@@ -512,6 +517,7 @@ const Index = () => {
         {
           headers: {
             'Content-Type': 'multipart/form-data',
+            ...getAuthHeaders(),
           },
         }
       );
@@ -579,6 +585,8 @@ const Index = () => {
         sections: sectionsData,
         faculty: facultyData,
         deletedFacultyIds,
+      }, {
+        headers: getAuthHeaders(),
       });
       if (response.data.success) {
         setHasUnsavedChanges(false);

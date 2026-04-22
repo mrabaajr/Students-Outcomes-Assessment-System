@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from so.models import StudentOutcome
+from users.audit import log_audit_event
 
 from .models import Course, CourseSOMapping, Curriculum, SchoolYear
 from .serializers import (
@@ -20,7 +21,6 @@ from .serializers import (
 class CourseSOMappingViewSet(viewsets.ModelViewSet):
     queryset = CourseSOMapping.objects.prefetch_related('mapped_sos').all()
     permission_classes = [AllowAny]
-    authentication_classes = []
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -64,6 +64,14 @@ class CourseSOMappingViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         mapping = serializer.save()
+        log_audit_event(
+            request,
+            action="create",
+            target_type="course mapping",
+            target_name=f"{mapping.code} {mapping.academic_year}",
+            description=f"Created course mapping for {mapping.code}.",
+            metadata={"mapping_id": mapping.id},
+        )
         output_serializer = CourseSOMappingSerializer(mapping)
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -73,6 +81,14 @@ class CourseSOMappingViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         mapping = serializer.save()
+        log_audit_event(
+            request,
+            action="update",
+            target_type="course mapping",
+            target_name=f"{mapping.code} {mapping.academic_year}",
+            description=f"Updated course mapping for {mapping.code}.",
+            metadata={"mapping_id": mapping.id},
+        )
         output_serializer = CourseSOMappingSerializer(mapping)
         return Response(output_serializer.data)
 
@@ -97,6 +113,15 @@ class CourseSOMappingViewSet(viewsets.ModelViewSet):
             mapping.mapped_sos.remove(so)
             message = f'SO {so.number} unmapped from course mapping'
 
+        log_audit_event(
+            request,
+            action="update",
+            target_type="course mapping",
+            target_name=f"{mapping.code} {mapping.academic_year}",
+            description=message,
+            metadata={"mapping_id": mapping.id, "so_id": so.id, "should_map": should_map},
+        )
+
         output_serializer = CourseSOMappingSerializer(mapping)
         return Response({'message': message, 'courseMapping': output_serializer.data})
 
@@ -105,21 +130,18 @@ class CurriculumViewSet(viewsets.ModelViewSet):
     queryset = Curriculum.objects.all()
     serializer_class = CurriculumSerializer
     permission_classes = [AllowAny]
-    authentication_classes = []
 
 
 class SchoolYearViewSet(viewsets.ModelViewSet):
     queryset = SchoolYear.objects.all()
     serializer_class = SchoolYearSerializer
     permission_classes = [AllowAny]
-    authentication_classes = []
 
 
 class CourseViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Course.objects.select_related('curriculum').all()
     serializer_class = CourseSerializer
     permission_classes = [AllowAny]
-    authentication_classes = []
 
     def get_queryset(self):
         queryset = super().get_queryset()

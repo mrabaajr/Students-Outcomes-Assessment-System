@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User
+from .models import AuditLog, User
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
@@ -19,3 +19,28 @@ class UserAdmin(BaseUserAdmin):
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
         ('Extra Info', {'fields': ('email', 'first_name', 'last_name', 'role', 'department')}),
     )
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "actor_name", "actor_role", "action", "target_type", "target_name")
+    list_filter = ("action", "actor_role", "target_type", "created_at")
+    search_fields = ("actor_name", "target_name", "description")
+    ordering = ("-created_at",)
+    readonly_fields = (
+        "actor",
+        "actor_name",
+        "actor_role",
+        "action",
+        "target_type",
+        "target_name",
+        "description",
+        "metadata",
+        "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
