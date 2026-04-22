@@ -7,9 +7,20 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from .audit import log_audit_event
-from .models import AuditLog, User
-from .serializers import AuditLogSerializer, UserSerializer, UserDetailSerializer, UserCreateSerializer
-from .utils import generate_temporary_password, send_account_creation_email
+from .models import AuditLog, EmailSettings, User
+from .serializers import (
+    AuditLogSerializer,
+    EmailSettingsSerializer,
+    UserCreateSerializer,
+    UserDetailSerializer,
+    UserSerializer,
+)
+from .utils import (
+    generate_temporary_password,
+    get_active_email_settings,
+    send_account_creation_email,
+    send_system_email,
+)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -85,6 +96,135 @@ class UserViewSet(viewsets.ModelViewSet):
             description="Changed account password.",
         )
         return Response({'message': 'Password updated successfully.'}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def change_email(self, request):
+        """Change the current user's account email after verifying the password."""
+        new_email = (request.data.get('new_email') or "").strip().lower()
+        current_password = request.data.get('current_password') or request.data.get('password')
+
+        if not new_email or not current_password:
+            return Response(
+                {'detail': 'New email and current password are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if new_email == (request.user.email or "").strip().lower():
+            return Response(
+                {'detail': 'The new email must be different from your current email.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if User.objects.filter(email__iexact=new_email).exclude(id=request.user.id).exists():
+            return Response(
+                {'detail': 'Email already registered.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not request.user.check_password(current_password):
+            return Response(
+                {'detail': 'Current password is incorrect.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        old_email = request.user.email
+        request.user.email = new_email
+        request.user.username = new_email
+        request.user.save(update_fields=['email', 'username'])
+        log_audit_event(
+            request,
+            action="security",
+            target_type="account",
+            target_name=new_email,
+            description=f"Changed account email from {old_email} to {new_email}.",
+            metadata={"old_email": old_email, "new_email": new_email},
+        )
+        return Response(
+            {
+                'message': 'Account email updated successfully.',
+                'email': request.user.email,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['get', 'post'], permission_classes=[IsAuthenticated])
+    def email_settings(self, request):
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admins can manage email settings.")
+
+        email_settings = EmailSettings.objects.order_by("-updated_at").first()
+
+        if request.method == 'GET':
+            if not email_settings:
+                defaults = get_active_email_settings()
+                return Response(
+                    {
+                        "email_host": defaults["host"],
+                        "email_port": defaults["port"],
+                        "email_use_tls": defaults["use_tls"],
+                        "email_host_user": defaults["username"],
+                        "email_host_password": defaults["password"],
+                        "default_from_email": defaults["from_email"],
+                        "updated_at": None,
+                    }
+                )
+            return Response(EmailSettingsSerializer(email_settings).data)
+
+        serializer = EmailSettingsSerializer(instance=email_settings, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        saved = serializer.save(updated_by=request.user)
+        log_audit_event(
+            request,
+            action="update",
+            target_type="email_settings",
+            target_name=saved.default_from_email or saved.email_host or "SMTP configuration",
+            description="Updated system email settings.",
+        )
+        return Response(
+            {
+                "message": "Email settings updated successfully.",
+                "settings": EmailSettingsSerializer(saved).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def test_email_settings(self, request):
+        if request.user.role != 'admin':
+            raise PermissionDenied("Only admins can test email settings.")
+
+        recipient_email = request.data.get('recipient_email') or request.user.email
+        active_settings = get_active_email_settings()
+
+        if not active_settings["host"] or not active_settings["from_email"]:
+            return Response(
+                {"detail": "Email settings are incomplete. Please provide at least host and from email."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            send_system_email(
+                "Assessment System Email Settings Test",
+                (
+                    "This is a test email from the Students Outcomes Assessment System.\n\n"
+                    "If you received this message, the configured email settings are working."
+                ),
+                [recipient_email],
+            )
+        except Exception as exc:
+            return Response(
+                {"detail": f"Test email failed: {str(exc)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        log_audit_event(
+            request,
+            action="security",
+            target_type="email_settings",
+            target_name=recipient_email,
+            description="Sent a test email using the configured email settings.",
+        )
+        return Response({"message": f"Test email sent to {recipient_email}."}, status=status.HTTP_200_OK)
     
     @action(detail=False, methods=['post'], permission_classes=[AllowAny])
     def login(self, request):
