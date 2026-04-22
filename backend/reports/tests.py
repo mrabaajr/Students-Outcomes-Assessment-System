@@ -4,7 +4,7 @@ from rest_framework.test import APIClient
 from assessment.models import Assessment, Grade
 from classess.models import Enrollment, Section, Student
 from courses.models import Course, CourseSOMapping, Curriculum
-from so.models import PerformanceIndicator, StudentOutcome
+from so.models import PerformanceCriterion, PerformanceIndicator, StudentOutcome
 from .models import ReportTemplate
 
 
@@ -220,3 +220,42 @@ class ReportsDashboardTests(TestCase):
         payload = response.json()
         courses = payload["so_summary_tables"][0]["courses"]
         self.assertEqual([course["course_code"] for course in courses], ["CPE101"])
+
+    def test_dashboard_expands_indicator_criteria_into_separate_report_rows(self):
+        Grade.objects.filter(assessment=self.assessment).delete()
+        criterion_one = PerformanceCriterion.objects.create(
+            performance_indicator=self.indicator,
+            name="Criterion 1",
+            order=1,
+        )
+        criterion_two = PerformanceCriterion.objects.create(
+            performance_indicator=self.indicator,
+            name="Criterion 2",
+            order=2,
+        )
+        Grade.objects.create(
+            assessment=self.assessment,
+            student=self.student,
+            criterion=criterion_one,
+            score=5,
+        )
+        Grade.objects.create(
+            assessment=self.assessment,
+            student=self.student,
+            criterion=criterion_two,
+            score=6,
+        )
+
+        response = self.client.get(
+            "/api/reports/dashboard/",
+            {"school_year": "2025-2026", "course": self.course.id, "section": self.section.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        indicators = payload["so_summary_tables"][0]["courses"][0]["indicators"]
+
+        self.assertEqual([row["indicator_label"] for row in indicators], ["P1.1", "P1.2"])
+        self.assertEqual([row["distribution"] for row in indicators], [0.5, 0.5])
+        self.assertEqual([row["answered_count"] for row in indicators], [1, 1])
+        self.assertEqual([row["satisfactory_count"] for row in indicators], [1, 1])
