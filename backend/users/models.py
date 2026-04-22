@@ -28,6 +28,32 @@ class User(AbstractUser):
         return self.email
 
 
+class EmailSettings(models.Model):
+    email_host = models.CharField(max_length=255, blank=True, default="")
+    email_port = models.PositiveIntegerField(default=587)
+    email_use_tls = models.BooleanField(default=True)
+    email_host_user = models.CharField(max_length=255, blank=True, default="")
+    email_host_password = models.CharField(max_length=255, blank=True, default="")
+    default_from_email = models.EmailField(blank=True, default="")
+    updated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_email_settings",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        verbose_name = "Email Settings"
+        verbose_name_plural = "Email Settings"
+
+    def __str__(self):
+        return self.default_from_email or self.email_host or "Email Settings"
+
+
 class AuditLog(models.Model):
     ACTION_CHOICES = (
         ("login", "Login"),

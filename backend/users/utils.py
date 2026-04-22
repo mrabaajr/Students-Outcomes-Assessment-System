@@ -1,7 +1,9 @@
 import string
 import secrets
-from django.core.mail import send_mail
 from django.conf import settings
+from django.core.mail import EmailMessage, get_connection
+
+from .models import EmailSettings
 
 
 def generate_temporary_password(length=12):
@@ -12,6 +14,50 @@ def generate_temporary_password(length=12):
     characters = string.ascii_letters + string.digits + '!@#$%^&*'
     password = ''.join(secrets.choice(characters) for _ in range(length))
     return password
+
+
+def get_active_email_settings():
+    saved_settings = EmailSettings.objects.order_by("-updated_at").first()
+    if saved_settings:
+        return {
+            "host": saved_settings.email_host,
+            "port": saved_settings.email_port,
+            "use_tls": saved_settings.email_use_tls,
+            "username": saved_settings.email_host_user,
+            "password": saved_settings.email_host_password,
+            "from_email": saved_settings.default_from_email,
+            "is_custom": True,
+        }
+
+    return {
+        "host": settings.EMAIL_HOST,
+        "port": settings.EMAIL_PORT,
+        "use_tls": settings.EMAIL_USE_TLS,
+        "username": settings.EMAIL_HOST_USER,
+        "password": settings.EMAIL_HOST_PASSWORD,
+        "from_email": settings.DEFAULT_FROM_EMAIL,
+        "is_custom": False,
+    }
+
+
+def send_system_email(subject, message, recipient_list):
+    email_settings = get_active_email_settings()
+    connection = get_connection(
+        host=email_settings["host"],
+        port=email_settings["port"],
+        username=email_settings["username"],
+        password=email_settings["password"],
+        use_tls=email_settings["use_tls"],
+        fail_silently=False,
+    )
+    email = EmailMessage(
+        subject=subject,
+        body=message,
+        from_email=email_settings["from_email"],
+        to=recipient_list,
+        connection=connection,
+    )
+    email.send()
 
 
 def send_account_creation_email(user, temporary_password):
@@ -46,13 +92,7 @@ Assessment System Team
     """
     
     try:
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,
-            [user.email],
-            fail_silently=False,
-        )
+        send_system_email(subject, message, [user.email])
         return True
     except Exception as e:
         print(f"Error sending email: {str(e)}")
@@ -83,13 +123,7 @@ Assessment System Team
     """
     
     try:
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,
-            [user.email],
-            fail_silently=False,
-        )
+        send_system_email(subject, message, [user.email])
         return True
     except Exception as e:
         print(f"Error sending email: {str(e)}")

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import AuditLog, User
+from .models import AuditLog, EmailSettings, User
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -24,6 +24,22 @@ class UserCreateSerializer(serializers.ModelSerializer):
         if value not in ['admin', 'staff']:
             raise serializers.ValidationError("Invalid role. Must be 'admin' or 'staff'.")
         return value
+
+
+class EmailSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmailSettings
+        fields = (
+            "id",
+            "email_host",
+            "email_port",
+            "email_use_tls",
+            "email_host_user",
+            "email_host_password",
+            "default_from_email",
+            "updated_at",
+        )
+        read_only_fields = ("id", "updated_at")
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
