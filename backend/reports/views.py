@@ -134,14 +134,7 @@ class ReportViewSet(ViewSet):
                 continue
 
             merged_course = dict(course)
-            for field in (
-                "course_name",
-                "actual_class_size",
-                "cli",
-                "answered_count",
-                "virtual_class_size",
-                "weighted_total",
-            ):
+            for field in ("course_name",):
                 if field in saved_course:
                     merged_course[field] = saved_course[field]
 
@@ -235,7 +228,7 @@ class ReportViewSet(ViewSet):
             )
         return merged_tables
 
-    def _build_so_summary_tables(self, assessments):
+    def _build_so_summary_tables(self, assessments, scoped_sections):
         so_tables = []
 
         assessment_rows = list(
@@ -290,9 +283,13 @@ class ReportViewSet(ViewSet):
                 course = sample_assessment.section.course
                 source_courses.append(course.name)
 
+                visible_course_sections = list(
+                    scoped_sections.filter(course_id=course.id).prefetch_related("enrollments__student")
+                )
+
                 enrolled_students = {}
-                for assessment in course_assessments:
-                    for enrollment in assessment.section.enrollments.all():
+                for section in visible_course_sections:
+                    for enrollment in section.enrollments.all():
                         enrolled_students[enrollment.student_id] = enrollment.student
 
                 if enrolled_students:
@@ -617,7 +614,7 @@ class ReportViewSet(ViewSet):
         )
 
         so_summary_tables = self._apply_saved_templates(
-            self._build_so_summary_tables(assessments),
+            self._build_so_summary_tables(assessments, scoped_sections),
             school_year=school_year,
             course_id=course_id,
             section_id=section_id,

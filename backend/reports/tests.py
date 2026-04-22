@@ -259,3 +259,31 @@ class ReportsDashboardTests(TestCase):
         self.assertEqual([row["distribution"] for row in indicators], [0.5, 0.5])
         self.assertEqual([row["answered_count"] for row in indicators], [1, 1])
         self.assertEqual([row["satisfactory_count"] for row in indicators], [1, 1])
+
+    def test_dashboard_uses_all_visible_course_sections_for_actual_class_size(self):
+        extra_section = Section.objects.create(
+            name="CPE11S2",
+            course=self.course,
+            academic_year="2025-2026",
+            semester="1st Semester",
+        )
+        extra_student = Student.objects.create(
+            student_id="2025-0002",
+            first_name="Grace",
+            last_name="Hopper",
+            program="Computer Engineering",
+            year_level=1,
+        )
+        Enrollment.objects.create(student=extra_student, section=extra_section, course=self.course)
+
+        response = self.client.get(
+            "/api/reports/dashboard/",
+            {"school_year": "2025-2026", "course": self.course.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        course_row = payload["so_summary_tables"][0]["courses"][0]
+
+        self.assertEqual(course_row["actual_class_size"], 2)
+        self.assertEqual(course_row["answered_count"], 1)
