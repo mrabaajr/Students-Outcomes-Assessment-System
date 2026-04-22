@@ -13,7 +13,15 @@ import {
 import AppScreen from "../components/layout/AppScreen";
 import InfoCard from "../components/ui/InfoCard";
 import { useAuth } from "../context/AuthContext";
-import { changePassword, createFacultyAccount } from "../services/usersMobile";
+import {
+  changeEmail,
+  changePassword,
+  createFacultyAccount,
+  fetchCurrentUser,
+  fetchEmailSettings,
+  sendTestEmail,
+  updateEmailSettings,
+} from "../services/usersMobile";
 import { colors } from "../theme/colors";
 
 function FacultyAccountModal({ visible, onClose, onCreated }) {
@@ -187,6 +195,11 @@ function FacultyAccountModal({ visible, onClose, onCreated }) {
 export default function SettingsScreen() {
   const { session, user } = useAuth();
   const [email, setEmail] = useState(user?.email || "");
+  const [pendingEmail, setPendingEmail] = useState(user?.email || "");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [emailSubmitting, setEmailSubmitting] = useState(false);
+  const [emailSuccessMessage, setEmailSuccessMessage] = useState("");
+  const [emailErrorMessage, setEmailErrorMessage] = useState("");
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -194,12 +207,68 @@ export default function SettingsScreen() {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [showFacultyModal, setShowFacultyModal] = useState(false);
+  const [emailConfig, setEmailConfig] = useState({
+    email_host: "",
+    email_port: 587,
+    email_use_tls: true,
+    email_host_user: "",
+    email_host_password: "",
+    default_from_email: "",
+  });
+  const [emailConfigMessage, setEmailConfigMessage] = useState("");
+  const [emailConfigError, setEmailConfigError] = useState("");
+  const [testRecipientEmail, setTestRecipientEmail] = useState(user?.email || "");
+  const [isSavingEmailConfig, setIsSavingEmailConfig] = useState(false);
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
 
   const isProgramChair = session.userRole === "admin";
 
   useEffect(() => {
     setEmail(user?.email || "");
+    setPendingEmail(user?.email || "");
+    setTestRecipientEmail(user?.email || "");
   }, [user?.email]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSettings() {
+      try {
+        const currentUser = await fetchCurrentUser();
+        if (!mounted) return;
+        setEmail(currentUser?.email || "");
+        setPendingEmail(currentUser?.email || "");
+        setTestRecipientEmail((prev) => prev || currentUser?.email || "");
+      } catch {
+        // Keep local auth context values if the fetch fails.
+      }
+
+      if (!isProgramChair) {
+        return;
+      }
+
+      try {
+        const payload = await fetchEmailSettings();
+        if (!mounted) return;
+        setEmailConfig({
+          email_host: payload.email_host || "",
+          email_port: payload.email_port || 587,
+          email_use_tls: payload.email_use_tls ?? true,
+          email_host_user: payload.email_host_user || "",
+          email_host_password: payload.email_host_password || "",
+          default_from_email: payload.default_from_email || "",
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setEmailConfigError(error.response?.data?.detail || error.message || "Failed to load email settings.");
+      }
+    }
+
+    loadSettings();
+    return () => {
+      mounted = false;
+    };
+  }, [isProgramChair]);
 
   const securityTips = useMemo(
     () => [
@@ -211,6 +280,34 @@ export default function SettingsScreen() {
     ],
     []
   );
+
+  async function handleEmailSubmit() {
+    setEmailErrorMessage("");
+    setEmailSuccessMessage("");
+
+    if (!pendingEmail.trim() || !emailPassword) {
+      setEmailErrorMessage("New email and current password are required.");
+      return;
+    }
+
+    setEmailSubmitting(true);
+    try {
+      const result = await changeEmail({
+        newEmail: pendingEmail.trim(),
+        currentPassword: emailPassword,
+      });
+      const nextEmail = result.email || pendingEmail.trim();
+      setEmail(nextEmail);
+      setPendingEmail(nextEmail);
+      setTestRecipientEmail((prev) => (prev === user?.email || !prev ? nextEmail : prev));
+      setEmailPassword("");
+      setEmailSuccessMessage(result.message || "Account email updated successfully.");
+    } catch (error) {
+      setEmailErrorMessage(error.response?.data?.detail || error.message || "Failed to update account email.");
+    } finally {
+      setEmailSubmitting(false);
+    }
+  }
 
   async function handleSubmit() {
     setErrorMessage("");
@@ -249,6 +346,56 @@ export default function SettingsScreen() {
     }
   }
 
+  function handleEmailConfigChange(field, value) {
+    setEmailConfig((prev) => ({
+      ...prev,
+      [field]: field === "email_port" ? Number(value) || 0 : value,
+    }));
+  }
+
+  async function handleSaveEmailSettings() {
+    setEmailConfigError("");
+    setEmailConfigMessage("");
+
+    if (!emailConfig.email_host || !emailConfig.default_from_email) {
+      setEmailConfigError("Email host and default from email are required.");
+      return;
+    }
+
+    setIsSavingEmailConfig(true);
+    try {
+      const payload = await updateEmailSettings(emailConfig);
+      setEmailConfig({
+        email_host: payload.settings?.email_host || emailConfig.email_host,
+        email_port: payload.settings?.email_port || emailConfig.email_port,
+        email_use_tls: payload.settings?.email_use_tls ?? emailConfig.email_use_tls,
+        email_host_user: payload.settings?.email_host_user || emailConfig.email_host_user,
+        email_host_password: payload.settings?.email_host_password || emailConfig.email_host_password,
+        default_from_email: payload.settings?.default_from_email || emailConfig.default_from_email,
+      });
+      setEmailConfigMessage(payload.message || "Email settings updated successfully.");
+    } catch (error) {
+      setEmailConfigError(error.response?.data?.detail || error.message || "Failed to update email settings.");
+    } finally {
+      setIsSavingEmailConfig(false);
+    }
+  }
+
+  async function handleSendTestEmail() {
+    setEmailConfigError("");
+    setEmailConfigMessage("");
+    setIsSendingTestEmail(true);
+
+    try {
+      const payload = await sendTestEmail({ recipientEmail: testRecipientEmail });
+      setEmailConfigMessage(payload.message || "Test email sent successfully.");
+    } catch (error) {
+      setEmailConfigError(error.response?.data?.detail || error.message || "Failed to send test email.");
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  }
+
   return (
     <>
       <AppScreen
@@ -257,6 +404,79 @@ export default function SettingsScreen() {
       >
         <View style={styles.grid}>
           <View style={styles.mainColumn}>
+            <InfoCard title="Account Email">
+              <Text style={styles.mutedText}>
+                Update the email attached to your signed-in account. This also updates the username used internally.
+              </Text>
+
+              {emailSuccessMessage ? (
+                <View style={styles.successBanner}>
+                  <Text style={styles.successText}>{emailSuccessMessage}</Text>
+                </View>
+              ) : null}
+
+              {emailErrorMessage ? (
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorText}>{emailErrorMessage}</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.formStack}>
+                <View>
+                  <Text style={styles.fieldLabel}>Current Email</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    editable={false}
+                    placeholderTextColor={colors.gray}
+                    style={[styles.input, styles.disabledInput]}
+                    value={email}
+                  />
+                  <Text style={styles.helperText}>This is the email currently attached to your signed-in account.</Text>
+                </View>
+
+                <View>
+                  <Text style={styles.fieldLabel}>New Email</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    onChangeText={setPendingEmail}
+                    placeholder="Enter your new account email"
+                    placeholderTextColor={colors.gray}
+                    style={styles.input}
+                    value={pendingEmail}
+                  />
+                </View>
+
+                <View>
+                  <Text style={styles.fieldLabel}>Current Password</Text>
+                  <TextInput
+                    onChangeText={setEmailPassword}
+                    placeholder="Enter your current password to confirm"
+                    placeholderTextColor={colors.gray}
+                    secureTextEntry
+                    style={styles.input}
+                    value={emailPassword}
+                  />
+                  <Text style={styles.helperText}>
+                    We require your current password before changing the account email.
+                  </Text>
+                </View>
+
+                <Pressable
+                  disabled={emailSubmitting}
+                  onPress={handleEmailSubmit}
+                  style={[styles.updateButton, emailSubmitting && styles.disabledButton]}
+                >
+                  {emailSubmitting ? (
+                    <ActivityIndicator color={colors.dark} />
+                  ) : (
+                    <Text style={styles.updateButtonText}>Update Account Email</Text>
+                  )}
+                </Pressable>
+              </View>
+            </InfoCard>
+
             <InfoCard title="Change Password">
               <Text style={styles.mutedText}>
                 Update your password to keep your account secure. Use a strong password with at least 8 characters.
@@ -354,6 +574,143 @@ export default function SettingsScreen() {
                 </View>
               ) : null}
             </InfoCard>
+
+            {isProgramChair ? (
+              <InfoCard title="Email Settings">
+                <Text style={styles.mutedText}>
+                  Configure the SMTP server used for faculty account emails and other system messages.
+                </Text>
+
+                {emailConfigMessage ? (
+                  <View style={styles.successBanner}>
+                    <Text style={styles.successText}>{emailConfigMessage}</Text>
+                  </View>
+                ) : null}
+
+                {emailConfigError ? (
+                  <View style={styles.errorBanner}>
+                    <Text style={styles.errorText}>{emailConfigError}</Text>
+                  </View>
+                ) : null}
+
+                <View style={styles.formStack}>
+                  <View>
+                    <Text style={styles.fieldLabel}>SMTP Host</Text>
+                    <TextInput
+                      onChangeText={(value) => handleEmailConfigChange("email_host", value)}
+                      placeholder="smtp.gmail.com"
+                      placeholderTextColor={colors.gray}
+                      style={styles.input}
+                      value={emailConfig.email_host}
+                    />
+                  </View>
+
+                  <View>
+                    <Text style={styles.fieldLabel}>SMTP Port</Text>
+                    <TextInput
+                      keyboardType="number-pad"
+                      onChangeText={(value) => handleEmailConfigChange("email_port", value)}
+                      placeholder="587"
+                      placeholderTextColor={colors.gray}
+                      style={styles.input}
+                      value={String(emailConfig.email_port || "")}
+                    />
+                  </View>
+
+                  <View>
+                    <Text style={styles.fieldLabel}>SMTP Username</Text>
+                    <TextInput
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      onChangeText={(value) => handleEmailConfigChange("email_host_user", value)}
+                      placeholder="you@example.com"
+                      placeholderTextColor={colors.gray}
+                      style={styles.input}
+                      value={emailConfig.email_host_user}
+                    />
+                  </View>
+
+                  <View>
+                    <Text style={styles.fieldLabel}>SMTP Password</Text>
+                    <TextInput
+                      onChangeText={(value) => handleEmailConfigChange("email_host_password", value)}
+                      placeholder="App password or SMTP password"
+                      placeholderTextColor={colors.gray}
+                      secureTextEntry
+                      style={styles.input}
+                      value={emailConfig.email_host_password}
+                    />
+                  </View>
+
+                  <View>
+                    <Text style={styles.fieldLabel}>Default From Email</Text>
+                    <TextInput
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      onChangeText={(value) => handleEmailConfigChange("default_from_email", value)}
+                      placeholder="noreply@assessmentsystem.com"
+                      placeholderTextColor={colors.gray}
+                      style={styles.input}
+                      value={emailConfig.default_from_email}
+                    />
+                  </View>
+
+                  <View style={styles.toggleRow}>
+                    <View style={styles.toggleCopy}>
+                      <Text style={styles.fieldLabel}>Use TLS</Text>
+                      <Text style={styles.helperText}>Keep this enabled for most modern SMTP providers.</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => handleEmailConfigChange("email_use_tls", !emailConfig.email_use_tls)}
+                      style={[styles.toggleChip, emailConfig.email_use_tls ? styles.toggleChipActive : null]}
+                    >
+                      <Text style={[styles.toggleChipText, emailConfig.email_use_tls ? styles.toggleChipTextActive : null]}>
+                        {emailConfig.email_use_tls ? "On" : "Off"}
+                      </Text>
+                    </Pressable>
+                  </View>
+
+                  <Pressable
+                    disabled={isSavingEmailConfig}
+                    onPress={handleSaveEmailSettings}
+                    style={[styles.updateButton, isSavingEmailConfig && styles.disabledButton]}
+                  >
+                    {isSavingEmailConfig ? (
+                      <ActivityIndicator color={colors.dark} />
+                    ) : (
+                      <Text style={styles.updateButtonText}>Save Email Settings</Text>
+                    )}
+                  </Pressable>
+
+                  <View style={styles.inlineSection}>
+                    <Text style={styles.sectionTitle}>Send Test Email</Text>
+                    <Text style={styles.mutedText}>
+                      Send a test message to confirm the SMTP credentials are working.
+                    </Text>
+                    <TextInput
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      onChangeText={setTestRecipientEmail}
+                      placeholder="Recipient email address"
+                      placeholderTextColor={colors.gray}
+                      style={styles.input}
+                      value={testRecipientEmail}
+                    />
+                    <Pressable
+                      disabled={isSendingTestEmail}
+                      onPress={handleSendTestEmail}
+                      style={[styles.darkButton, isSendingTestEmail && styles.disabledButton]}
+                    >
+                      {isSendingTestEmail ? (
+                        <ActivityIndicator color={colors.surface} />
+                      ) : (
+                        <Text style={styles.darkButtonText}>Send Test Email</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              </InfoCard>
+            ) : null}
           </View>
 
           <View style={styles.sideColumn}>
@@ -464,6 +821,48 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 14,
     fontWeight: "700",
+  },
+  inlineSection: {
+    borderTopColor: colors.graySoft,
+    borderTopWidth: 1,
+    gap: 10,
+    marginTop: 8,
+    paddingTop: 20,
+  },
+  toggleRow: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.graySoft,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  toggleCopy: {
+    flex: 1,
+    marginRight: 12,
+  },
+  toggleChip: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.graySoft,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  toggleChipActive: {
+    backgroundColor: colors.darkAlt,
+    borderColor: colors.darkAlt,
+  },
+  toggleChipText: {
+    color: colors.dark,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  toggleChipTextActive: {
+    color: colors.surface,
   },
   tipsList: {
     gap: 12,

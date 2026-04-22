@@ -7,7 +7,7 @@ import * as Sharing from "expo-sharing";
 import AppScreen from "../components/layout/AppScreen";
 import InfoCard from "../components/ui/InfoCard";
 import StatCard from "../components/ui/StatCard";
-import { fetchReportsDashboard } from "../services/reportsMobile";
+import { fetchReportsDashboard, saveSummaryTable } from "../services/reportsMobile";
 import { colors } from "../theme/colors";
 
 const DEFAULT_REPORT_FILTERS = {
@@ -16,6 +16,114 @@ const DEFAULT_REPORT_FILTERS = {
   section: "",
   outcome: "",
 };
+
+const DEFAULT_FORMULA = "(got80OrHigher / studentsAnswered) * distribution";
+const DEFAULT_VARIABLES = [
+  { key: "distribution", label: "Distribution (i)" },
+  { key: "studentsAnswered", label: "Students Answered" },
+  { key: "got80OrHigher", label: "Got 80% or Higher" },
+];
+
+const clone = (value) => JSON.parse(JSON.stringify(value));
+
+const num = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const targetStatement = (target) => `${target}% of the class gets satisfactory rating or higher`;
+const conclusionText = (attainment, target) =>
+  `${attainment.toFixed(2)}% of the class got satisfactory rating or higher. Thus, the level of attainment is ${attainment >= target ? "higher than" : "lower than"} the target level of ${target}%.`;
+
+function evaluateFormula(formula, variables, values) {
+  let expression = (formula || DEFAULT_FORMULA).trim();
+  (variables.length ? variables : DEFAULT_VARIABLES).forEach((variable) => {
+    expression = expression.replace(
+      new RegExp(`\\b${escapeRegExp(variable.key)}\\b`, "g"),
+      `(${num(values[variable.key])})`
+    );
+  });
+  if (/[A-Za-z_]/.test(expression) || !/^[0-9+\-*/().\s]+$/.test(expression)) {
+    return 0;
+  }
+  try {
+    const result = Function(`"use strict"; return (${expression});`)();
+    return Number.isFinite(result) ? result : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function recalculateTable(table, formula, variables) {
+  const next = clone(table);
+  const previousTotals = next.totals || {};
+  const target = num(previousTotals.target_level, 80);
+  const previousAutoConclusion = conclusionText(num(previousTotals.attainment_percent, 0), target);
+  const previousAutoTarget = targetStatement(target);
+
+  next.courses = (next.courses || []).map((course) => {
+    const actual = num(course.actual_class_size);
+    const cli = num(course.cli);
+    const indicators = (course.indicators || []).map((indicator) => {
+      const runtimeValues = {
+        distribution: num(indicator.distribution),
+        studentsAnswered: num(indicator.answered_count),
+        got80OrHigher: num(indicator.satisfactory_count),
+      };
+      variables
+        .filter((variable) => !DEFAULT_VARIABLES.some((item) => item.key === variable.key))
+        .forEach((variable) => {
+          runtimeValues[variable.key] = num(indicator[variable.key]);
+        });
+      return {
+        ...indicator,
+        weighted_value: Number(evaluateFormula(formula, variables, runtimeValues).toFixed(4)),
+      };
+    });
+    const weightedTotal = indicators.reduce((sum, indicator) => sum + num(indicator.weighted_value), 0);
+    return {
+      ...course,
+      actual_class_size: actual,
+      cli,
+      answered_count: num(course.answered_count),
+      virtual_class_size: Number((actual * cli).toFixed(4)),
+      weighted_total: Number(weightedTotal.toFixed(4)),
+      indicators,
+    };
+  });
+
+  const virtualTotal = next.courses.reduce((sum, course) => sum + num(course.virtual_class_size), 0);
+  const weightedTotal = next.courses.reduce(
+    (sum, course) => sum + (num(course.weighted_total) * num(course.cli)),
+    0
+  );
+  const actualTotal = next.courses.reduce((sum, course) => sum + num(course.actual_class_size), 0);
+  const attainment = virtualTotal > 0 ? Number(((weightedTotal / virtualTotal) * 100).toFixed(2)) : 0;
+  const nextConclusion = conclusionText(attainment, target);
+  const nextTarget = targetStatement(target);
+
+  next.totals = {
+    ...previousTotals,
+    actual_student_total: actualTotal,
+    virtual_class_size_total: Number(virtualTotal.toFixed(4)),
+    weighted_satisfactory_total: Number(weightedTotal.toFixed(4)),
+    attainment_percent: attainment,
+    target_level: target,
+    target_statement:
+      !previousTotals.target_statement || previousTotals.target_statement === previousAutoTarget
+        ? nextTarget
+        : previousTotals.target_statement,
+    conclusion:
+      !previousTotals.conclusion || previousTotals.conclusion === previousAutoConclusion
+        ? nextConclusion
+        : previousTotals.conclusion,
+  };
+  next.formula = formula;
+  next.variables = variables;
+  return next;
+}
 
 function getFlattenedReportRows(data) {
   if (!data) return [];
@@ -66,33 +174,6 @@ function formatTableNumber(value, fractionDigits = 2) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "-";
   return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(fractionDigits);
-}
-
-function buildSoIndicatorRows(table) {
-  const grouped = new Map();
-
-  (table?.courses || []).forEach((course) => {
-    (course.indicators || []).forEach((indicator, index) => {
-      const key = String(indicator.indicator_id || indicator.indicator_label || index);
-      const current = grouped.get(key) || {
-        label: indicator.indicator_label || `P${index + 1}`,
-        answeredCount: 0,
-        satisfactoryCount: 0,
-      };
-
-      current.answeredCount += Number(indicator.answered_count) || 0;
-      current.satisfactoryCount += Number(indicator.satisfactory_count) || 0;
-      grouped.set(key, current);
-    });
-  });
-
-  return Array.from(grouped.values()).map((row) => ({
-    ...row,
-    percent:
-      row.answeredCount > 0
-        ? ((row.satisfactoryCount / row.answeredCount) * 100).toFixed(2)
-        : "0.00",
-  }));
 }
 
 function buildPdfHtml({ metrics, rows }) {
@@ -184,7 +265,8 @@ export default function ProgramChairReportsScreen({ navigation }) {
   const [data, setData] = useState(null);
   const [filterPickerVisible, setFilterPickerVisible] = useState(false);
   const [activeFilterKey, setActiveFilterKey] = useState("schoolYear");
-  const [editableSoOverview, setEditableSoOverview] = useState({});
+  const [draftTables, setDraftTables] = useState({});
+  const [savingTableKey, setSavingTableKey] = useState("");
 
   async function loadReports(refresh = false) {
     try {
@@ -225,17 +307,18 @@ export default function ProgramChairReportsScreen({ navigation }) {
     const nextState = {};
     (data?.so_summary_tables || []).forEach((table, index) => {
       const tableKey = String(table.so_id || table.so_number || index);
-      nextState[tableKey] = {
-        classSize: String(table.totals?.class_size ?? ""),
-        percentCli: String(table.totals?.percent_gu ?? ""),
-        studentsAnswered: String(table.totals?.students_assessed ?? ""),
-        virtualClassSize: String(table.totals?.virtual_class_size ?? table.totals?.class_size ?? ""),
-        program: String(table.program ?? ""),
-        sourceAssessment: formatListValue(table.source_assessment || table.sources),
-        timeCollection: String(table.time_data_collection || filters.schoolYear || ""),
-      };
+      nextState[tableKey] = recalculateTable(
+        {
+          ...table,
+          program: table.program ?? "",
+          source_assessment: formatListValue(table.source_assessment || table.sources),
+          time_of_data_collection: table.time_of_data_collection || table.time_data_collection || filters.schoolYear || "",
+        },
+        table.formula || DEFAULT_FORMULA,
+        table.variables?.length ? table.variables : DEFAULT_VARIABLES
+      );
     });
-    setEditableSoOverview(nextState);
+    setDraftTables(nextState);
   }, [data, filters.schoolYear]);
 
   const metricCards = useMemo(() => {
@@ -344,34 +427,60 @@ export default function ProgramChairReportsScreen({ navigation }) {
     setFilters(DEFAULT_REPORT_FILTERS);
   }
 
-  function handleSoOverviewEdit(tableKey, field, value) {
-    setEditableSoOverview((prev) => ({
-      ...prev,
-      [tableKey]: {
-        ...(prev[tableKey] || {}),
-        [field]: value,
-      },
-    }));
+  function updateDraftTable(tableKey, updater) {
+    setDraftTables((prev) => {
+      const current = prev[tableKey];
+      if (!current) return prev;
+      const nextTable = typeof updater === "function" ? updater(clone(current)) : updater;
+      return {
+        ...prev,
+        [tableKey]: recalculateTable(
+          nextTable,
+          nextTable.formula || DEFAULT_FORMULA,
+          nextTable.variables?.length ? nextTable.variables : DEFAULT_VARIABLES
+        ),
+      };
+    });
   }
 
   function handleSoTableReset(table, tableKey) {
-    setEditableSoOverview((prev) => ({
+    setDraftTables((prev) => ({
       ...prev,
-      [tableKey]: {
-        ...(prev[tableKey] || {}),
-        classSize: String(table.totals?.class_size ?? ""),
-        percentCli: String(table.totals?.percent_gu ?? ""),
-        studentsAnswered: String(table.totals?.students_assessed ?? ""),
-        virtualClassSize: String(table.totals?.virtual_class_size ?? table.totals?.class_size ?? ""),
-        program: String(table.program ?? ""),
-        sourceAssessment: formatListValue(table.source_assessment || table.sources),
-        timeCollection: String(table.time_data_collection || filters.schoolYear || ""),
-      },
+      [tableKey]: recalculateTable(
+        {
+          ...table,
+          program: table.program ?? "",
+          source_assessment: formatListValue(table.source_assessment || table.sources),
+          time_of_data_collection: table.time_of_data_collection || table.time_data_collection || filters.schoolYear || "",
+        },
+        table.formula || DEFAULT_FORMULA,
+        table.variables?.length ? table.variables : DEFAULT_VARIABLES
+      ),
     }));
   }
 
-  function handleSoTableSave() {
-    Alert.alert("Saved", "SO-level edits are saved locally on this mobile view.");
+  async function handleSoTableSave(tableKey) {
+    const draftTable = draftTables[tableKey];
+    if (!draftTable) return;
+
+    try {
+      setSavingTableKey(tableKey);
+      await saveSummaryTable({
+        so_id: draftTable.so_id,
+        school_year: filters.schoolYear || "",
+        course_id: filters.course || null,
+        section_id: filters.section || null,
+        formula: draftTable.formula || DEFAULT_FORMULA,
+        variables: draftTable.variables?.length ? draftTable.variables : DEFAULT_VARIABLES,
+        table_data: draftTable,
+      });
+      Alert.alert("Saved", `SO ${draftTable.so_number} summary changes were saved.`);
+      await loadReports(true);
+    } catch (saveError) {
+      Alert.alert("Save failed", saveError.response?.data?.detail || saveError.message || "Unable to save summary changes.");
+    } finally {
+      setSavingTableKey("");
+    }
   }
 
   function handleExportPdf() {
@@ -521,26 +630,32 @@ export default function ProgramChairReportsScreen({ navigation }) {
                     <View key={`table-${table.so_id}`} style={styles.assessmentResultsBlock}>
                       {(() => {
                         const tableKey = String(table.so_id || table.so_number || "");
-                        const editable = editableSoOverview[tableKey] || {};
-                        const courseRows = table.courses || [];
-                        const indicatorRows = buildSoIndicatorRows(table);
+                        const draftTable = draftTables[tableKey] || table;
+                        const courseRows = draftTable.courses || [];
+                        const customVariables = (draftTable.variables || DEFAULT_VARIABLES).filter(
+                          (variable) => !DEFAULT_VARIABLES.some((item) => item.key === variable.key)
+                        );
+                        const getIndicatorKey = (indicator, index) =>
+                          String(indicator.basis_key || indicator.indicator_id || indicator.indicator_label || index);
                         return (
                           <>
                       <View style={styles.assessmentTopRow}>
-                        <Text style={styles.assessmentPill}>SO {table.so_number} Summary</Text>
+                        <Text style={styles.assessmentPill}>SO {draftTable.so_number} Summary</Text>
                         <View style={styles.assessmentTopActions}>
                           <Pressable onPress={() => handleSoTableReset(table, tableKey)} style={styles.assessmentMiniButton}>
                             <Text style={styles.assessmentMiniButtonText}>Reset</Text>
                           </Pressable>
-                          <Pressable onPress={handleSoTableSave} style={[styles.assessmentMiniButton, styles.assessmentMiniButtonPrimary]}>
-                            <Text style={[styles.assessmentMiniButtonText, styles.assessmentMiniButtonPrimaryText]}>Save</Text>
+                          <Pressable onPress={() => handleSoTableSave(tableKey)} style={[styles.assessmentMiniButton, styles.assessmentMiniButtonPrimary]}>
+                            <Text style={[styles.assessmentMiniButtonText, styles.assessmentMiniButtonPrimaryText]}>
+                              {savingTableKey === tableKey ? "Saving..." : "Save"}
+                            </Text>
                           </Pressable>
                         </View>
                       </View>
 
                       <View style={styles.assessmentHeader}>
                         <Text style={styles.assessmentTitle}>Summary Result of Direct Assessment</Text>
-                        <Text style={styles.assessmentSubtitle}>SO {table.so_number}: {table.so_title}</Text>
+                        <Text style={styles.assessmentSubtitle}>SO {draftTable.so_number}: {draftTable.so_title}</Text>
                       </View>
 
                       <View style={styles.assessmentMetaGrid}>
@@ -548,16 +663,16 @@ export default function ProgramChairReportsScreen({ navigation }) {
                           <Text style={styles.assessmentMetaLabel}>Program</Text>
                           <TextInput
                             style={styles.assessmentMetaInput}
-                            value={editable.program}
-                            onChangeText={(value) => handleSoOverviewEdit(tableKey, "program", value)}
+                            value={draftTable.program ?? ""}
+                            onChangeText={(value) => updateDraftTable(tableKey, (current) => ({ ...current, program: value }))}
                           />
                         </View>
                         <View style={styles.assessmentMetaCol}>
                           <Text style={styles.assessmentMetaLabel}>Source of Assessment</Text>
                           <TextInput
                             style={styles.assessmentMetaInput}
-                            value={editable.sourceAssessment}
-                            onChangeText={(value) => handleSoOverviewEdit(tableKey, "sourceAssessment", value)}
+                            value={draftTable.source_assessment ?? ""}
+                            onChangeText={(value) => updateDraftTable(tableKey, (current) => ({ ...current, source_assessment: value }))}
                           />
                         </View>
                       </View>
@@ -567,8 +682,8 @@ export default function ProgramChairReportsScreen({ navigation }) {
                           <Text style={styles.assessmentMetaLabel}>Time of Data Collection</Text>
                           <TextInput
                             style={styles.assessmentMetaInput}
-                            value={editable.timeCollection}
-                            onChangeText={(value) => handleSoOverviewEdit(tableKey, "timeCollection", value)}
+                            value={draftTable.time_of_data_collection ?? ""}
+                            onChangeText={(value) => updateDraftTable(tableKey, (current) => ({ ...current, time_of_data_collection: value }))}
                           />
                         </View>
                       </View>
@@ -578,7 +693,7 @@ export default function ProgramChairReportsScreen({ navigation }) {
                         <View style={styles.assessmentTable}>
                           <View style={styles.assessmentTableRow}>
                             <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Course</Text>
-                            <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Class Size</Text>
+                            <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Actual Class Size</Text>
                             <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>% of CLI</Text>
                             <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Students Answered</Text>
                             <Text style={[styles.assessmentTableCell, styles.assessmentTableHeader]}>Virtual Class Size</Text>
@@ -597,7 +712,7 @@ export default function ProgramChairReportsScreen({ navigation }) {
                                   {formatTableNumber(course.actual_class_size, 0)}
                                 </Text>
                                 <Text style={styles.assessmentTableCell}>
-                                  {formatTableNumber((Number(course.cli) || 0) * 100)}%
+                                  {formatTableNumber(course.cli, 4)}
                                 </Text>
                                 <Text style={styles.assessmentTableCell}>
                                   {formatTableNumber(course.answered_count, 0)}
@@ -608,59 +723,216 @@ export default function ProgramChairReportsScreen({ navigation }) {
                               </View>
                             ))
                           )}
+                          <View style={styles.assessmentTableRow}>
+                            <Text style={[styles.assessmentTableCell, styles.assessmentTableFooterLabel]}>Total Virtual Class Size</Text>
+                            <Text style={styles.assessmentTableCell} />
+                            <Text style={styles.assessmentTableCell} />
+                            <Text style={styles.assessmentTableCell} />
+                            <Text style={[styles.assessmentTableCell, styles.assessmentTableFooterValue]}>
+                              {formatTableNumber(draftTable.totals?.virtual_class_size_total)}
+                            </Text>
+                          </View>
                         </View>
                       </View>
 
                       <View style={styles.assessmentSection}>
-                        <Text style={styles.assessmentSectionLabel}>Program Objectives Performance</Text>
-                        <View style={styles.assessmentIndicators}>
-                          <View style={styles.assessmentIndicatorRow}>
-                            <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableHeader]}>Indicator</Text>
-                            <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableHeader]}>Met</Text>
-                            <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableHeader]}>%</Text>
-                          </View>
-                          {indicatorRows.length === 0 ? (
-                            <View style={styles.assessmentIndicatorRow}>
-                              <Text style={styles.assessmentTableEmpty}>No indicator performance data available.</Text>
-                            </View>
-                          ) : (
-                            indicatorRows.map((indicator) => (
-                              <View key={`ind-${table.so_id}-${indicator.label}`} style={styles.assessmentIndicatorRow}>
-                                <Text style={styles.assessmentIndicatorCell}>{indicator.label}</Text>
-                                <Text style={styles.assessmentIndicatorCell}>{indicator.satisfactoryCount}</Text>
-                                <Text style={styles.assessmentIndicatorCell}>{indicator.percent}%</Text>
+                        <Text style={styles.assessmentSectionLabel}>Indicator Breakdown</Text>
+                        {courseRows.map((course) => (
+                          <View key={`course-indicators-${draftTable.so_id}-${course.course_id}`} style={styles.courseIndicatorBlock}>
+                            <Text style={styles.courseIndicatorTitle}>{course.course_name}</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                              <View style={styles.assessmentIndicatorsWide}>
+                                <View style={styles.assessmentIndicatorRow}>
+                                  <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableHeader]}>Indicator</Text>
+                                  <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableHeader]}>Distribution</Text>
+                                  <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableHeader]}>Answered</Text>
+                                  <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableHeader]}>80% or Higher</Text>
+                                  {customVariables.map((variable) => (
+                                    <Text key={`${course.course_id}-${variable.key}`} style={[styles.assessmentIndicatorCell, styles.assessmentTableHeader]}>
+                                      {variable.label}
+                                    </Text>
+                                  ))}
+                                  <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableHeader]}>Pij</Text>
+                                </View>
+                                {(course.indicators || []).map((indicator, index) => (
+                                  <View key={`ind-${draftTable.so_id}-${course.course_id}-${getIndicatorKey(indicator, index)}`} style={styles.assessmentIndicatorRow}>
+                                    <View style={styles.assessmentTableInputCell}>
+                                      <TextInput
+                                        style={styles.assessmentTableInput}
+                                        value={String(indicator.indicator_label ?? "")}
+                                        onChangeText={(value) =>
+                                          updateDraftTable(tableKey, (current) => ({
+                                            ...current,
+                                            courses: current.courses.map((item) =>
+                                              item.course_id === course.course_id
+                                                ? {
+                                                    ...item,
+                                                    indicators: item.indicators.map((row, rowIndex) =>
+                                                      getIndicatorKey(row, rowIndex) === getIndicatorKey(indicator, index)
+                                                        ? { ...row, indicator_label: value }
+                                                        : row
+                                                    ),
+                                                  }
+                                                : item
+                                            ),
+                                          }))
+                                        }
+                                      />
+                                    </View>
+                                    <View style={styles.assessmentTableInputCell}>
+                                      <TextInput
+                                        style={styles.assessmentTableInput}
+                                        value={String(indicator.distribution ?? "")}
+                                        keyboardType="decimal-pad"
+                                        onChangeText={(value) =>
+                                          updateDraftTable(tableKey, (current) => ({
+                                            ...current,
+                                            courses: current.courses.map((item) =>
+                                              item.course_id === course.course_id
+                                                ? {
+                                                    ...item,
+                                                    indicators: item.indicators.map((row, rowIndex) =>
+                                                      getIndicatorKey(row, rowIndex) === getIndicatorKey(indicator, index)
+                                                        ? { ...row, distribution: value }
+                                                        : row
+                                                    ),
+                                                  }
+                                                : item
+                                            ),
+                                          }))
+                                        }
+                                      />
+                                    </View>
+                                    <View style={styles.assessmentTableInputCell}>
+                                      <TextInput
+                                        style={styles.assessmentTableInput}
+                                        value={String(indicator.answered_count ?? "")}
+                                        keyboardType="number-pad"
+                                        onChangeText={(value) =>
+                                          updateDraftTable(tableKey, (current) => ({
+                                            ...current,
+                                            courses: current.courses.map((item) =>
+                                              item.course_id === course.course_id
+                                                ? {
+                                                    ...item,
+                                                    indicators: item.indicators.map((row, rowIndex) =>
+                                                      getIndicatorKey(row, rowIndex) === getIndicatorKey(indicator, index)
+                                                        ? { ...row, answered_count: value }
+                                                        : row
+                                                    ),
+                                                  }
+                                                : item
+                                            ),
+                                          }))
+                                        }
+                                      />
+                                    </View>
+                                    <View style={styles.assessmentTableInputCell}>
+                                      <TextInput
+                                        style={styles.assessmentTableInput}
+                                        value={String(indicator.satisfactory_count ?? "")}
+                                        keyboardType="number-pad"
+                                        onChangeText={(value) =>
+                                          updateDraftTable(tableKey, (current) => ({
+                                            ...current,
+                                            courses: current.courses.map((item) =>
+                                              item.course_id === course.course_id
+                                                ? {
+                                                    ...item,
+                                                    indicators: item.indicators.map((row, rowIndex) =>
+                                                      getIndicatorKey(row, rowIndex) === getIndicatorKey(indicator, index)
+                                                        ? { ...row, satisfactory_count: value }
+                                                        : row
+                                                    ),
+                                                  }
+                                                : item
+                                            ),
+                                          }))
+                                        }
+                                      />
+                                    </View>
+                                    {customVariables.map((variable) => (
+                                      <View key={`${course.course_id}-${getIndicatorKey(indicator, index)}-${variable.key}`} style={styles.assessmentTableInputCell}>
+                                        <TextInput
+                                          style={styles.assessmentTableInput}
+                                          value={String(indicator[variable.key] ?? 0)}
+                                          keyboardType="decimal-pad"
+                                          onChangeText={(value) =>
+                                            updateDraftTable(tableKey, (current) => ({
+                                              ...current,
+                                              courses: current.courses.map((item) =>
+                                                item.course_id === course.course_id
+                                                  ? {
+                                                      ...item,
+                                                      indicators: item.indicators.map((row, rowIndex) =>
+                                                        getIndicatorKey(row, rowIndex) === getIndicatorKey(indicator, index)
+                                                          ? { ...row, [variable.key]: value }
+                                                          : row
+                                                      ),
+                                                    }
+                                                  : item
+                                              ),
+                                            }))
+                                          }
+                                        />
+                                      </View>
+                                    ))}
+                                    <Text style={[styles.assessmentIndicatorCell, styles.assessmentComputedCell]}>
+                                      {formatTableNumber(indicator.weighted_value, 4)}
+                                    </Text>
+                                  </View>
+                                ))}
+                                <View style={styles.assessmentIndicatorRow}>
+                                  <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableFooterLabel, { flex: 4 + customVariables.length }]}>
+                                    Course Weighted Total
+                                  </Text>
+                                  <Text style={[styles.assessmentIndicatorCell, styles.assessmentTableFooterValue]}>
+                                    {formatTableNumber(course.weighted_total, 4)}
+                                  </Text>
+                                </View>
                               </View>
-                            ))
-                          )}
-                        </View>
+                            </ScrollView>
+                          </View>
+                        ))}
                       </View>
 
                       <View style={styles.assessmentSection}>
                         <Text style={styles.assessmentSectionLabel}>Attainment Summary</Text>
                         <View style={styles.attainmentBox}>
                           <View style={styles.attainmentRow}>
-                            <Text style={styles.attainmentLabel}>Attainment:</Text>
-                            <Text style={styles.attainmentValue}>{table.totals?.attainment_percent ?? 0}%</Text>
+                            <Text style={styles.attainmentLabel}>% of the class who got satisfactory rating or higher</Text>
+                            <Text style={styles.attainmentValue}>{draftTable.totals?.attainment_percent ?? 0}%</Text>
                           </View>
                           <View style={styles.attainmentRow}>
-                            <Text style={styles.attainmentLabel}>Target Level:</Text>
-                            <Text style={styles.attainmentValue}>{table.totals?.target_level ?? 80}%</Text>
-                          </View>
-                          <View style={styles.attainmentRow}>
-                            <Text style={styles.attainmentLabel}>Status:</Text>
-                            <Text style={[styles.attainmentValue, (table.totals?.attainment_percent ?? 0) >= (table.totals?.target_level ?? 80) ? styles.attainmentMet : styles.attainmentNotMet]}>
-                              {(table.totals?.attainment_percent ?? 0) >= (table.totals?.target_level ?? 80) ? "Met" : "Below Target"}
-                            </Text>
+                            <Text style={styles.attainmentLabel}>Target Level of attainment</Text>
+                            <TextInput
+                              style={[styles.assessmentMetaInput, styles.attainmentInput]}
+                              value={String(draftTable.totals?.target_statement ?? targetStatement(draftTable.totals?.target_level ?? 80))}
+                              onChangeText={(value) =>
+                                updateDraftTable(tableKey, (current) => ({
+                                  ...current,
+                                  totals: { ...current.totals, target_statement: value },
+                                }))
+                              }
+                            />
                           </View>
                         </View>
                       </View>
 
-                      {table.totals?.conclusion ? (
-                        <View style={styles.assessmentSection}>
-                          <Text style={styles.assessmentSectionLabel}>Conclusion</Text>
-                          <Text style={styles.conclusionText}>{table.totals.conclusion}</Text>
-                        </View>
-                      ) : null}
+                      <View style={styles.assessmentSection}>
+                        <Text style={styles.assessmentSectionLabel}>Conclusion</Text>
+                        <TextInput
+                          style={[styles.assessmentMetaInput, styles.conclusionInput]}
+                          multiline
+                          value={String(draftTable.totals?.conclusion ?? "")}
+                          onChangeText={(value) =>
+                            updateDraftTable(tableKey, (current) => ({
+                              ...current,
+                              totals: { ...current.totals, conclusion: value },
+                            }))
+                          }
+                        />
+                      </View>
                           </>
                         );
                       })()}
@@ -1382,6 +1654,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
   },
+  assessmentIndicatorsWide: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.graySoft,
+    borderRadius: 8,
+    borderWidth: 1,
+    minWidth: 760,
+    overflow: "hidden",
+  },
   assessmentIndicatorRow: {
     borderBottomColor: colors.graySoft,
     borderBottomWidth: 1,
@@ -1395,6 +1675,27 @@ const styles = StyleSheet.create({
     padding: 10,
     textAlign: "center",
   },
+  assessmentComputedCell: {
+    fontWeight: "800",
+  },
+  assessmentTableFooterLabel: {
+    color: colors.dark,
+    fontWeight: "800",
+    textAlign: "right",
+  },
+  assessmentTableFooterValue: {
+    color: colors.dark,
+    fontWeight: "800",
+  },
+  courseIndicatorBlock: {
+    marginBottom: 12,
+  },
+  courseIndicatorTitle: {
+    color: colors.dark,
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
   attainmentBox: {
     backgroundColor: colors.surfaceMuted,
     borderColor: colors.graySoft,
@@ -1404,8 +1705,7 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   attainmentRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    gap: 8,
     paddingVertical: 6,
   },
   attainmentLabel: {
@@ -1418,11 +1718,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
   },
+  attainmentInput: {
+    marginTop: 2,
+  },
   attainmentMet: {
     color: colors.success,
   },
   attainmentNotMet: {
     color: colors.danger,
+  },
+  conclusionInput: {
+    minHeight: 88,
+    textAlignVertical: "top",
   },
   conclusionText: {
     color: colors.dark,
