@@ -14,7 +14,7 @@ const StatCard = ({ icon: Icon, label, value, subtext, iconColor }) => (
 );
 
 const CourseStats = ({ courses, studentOutcomes = [] }) => {
-  const totalCourses = courses.length || 1; // Avoid division by zero
+  const totalCourses = courses.length;
   const mappedCourses = courses.filter(c => c.mappedSOs.length > 0).length;
   
   // Use actual count of student outcomes, fallback to 7 if none available
@@ -23,6 +23,9 @@ const CourseStats = ({ courses, studentOutcomes = [] }) => {
   const actualMappings = courses.reduce((acc, c) => acc + c.mappedSOs.length, 0);
   const avgSOCoverage = totalPossibleMappings > 0 
     ? Math.round((actualMappings / totalPossibleMappings) * 100)
+    : 0;
+  const mappedCoverage = totalCourses > 0
+    ? Math.round((mappedCourses / totalCourses) * 100)
     : 0;
 
   return (
@@ -38,7 +41,7 @@ const CourseStats = ({ courses, studentOutcomes = [] }) => {
         icon={Link}
         label="MAPPED TO SOs"
         value={mappedCourses}
-        subtext={`${Math.round((mappedCourses / totalCourses) * 100)}% coverage`}
+        subtext={`${mappedCoverage}% coverage`}
         iconColor="text-primary"
       />
       <StatCard
