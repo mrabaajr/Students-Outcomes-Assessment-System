@@ -112,6 +112,18 @@ function TextInput({ value, onChange, type = "text", multiline = false }) {
   return <input type={type} className={className} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />;
 }
 
+function ReadOnlyCell({ value, align = "left", strong = false }) {
+  return (
+    <div
+      className={`w-full rounded-md border border-[#E5DED0] bg-white px-3 py-2 text-sm text-[#231F20] ${
+        align === "center" ? "text-center" : "text-left"
+      } ${strong ? "font-semibold" : ""}`}
+    >
+      {value ?? "-"}
+    </div>
+  );
+}
+
 function SOSummaryCard({ table, onSaveTable, schoolYearOptions = [] }) {
   const uniqueSchoolYearOptions = useMemo(
     () => [...new Set((schoolYearOptions || []).filter(Boolean))],
@@ -233,11 +245,11 @@ function SOSummaryCard({ table, onSaveTable, schoolYearOptions = [] }) {
             <tbody>
               {draftTable.courses.map((course) => (
                 <tr key={course.course_id} className="border-t border-[#F1EADF]">
-                  <td className="px-4 py-3"><TextInput value={course.course_name} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, course_name: value } : item) }))} /></td>
-                  <td className="px-4 py-3"><TextInput type="number" value={course.actual_class_size} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, actual_class_size: value } : item) }))} /></td>
-                  <td className="px-4 py-3"><TextInput value={course.cli} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, cli: value } : item) }))} /></td>
-                  <td className="px-4 py-3"><TextInput type="number" value={course.answered_count} onChange={(value) => updateDraft((current) => ({ ...current, courses: current.courses.map((item) => item.course_id === course.course_id ? { ...item, answered_count: value } : item) }))} /></td>
-                  <td className="px-4 py-3 text-center font-semibold">{fmt(course.virtual_class_size)}</td>
+                  <td className="px-4 py-3"><ReadOnlyCell value={course.course_name} /></td>
+                  <td className="px-4 py-3"><ReadOnlyCell value={course.actual_class_size} align="center" /></td>
+                  <td className="px-4 py-3"><ReadOnlyCell value={fmt(course.cli)} align="center" /></td>
+                  <td className="px-4 py-3"><ReadOnlyCell value={course.answered_count} align="center" /></td>
+                  <td className="px-4 py-3"><ReadOnlyCell value={fmt(course.virtual_class_size)} align="center" strong /></td>
                 </tr>
               ))}
             </tbody>
