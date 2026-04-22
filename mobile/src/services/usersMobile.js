@@ -31,6 +31,32 @@ export async function changePassword(payload) {
   return response.data;
 }
 
+export async function changeEmail(payload) {
+  const response = await apiClient.post("/users/change_email/", {
+    new_email: payload.newEmail,
+    current_password: payload.currentPassword,
+  });
+
+  return response.data;
+}
+
+export async function fetchEmailSettings() {
+  const response = await apiClient.get("/users/email_settings/");
+  return response.data;
+}
+
+export async function updateEmailSettings(payload) {
+  const response = await apiClient.post("/users/email_settings/", payload);
+  return response.data;
+}
+
+export async function sendTestEmail(payload) {
+  const response = await apiClient.post("/users/test_email_settings/", {
+    recipient_email: payload.recipientEmail,
+  });
+  return response.data;
+}
+
 export async function updateFacultyAccount(userId, payload) {
   const response = await apiClient.patch(`/users/${userId}/`, {
     email: payload.email,

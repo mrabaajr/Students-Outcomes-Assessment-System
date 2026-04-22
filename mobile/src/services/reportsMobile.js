@@ -10,3 +10,8 @@ export async function fetchReportsDashboard(filters = {}) {
   const response = await apiClient.get("/reports/dashboard/", { params });
   return response.data;
 }
+
+export async function saveSummaryTable(payload) {
+  const response = await apiClient.post("/reports/save_summary_table/", payload);
+  return response.data;
+}
