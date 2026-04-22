@@ -903,7 +903,8 @@ export default function SOAssessment() {
       }
 
       const soMap = new Map(studentOutcomes.map((outcome) => [outcome.id, outcome]));
-      const rows = [];
+      const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+      const csvLines = [];
 
       for (const section of filteredSections) {
         for (const soId of relevantSOIds) {
@@ -919,104 +920,75 @@ export default function SOAssessment() {
           });
 
           const gradesByStudent = response.data.grades || {};
-          const basisLabels = {};
+          const assessmentColumns = [];
 
           (soRecord.performanceIndicators || []).forEach((pi) => {
             if (pi.performanceCriteria && pi.performanceCriteria.length > 0) {
               pi.performanceCriteria.forEach((pc) => {
-                basisLabels[`criterion:${pc.id}`] = `${pi.name} - ${pc.name}`;
+                assessmentColumns.push({
+                  key: `criterion:${pc.id}`,
+                  label: `${pi.name} - ${pc.name}`,
+                });
               });
             } else {
-              basisLabels[`indicator:${pi.id}`] = pi.name;
+              assessmentColumns.push({
+                key: `indicator:${pi.id}`,
+                label: pi.name,
+              });
             }
           });
 
+          csvLines.push(
+            ["Course Code", section.courseCode],
+            ["Course Name", section.courseName],
+            ["Section", section.name],
+            ["Semester", section.semester || ""],
+            ["School Year", section.schoolYear || ""],
+            ["Faculty", section.facultyName || "No faculty assigned"],
+            ["Curriculum", section.curriculum || ""],
+            ["SO Code", soRecord.code],
+            ["SO Title", soRecord.title],
+            []
+          );
+
+          const headers = [
+            "Student ID",
+            "Student Name",
+            "Year Level",
+            ...assessmentColumns.map((column) => column.label),
+            "Average",
+            "Status",
+          ];
+
+          csvLines.push(headers);
+
           for (const student of section.students || []) {
             const studentGrades = gradesByStudent[String(student.id)] || {};
-            const gradeEntries = Object.entries(studentGrades);
+            const scores = assessmentColumns
+              .map((column) => studentGrades[column.key])
+              .filter((score) => score !== null && score !== undefined && score !== "");
 
-            if (gradeEntries.length === 0) {
-              rows.push({
-                courseCode: section.courseCode,
-                courseName: section.courseName,
-                section: section.name,
-                semester: section.semester || "",
-                schoolYear: section.schoolYear || "",
-                faculty: section.facultyName || "No faculty assigned",
-                curriculum: section.curriculum || "",
-                soCode: soRecord.code,
-                soTitle: soRecord.title,
-                studentId: student.studentId,
-                studentName: student.name,
-                yearLevel: student.yearLevel || "",
-                basis: "",
-                score: "",
-                status: "Not Yet Assessed",
-              });
-              continue;
-            }
+            const average = scores.length
+              ? (scores.reduce((sum, score) => sum + Number(score), 0) / scores.length).toFixed(2)
+              : "";
 
-            gradeEntries.forEach(([basisKey, score]) => {
-              rows.push({
-                courseCode: section.courseCode,
-                courseName: section.courseName,
-                section: section.name,
-                semester: section.semester || "",
-                schoolYear: section.schoolYear || "",
-                faculty: section.facultyName || "No faculty assigned",
-                curriculum: section.curriculum || "",
-                soCode: soRecord.code,
-                soTitle: soRecord.title,
-                studentId: student.studentId,
-                studentName: student.name,
-                yearLevel: student.yearLevel || "",
-                basis: basisLabels[basisKey] || basisKey,
-                score: score ?? "",
-                status: "Assessed",
-              });
-            });
+            csvLines.push([
+              student.studentId,
+              student.name,
+              student.yearLevel || "",
+              ...assessmentColumns.map((column) => studentGrades[column.key] ?? ""),
+              average,
+              scores.length > 0 ? "Assessed" : "Not Yet Assessed",
+            ]);
           }
+
+          csvLines.push([]);
         }
       }
 
-      const headers = [
-        "Course Code",
-        "Course Name",
-        "Section",
-        "Semester",
-        "School Year",
-        "Faculty",
-        "Curriculum",
-        "SO Code",
-        "SO Title",
-        "Student ID",
-        "Student Name",
-        "Year Level",
-        "Basis",
-        "Score",
-        "Status",
-      ];
-      const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-      const csv = [
-        headers.join(","),
-        ...rows.map((row) => [
-          row.courseCode,
-          row.courseName,
-          row.section,
-          row.semester,
-          row.schoolYear,
-          row.faculty,
-          row.curriculum,
-          row.soCode,
-          row.soTitle,
-          row.studentId,
-          row.studentName,
-          row.yearLevel,
-          row.basis,
-          row.score,
-          row.status,
-        ].map(csvEscape).join(",")),
-      ].join("\r\n");
+      const csv = csvLines
+        .map((line) => line.map(csvEscape).join(","))
+        .join("\r\n");
 
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = window.URL.createObjectURL(blob);
