@@ -388,7 +388,7 @@ class ReportViewSet(ViewSet):
                 cli = round(1 / max(len(course_groups), 1), 4)
                 virtual_class_size = actual_class_size * cli
                 virtual_class_size_total += virtual_class_size
-                weighted_satisfactory_total += course_weighted_satisfactory
+                weighted_satisfactory_total += course_weighted_satisfactory * cli
                 actual_student_total += actual_class_size
                 course_virtual_class_size += virtual_class_size
 
