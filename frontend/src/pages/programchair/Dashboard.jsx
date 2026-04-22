@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/dashboard/Navbar";
 import Footer from "../../components/dashboard/Footer";
+import AuditLogDialog from "@/components/dashboard/AuditLogDialog";
 import {
   Plus,
   FileText,
@@ -80,6 +81,7 @@ const Dashboard = () => {
   const [selectedSchoolYear, setSelectedSchoolYear] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isAuditLogOpen, setIsAuditLogOpen] = useState(false);
 
   const fetchDashboardData = useCallback(async (schoolYear = "") => {
     setIsLoading(true);
@@ -345,7 +347,15 @@ const Dashboard = () => {
                 </div>
 
                 <div className="glass-card p-6">
-                  <h2 className="text-lg font-semibold text-[#231F20] mb-6">Recent Activity</h2>
+                  <div className="mb-6 flex items-center justify-between gap-3">
+                    <h2 className="text-lg font-semibold text-[#231F20]">Recent Activity</h2>
+                    <button
+                      onClick={() => setIsAuditLogOpen(true)}
+                      className="rounded-lg border border-[#D1D5DB] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#231F20] transition hover:border-[#FFC20E] hover:bg-[#FFF8DB]"
+                    >
+                      View Audit Log
+                    </button>
+                  </div>
 
                   {activities.length > 0 ? (
                     <div className="space-y-4">
@@ -380,6 +390,7 @@ const Dashboard = () => {
       </main>
 
       <Footer />
+      <AuditLogDialog open={isAuditLogOpen} onClose={() => setIsAuditLogOpen(false)} />
     </div>
   );
 };

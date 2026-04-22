@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework.routers import DefaultRouter
 
-from users.views import UserViewSet
+from users.views import AuditLogViewSet, UserViewSet
 from so.views import StudentOutcomeViewSet, PerformanceIndicatorViewSet
 from courses.views import (CourseSOMappingViewSet, CurriculumViewSet, CourseViewSet, SchoolYearViewSet)
 from classess.views import (StudentViewSet,SectionViewSet,EnrollmentViewSet,)
@@ -29,6 +29,7 @@ def root_view(request):
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
+router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'student-outcomes', StudentOutcomeViewSet, basename='student-outcome')
 router.register(r'performance-indicators', PerformanceIndicatorViewSet, basename='performance-indicator')
 

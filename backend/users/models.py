@@ -26,3 +26,37 @@ class User(AbstractUser):
     
     def __str__(self):
         return self.email
+
+
+class AuditLog(models.Model):
+    ACTION_CHOICES = (
+        ("login", "Login"),
+        ("create", "Create"),
+        ("update", "Update"),
+        ("delete", "Delete"),
+        ("import", "Import"),
+        ("save", "Save"),
+        ("security", "Security"),
+    )
+
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_logs",
+    )
+    actor_name = models.CharField(max_length=255, blank=True)
+    actor_role = models.CharField(max_length=20, blank=True)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    target_type = models.CharField(max_length=100)
+    target_name = models.CharField(max_length=255)
+    description = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.actor_name or 'Unknown user'} {self.action} {self.target_type}"

@@ -32,6 +32,11 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api";
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("accessToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 const soIconList = [Lightbulb, PenTool, MessageSquare, Scale, UsersRound, FlaskConical];
 const getSOIcon = (index) => soIconList[(index >= 0 ? index : 0) % soIconList.length];
 
@@ -98,6 +103,327 @@ export function AssessStudentsModal({
     sectionStatus: null,
   });
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [autoSaveError, setAutoSaveError] = useState("");
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const autoSaveTimeoutRef = useRef(null);
+  const latestStudentsRef = useRef([]);
+  const lastSavedSignatureRef = useRef("");
+
+  const getActiveSOId = (selectedSOOverride = selectedAssessmentSO) => {
+    if (selectedSOOverride?.id) {
+      return selectedSOOverride.id;
+    }
+
+    const normalizedSelectedSOId = selectedSOIds.length > 0
+      ? parseInt(selectedSOIds[0], 10)
+      : null;
+
+    return Number.isInteger(normalizedSelectedSOId) ? normalizedSelectedSOId : null;
+  };
+
+  const getDraftStorageKey = (sectionId, soId, schoolYear) => {
+    if (!sectionId || !soId) {
+      return null;
+    }
+
+    return `assessment-draft:${sectionId}:${soId}:${schoolYear || "unknown"}`;
+  };
+
+  const readDraftGrades = (sectionId, soId, schoolYear) => {
+    const storageKey = getDraftStorageKey(sectionId, soId, schoolYear);
+    if (!storageKey) {
+      return null;
+    }
+
+    try {
+      const rawDraft = window.localStorage.getItem(storageKey);
+      if (!rawDraft) {
+        return null;
+      }
+
+      const parsedDraft = JSON.parse(rawDraft);
+      return parsedDraft?.gradesByStudent || null;
+    } catch (error) {
+      console.warn("Failed to read local assessment draft:", error);
+      return null;
+    }
+  };
+
+  const writeDraftGrades = (sectionId, soId, schoolYear, studentList) => {
+    const storageKey = getDraftStorageKey(sectionId, soId, schoolYear);
+    if (!storageKey) {
+      return;
+    }
+
+    try {
+      const gradesByStudent = studentList.reduce((accumulator, student) => {
+        accumulator[student.id] = student.grades || {};
+        return accumulator;
+      }, {});
+
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          savedAt: new Date().toISOString(),
+          gradesByStudent,
+        })
+      );
+    } catch (error) {
+      console.warn("Failed to write local assessment draft:", error);
+    }
+  };
+
+  const clearDraftGrades = (sectionId, soId, schoolYear) => {
+    const storageKey = getDraftStorageKey(sectionId, soId, schoolYear);
+    if (!storageKey) {
+      return;
+    }
+
+    try {
+      window.localStorage.removeItem(storageKey);
+    } catch (error) {
+      console.warn("Failed to clear local assessment draft:", error);
+    }
+  };
+
+  const createSaveSignature = ({ sectionId, soId, schoolYear, grades }) =>
+    JSON.stringify({
+      sectionId,
+      soId,
+      schoolYear: schoolYear || "",
+      grades,
+    });
+
+  const buildSaveContext = (studentList, selectedSOOverride = selectedAssessmentSO) => {
+    if (!selectedSection) {
+      return null;
+    }
+
+    const selectedSOForSave =
+      selectedSOOverride ||
+      studentOutcomes.find((so) => so.id === getActiveSOId(selectedSOOverride)) ||
+      null;
+
+    if (!selectedSOForSave) {
+      return null;
+    }
+
+    const assessmentBases = buildAssessmentBases(selectedSOForSave);
+    const validBases = new Set(assessmentBases.map((basis) => basis.key));
+    const nextMissingGradeMap = {};
+    const missingEntries = [];
+
+    studentList.forEach((student) => {
+      assessmentBases.forEach((basis) => {
+        const score = student.grades?.[basis.key];
+        if (score === null || score === undefined || score === "") {
+          const missingKey = `${student.id}::${basis.key}`;
+          nextMissingGradeMap[missingKey] = true;
+          missingEntries.push({
+            studentName: student.name,
+            basisLabel: basis.label,
+          });
+        }
+      });
+    });
+
+    const gradesPayload = {};
+    studentList.forEach((student) => {
+      gradesPayload[student.id] = {};
+
+      Object.entries(student.grades || {}).forEach(([gradeKey, score]) => {
+        if (score !== null && score !== undefined && score !== "") {
+          if (!validBases.has(gradeKey)) {
+            return;
+          }
+
+          gradesPayload[student.id][gradeKey] = score;
+        }
+      });
+    });
+
+    const hasScoreValue = (score) => score !== null && score !== undefined && score !== "";
+    const studentsWithAnyGradeCount = studentList.filter((student) =>
+      assessmentBases.some((basis) => hasScoreValue(student.grades?.[basis.key]))
+    ).length;
+    const fullyGradedStudentsCount = studentList.filter((student) =>
+      assessmentBases.length > 0 && assessmentBases.every((basis) => hasScoreValue(student.grades?.[basis.key]))
+    ).length;
+    const totalStudents = studentList.length;
+    const sectionStatus =
+      totalStudents === 0 || studentsWithAnyGradeCount === 0
+        ? "not-yet"
+        : fullyGradedStudentsCount === totalStudents
+          ? "assessed"
+          : "incomplete";
+
+    return {
+      selectedSOForSave,
+      nextMissingGradeMap,
+      missingEntries,
+      hasIncompleteEntries: missingEntries.length > 0,
+      gradesPayload,
+      sectionStatus,
+      signature: createSaveSignature({
+        sectionId: selectedSection.id,
+        soId: selectedSOForSave.id,
+        schoolYear: selectedSection.schoolYear,
+        grades: gradesPayload,
+      }),
+    };
+  };
+
+  const persistAssessment = async ({
+    studentList = latestStudentsRef.current,
+    selectedSOOverride = selectedAssessmentSO,
+    showToast = true,
+    showStatusPopup = true,
+    updateMissingState = true,
+    mode = "manual",
+  } = {}) => {
+    const saveContext = buildSaveContext(studentList, selectedSOOverride);
+
+    if (!selectedSection) {
+      if (showToast) {
+        toast({
+          description: "No section selected",
+          variant: "destructive",
+          duration: 2000,
+        });
+      }
+      return false;
+    }
+
+    if (!saveContext) {
+      if (showToast) {
+        toast({
+          description: "Please select a Student Outcome first",
+          variant: "destructive",
+          duration: 2000,
+        });
+      }
+      return false;
+    }
+
+    if (updateMissingState) {
+      setMissingGradeMap(saveContext.hasIncompleteEntries ? saveContext.nextMissingGradeMap : {});
+    }
+
+    if (mode === "auto" && saveContext.signature === lastSavedSignatureRef.current) {
+      return true;
+    }
+
+    if (mode === "manual") {
+      setIsSaving(true);
+    } else {
+      setIsAutoSaving(true);
+    }
+    setAutoSaveError("");
+
+    try {
+      await axios.post(`${API_BASE_URL}/assessments/save_grades/`, {
+        section_id: selectedSection.id,
+        so_id: saveContext.selectedSOForSave.id,
+        school_year: selectedSection.schoolYear,
+        grades: saveContext.gradesPayload,
+      }, {
+        headers: getAuthHeaders(),
+      });
+
+      lastSavedSignatureRef.current = saveContext.signature;
+      setLastSavedAt(new Date());
+      clearDraftGrades(selectedSection.id, saveContext.selectedSOForSave.id, selectedSection.schoolYear);
+
+      if (showToast) {
+        toast({
+          description: "Assessment saved successfully!",
+          duration: 2000,
+        });
+      }
+
+      if (onSaveSuccess) {
+        onSaveSuccess({
+          sectionId: selectedSection.id,
+          courseCode: selectedSection.courseCode,
+          soId: saveContext.selectedSOForSave.id,
+          sectionStatus: saveContext.sectionStatus,
+        });
+      }
+
+      if (showStatusPopup) {
+        if (saveContext.sectionStatus === "assessed") {
+          setStatusPopup({
+            open: true,
+            title: "Assessment completed",
+            description: "All required ratings are filled. This section is now marked as completed.",
+            sectionStatus: saveContext.sectionStatus,
+          });
+        } else if (saveContext.sectionStatus === "incomplete") {
+          setStatusPopup({
+            open: true,
+            title: "Assessment incomplete",
+            description: saveContext.hasIncompleteEntries
+              ? `${saveContext.missingEntries.length} field${saveContext.missingEntries.length > 1 ? "s are" : " is"} still blank. The section was saved as incomplete.`
+              : "This section was saved as incomplete.",
+            sectionStatus: saveContext.sectionStatus,
+          });
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Error saving assessment:", error);
+      console.error("Error response:", error.response?.data);
+
+      const fallbackMessage = error.response?.data?.detail || "Failed to save assessment";
+      if (mode === "auto") {
+        setAutoSaveError(fallbackMessage);
+      } else {
+        toast({
+          description: fallbackMessage,
+          variant: "destructive",
+          duration: 2000,
+        });
+      }
+
+      return false;
+    } finally {
+      if (mode === "manual") {
+        setIsSaving(false);
+      } else {
+        setIsAutoSaving(false);
+      }
+    }
+  };
+
+  const flushAutoSave = () => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
+
+    return persistAssessment({
+      showToast: false,
+      showStatusPopup: false,
+      updateMissingState: false,
+      mode: "auto",
+    });
+  };
+
+  const handleModalClose = () => {
+    flushAutoSave();
+    onClose();
+  };
+
+  const handleStudentOutcomeChange = async (outcomeId) => {
+    await flushAutoSave();
+    onChangeSelectedSO([outcomeId]);
+  };
+
+  useEffect(() => {
+    latestStudentsRef.current = students;
+  }, [students]);
 
   // Initialize students state from selectedSection
   useEffect(() => {
@@ -121,6 +447,7 @@ export function AssessStudentsModal({
       } else {
         setStudents(initializedStudents);
         setSelectedAssessmentSO(null);
+        lastSavedSignatureRef.current = "";
       }
     }
   }, [selectedSection?.id, isOpen]);
@@ -137,6 +464,35 @@ export function AssessStudentsModal({
       loadGrades(selectedSection.id, selectedSOIds[0], selectedSection.schoolYear, initializedStudents, selectedSection.courseCode);
     }
   }, [selectedSOIds, selectedSection?.id, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || isLoadingAssessment || !selectedSection || !selectedAssessmentSO) {
+      return undefined;
+    }
+
+    const saveContext = buildSaveContext(students, selectedAssessmentSO);
+    if (!saveContext || saveContext.signature === lastSavedSignatureRef.current) {
+      return undefined;
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      persistAssessment({
+        studentList: students,
+        selectedSOOverride: selectedAssessmentSO,
+        showToast: false,
+        showStatusPopup: false,
+        updateMissingState: false,
+        mode: "auto",
+      });
+    }, 700);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+        autoSaveTimeoutRef.current = null;
+      }
+    };
+  }, [students, selectedAssessmentSO, selectedSection, isOpen, isLoadingAssessment]);
 
   useLayoutEffect(() => {
     let rafId = null;
@@ -206,6 +562,7 @@ export function AssessStudentsModal({
             so_id: soId,
             school_year: schoolYear,
           },
+          headers: getAuthHeaders(),
         }
       );
       const loadedGrades = response.data.grades || {};
@@ -214,7 +571,9 @@ export function AssessStudentsModal({
       
       // Fetch the full SO data directly from backend to ensure we have all criteria
       try {
-        const soResponse = await axios.get(`${API_BASE_URL}/student-outcomes/${soId}/`);
+        const soResponse = await axios.get(`${API_BASE_URL}/student-outcomes/${soId}/`, {
+          headers: getAuthHeaders(),
+        });
         const soData = soResponse.data;
         console.log("Raw SO response from backend:", soData);
         
@@ -304,8 +663,18 @@ export function AssessStudentsModal({
           ...transformedGrades[student.id],
         },
       }));
+      const localDraftGrades = readDraftGrades(sectionId, resolvedSelectedSO?.id || soId, schoolYear);
+      const studentsWithDraft = localDraftGrades
+        ? updatedStudents.map((student) => ({
+            ...student,
+            grades: {
+              ...student.grades,
+              ...(localDraftGrades[student.id] || {}),
+            },
+          }))
+        : updatedStudents;
       console.log("Updated students with loaded grades:", updatedStudents);
-      updatedStudents.forEach(s => {
+      studentsWithDraft.forEach(s => {
         console.log(`  Student ${s.id} final grades:`, s.grades);
         Object.entries(s.grades).forEach(([key, val]) => {
           console.log(`    ${key} = ${val}`);
@@ -313,14 +682,41 @@ export function AssessStudentsModal({
       });      
       // Save the fetched SO data to state so the UI uses correct criteria
       setSelectedAssessmentSO(resolvedSelectedSO);
-      setStudents(updatedStudents);
+      setStudents(studentsWithDraft);
+      lastSavedSignatureRef.current = localDraftGrades
+        ? ""
+        : createSaveSignature({
+            sectionId,
+            soId: resolvedSelectedSO?.id || soId,
+            schoolYear,
+            grades: transformedGrades,
+          });
+      if (localDraftGrades) {
+        setAutoSaveError("A local draft was restored and will sync automatically.");
+      } else {
+        setAutoSaveError("");
+      }
     } catch (error) {
       console.error("Error loading grades:", error);
       // Still set the SO even if grade loading failed, so UI shows correct structure
       if (resolvedSelectedSO) {
         setSelectedAssessmentSO(resolvedSelectedSO);
       }
-      setStudents(initialStudents);
+      const localDraftGrades = readDraftGrades(sectionId, resolvedSelectedSO?.id || soId, schoolYear);
+      const studentsWithDraft = localDraftGrades
+        ? initialStudents.map((student) => ({
+            ...student,
+            grades: {
+              ...student.grades,
+              ...(localDraftGrades[student.id] || {}),
+            },
+          }))
+        : initialStudents;
+      setStudents(studentsWithDraft);
+      lastSavedSignatureRef.current = "";
+      if (localDraftGrades) {
+        setAutoSaveError("A local draft was restored and will sync automatically.");
+      }
     } finally {
       setIsLoadingAssessment(false);
     }
@@ -395,41 +791,53 @@ export function AssessStudentsModal({
       return next;
     });
 
-    setStudents(students.map(student =>
-      student.id === studentId
-        ? {
-            ...student,
-            grades: {
-              ...student.grades,
-              [criterionKey]: value,
-            },
-          }
-        : student
-    ));
+    setStudents((prevStudents) => {
+      const nextStudents = prevStudents.map((student) =>
+        student.id === studentId
+          ? {
+              ...student,
+              grades: {
+                ...student.grades,
+                [criterionKey]: value,
+              },
+            }
+          : student
+      );
+
+      const activeSOId = getActiveSOId();
+      if (selectedSection && activeSOId) {
+        writeDraftGrades(selectedSection.id, activeSOId, selectedSection.schoolYear, nextStudents);
+      }
+
+      return nextStudents;
+    });
   };
 
   const handleClearAssessment = () => {
-    setStudents((prevStudents) =>
-      prevStudents.map((student) => ({
+    setStudents((prevStudents) => {
+      const nextStudents = prevStudents.map((student) => ({
         ...student,
         grades: {},
-      }))
-    );
+      }));
+
+      const activeSOId = getActiveSOId();
+      if (selectedSection && activeSOId) {
+        writeDraftGrades(selectedSection.id, activeSOId, selectedSection.schoolYear, nextStudents);
+      }
+
+      return nextStudents;
+    });
     setMissingGradeMap({});
     setIsClearConfirmOpen(false);
     toast({
       title: "Assessment fields cleared",
-      description: "All ratings in this table were cleared. Click Save Assessment to persist the change.",
+      description: "All ratings in this table were cleared and will save automatically.",
       duration: 2500,
     });
   };
 
   const handleStatusPopupAcknowledge = () => {
-    const shouldCloseModal = statusPopup.sectionStatus === "assessed";
     setStatusPopup({ open: false, title: "", description: "", sectionStatus: null });
-    if (shouldCloseModal) {
-      onClose();
-    }
   };
 
   const getGradeInputClassName = (score, isMissing) => {
@@ -456,160 +864,14 @@ export function AssessStudentsModal({
   };
 
   const handleSave = async () => {
-    console.log("Save Assessment button clicked");
-    console.log("selectedSection:", selectedSection);
-    console.log("selectedSOIds:", selectedSOIds);
-    
-    if (!selectedSection) {
-      console.log("No section selected");
-      toast({
-        description: "No section selected",
-        variant: "destructive",
-        duration: 2000,
-      });
-      return;
-    }
-
-    const normalizedSelectedSOId = selectedSOIds.length > 0
-      ? parseInt(selectedSOIds[0], 10)
-      : null;
-
-    const selectedSOForSave =
-      selectedAssessmentSO ||
-      studentOutcomes.find((so) => so.id === normalizedSelectedSOId) ||
-      null;
-
-    console.log("selectedSOForSave:", selectedSOForSave);
-
-    if (!selectedSOForSave) {
-      console.log("No Student Outcome selected");
-      toast({
-        description: "Please select a Student Outcome first",
-        variant: "destructive",
-        duration: 2000,
-      });
-      return;
-    }
-
-    const assessmentBases = buildAssessmentBases(selectedSOForSave);
-    const validBases = new Set(assessmentBases.map((basis) => basis.key));
-    console.log("Valid assessment bases for SO ", selectedSOForSave.id, ":", [...validBases]);
-
-    const nextMissingGradeMap = {};
-    const missingEntries = [];
-
-    students.forEach((student) => {
-      assessmentBases.forEach((basis) => {
-        const score = student.grades?.[basis.key];
-        if (score === null || score === undefined || score === "") {
-          const missingKey = `${student.id}::${basis.key}`;
-          nextMissingGradeMap[missingKey] = true;
-          missingEntries.push({
-            studentName: student.name,
-            basisLabel: basis.label,
-          });
-        }
-      });
+    await persistAssessment({
+      studentList: students,
+      selectedSOOverride: selectedAssessmentSO,
+      showToast: true,
+      showStatusPopup: true,
+      updateMissingState: true,
+      mode: "manual",
     });
-
-    const hasIncompleteEntries = missingEntries.length > 0;
-
-    if (hasIncompleteEntries) {
-      setMissingGradeMap(nextMissingGradeMap);
-    } else {
-      setMissingGradeMap({});
-    }
-
-    // Transform grades into backend basis keys.
-    const gradesPayload = {};
-    
-    students.forEach(student => {
-      gradesPayload[student.id] = {};
-      console.log(`Processing student ${student.id}:`, student.grades);
-      
-      Object.entries(student.grades).forEach(([gradeKey, score]) => {
-        if (score !== null && score !== undefined && score !== "") {
-          if (!validBases.has(gradeKey)) {
-            console.warn(`  Skipping unsupported basis ${gradeKey} for SO ${selectedSOForSave.id}`);
-            return;
-          }
-
-          gradesPayload[student.id][gradeKey] = score;
-          console.log(`  Added: ${gradeKey} = ${score}`);
-        }
-      });
-    });
-
-    console.log("Final gradesPayload:", gradesPayload);
-
-    const hasScoreValue = (score) => score !== null && score !== undefined && score !== "";
-    const studentsWithAnyGradeCount = students.filter((student) =>
-      assessmentBases.some((basis) => hasScoreValue(student.grades?.[basis.key]))
-    ).length;
-    const fullyGradedStudentsCount = students.filter((student) =>
-      assessmentBases.length > 0 && assessmentBases.every((basis) => hasScoreValue(student.grades?.[basis.key]))
-    ).length;
-    const totalStudents = students.length;
-    const sectionStatus =
-      totalStudents === 0 || studentsWithAnyGradeCount === 0
-        ? "not-yet"
-        : fullyGradedStudentsCount === totalStudents
-          ? "assessed"
-          : "incomplete";
-
-    setIsSaving(true);
-    try {
-      const response = await axios.post(`${API_BASE_URL}/assessments/save_grades/`, {
-        section_id: selectedSection.id,
-        so_id: selectedSOForSave.id,
-        school_year: selectedSection.schoolYear,
-        grades: gradesPayload,
-      });
-
-      console.log("Save response:", response);
-      toast({
-        description: "Assessment saved successfully!",
-        duration: 2000,
-      });
-      
-      // Call the success callback to refresh parent state
-      if (onSaveSuccess) {
-        onSaveSuccess({
-          sectionId: selectedSection.id,
-          courseCode: selectedSection.courseCode,
-          soId: selectedSOForSave.id,
-          sectionStatus,
-        });
-      }
-
-      if (sectionStatus === "assessed") {
-        setStatusPopup({
-          open: true,
-          title: "Assessment completed",
-          description: "All required ratings are filled. This section is now marked as completed.",
-          sectionStatus,
-        });
-      } else if (sectionStatus === "incomplete") {
-        setStatusPopup({
-          open: true,
-          title: "Assessment incomplete",
-          description: hasIncompleteEntries
-            ? `${missingEntries.length} field${missingEntries.length > 1 ? "s are" : " is"} still blank. The section was saved as incomplete.`
-            : "This section was saved as incomplete.",
-          sectionStatus,
-        });
-      }
-    } catch (error) {
-      console.error("Error saving assessment:", error);
-      console.error("Error response:", error.response?.data);
-      toast({
-        description: error.response?.data?.detail || "Failed to save assessment",
-        variant: "destructive",
-        duration: 2000,
-      });
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   if (!selectedSection) return null;
@@ -659,7 +921,7 @@ export function AssessStudentsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) onClose();
+      if (!open) handleModalClose();
     }}>
       <style>{`
         .assessment-table-container {
@@ -700,7 +962,7 @@ export function AssessStudentsModal({
         <DialogHeader className="flex-shrink-0 flex items-start justify-between pr-4">
           <div className="flex items-center gap-3 flex-1">
             <button
-              onClick={onClose}
+              onClick={handleModalClose}
               className="p-2 hover:bg-[#FFC20E]/10 rounded-lg transition-colors text-[#231F20]"
               title="Back to sections"
             >
@@ -762,7 +1024,7 @@ export function AssessStudentsModal({
                       return (
                         <button
                           key={outcome.id}
-                          onClick={() => onChangeSelectedSO([outcome.id])}
+                          onClick={() => handleStudentOutcomeChange(outcome.id)}
                           className={cn(
                             "px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all border",
                             isSelected
@@ -1068,10 +1330,20 @@ export function AssessStudentsModal({
                       </div>
 
                       {/* Action Buttons */}
-                      <div className="flex justify-end gap-3 pt-3">
+                      <div className="flex flex-col gap-3 pt-3 md:flex-row md:items-center md:justify-between">
+                        <div className="text-xs text-[#6B6B6B]">
+                          {isAutoSaving
+                            ? "Saving progress automatically..."
+                            : autoSaveError
+                              ? autoSaveError
+                              : lastSavedAt
+                                ? `Progress saved at ${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                                : "Progress saves automatically as you grade."}
+                        </div>
+                        <div className="flex justify-end gap-3">
                         <button
                           onClick={() => setIsClearConfirmOpen(true)}
-                          disabled={isSaving || !hasAnyEnteredGrade}
+                          disabled={isSaving || isAutoSaving || !hasAnyEnteredGrade}
                           className="flex items-center gap-2 px-5 py-2.5 border border-[#D1D5DB] text-[#231F20] rounded-lg font-semibold hover:bg-[#F9FAFB] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           <Eraser className="w-4 h-4" />
@@ -1079,12 +1351,13 @@ export function AssessStudentsModal({
                         </button>
                         <button
                           onClick={handleSave}
-                          disabled={isSaving}
+                          disabled={isSaving || isAutoSaving}
                           className="flex items-center gap-2 px-6 py-2.5 bg-[#FFC20E] text-[#231F20] rounded-lg font-semibold hover:bg-[#FFC20E]/90 disabled:opacity-50 transition-colors"
                         >
                           <Save className="w-4 h-4" />
                           {isSaving ? 'Saving...' : 'Save Assessment'}
                         </button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1123,7 +1396,7 @@ export function AssessStudentsModal({
           <AlertDialogHeader>
             <AlertDialogTitle>Clear assessment fields?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove all current ratings in the table. This action affects only the current modal view until you save.
+              This will remove all current ratings in the table and save the cleared state automatically.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
