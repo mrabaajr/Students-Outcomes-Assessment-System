@@ -25,6 +25,7 @@ const Index = () => {
   const activeTab = tabFromUrl === "faculty" ? "faculty" : "sections";
   const [sectionsData, setSectionsData] = useState([]);
   const [facultyData, setFacultyData] = useState([]);
+  const [assignableUsers, setAssignableUsers] = useState([]);
   const [deletedFacultyIds, setDeletedFacultyIds] = useState([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -52,13 +53,21 @@ const Index = () => {
     const loadData = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/sections/load_all/`);
-        const { sections, faculty } = response.data;
+        const { sections, faculty, assignable_users } = response.data;
         setSectionsData(Array.isArray(sections) ? sections : []);
         setFacultyData(Array.isArray(faculty) ? faculty : []);
+        setAssignableUsers(
+          Array.isArray(assignable_users) && assignable_users.length > 0
+            ? assignable_users
+            : Array.isArray(faculty)
+              ? faculty
+              : []
+        );
       } catch (error) {
         console.error("Failed to load classes from backend:", error);
         setSectionsData([]);
         setFacultyData([]);
+        setAssignableUsers([]);
         toast({
           title: "Unable to load classes",
           description: error.response?.data?.detail || "The classes page could not reach the backend.",
@@ -598,9 +607,16 @@ const Index = () => {
         // Reload data from backend so IDs are synced with DB
         try {
           const reloadRes = await axios.get(`${API_BASE_URL}/sections/load_all/`);
-          const { sections, faculty } = reloadRes.data;
+          const { sections, faculty, assignable_users } = reloadRes.data;
           setSectionsData(Array.isArray(sections) ? sections : []);
           setFacultyData(Array.isArray(faculty) ? faculty : []);
+          setAssignableUsers(
+            Array.isArray(assignable_users) && assignable_users.length > 0
+              ? assignable_users
+              : Array.isArray(faculty)
+                ? faculty
+                : []
+          );
         } catch (e) {
           console.error('Failed to reload after save:', e);
         }
@@ -888,8 +904,8 @@ const Index = () => {
                   );
                   const sectionWithFaculty = {
                     ...section,
-                    facultyName: assignedFaculty ? assignedFaculty.name : null,
-                    facultyEmail: assignedFaculty ? assignedFaculty.email : "",
+                    facultyName: assignedFaculty ? assignedFaculty.name : (section.facultyName || null),
+                    facultyEmail: assignedFaculty ? assignedFaculty.email : (section.facultyEmail || ""),
                   };
                   return (
                     <SectionCard
@@ -1021,7 +1037,7 @@ const Index = () => {
         onClose={() => { setSectionDialog(false); setEditingSection(null); }}
         onSave={handleSaveSection}
         initialData={editingSection}
-        facultyOptions={facultyData}
+        facultyOptions={assignableUsers}
       />
       <StudentFormDialog
         open={studentDialog}

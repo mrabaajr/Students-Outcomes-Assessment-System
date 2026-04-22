@@ -392,6 +392,7 @@ class SectionViewSet(viewsets.ModelViewSet):
                     "courseName": sec.course.name,
                     "facultyId": str(sec.faculty_id) if sec.faculty_id else None,
                     "facultyName": build_faculty_name(sec.faculty),
+                    "facultyEmail": sec.faculty.email if sec.faculty else "",
                     "curriculum": sec.course.curriculum.year if sec.course.curriculum else "",
                     "isActive": sec.is_active,
                     "semester": sec.semester or sec.course.semester or "",
@@ -403,13 +404,26 @@ class SectionViewSet(viewsets.ModelViewSet):
             )
 
         faculty_payload = ClassesFacultySerializer(
+            User.objects.filter(role="staff")
+            .prefetch_related("assigned_sections__course")
+            .order_by("first_name", "last_name", "email"),
+            many=True,
+        ).data
+
+        assignable_users_payload = ClassesFacultySerializer(
             User.objects.filter(role__in=["admin", "staff"])
             .prefetch_related("assigned_sections__course")
             .order_by("first_name", "last_name", "email"),
             many=True,
         ).data
 
-        return Response({"sections": sections_payload, "faculty": faculty_payload})
+        return Response(
+            {
+                "sections": sections_payload,
+                "faculty": faculty_payload,
+                "assignable_users": assignable_users_payload,
+            }
+        )
 
     @action(detail=False, methods=["post"], permission_classes=[AllowAny], url_path="bulk_save")
     def bulk_save(self, request):
@@ -454,15 +468,6 @@ class SectionViewSet(viewsets.ModelViewSet):
 
                     faculty_email_map[email] = user
 
-                section_faculty = {}
-                for fac in faculty_data:
-                    user = faculty_email_map.get((fac.get("email") or "").strip().lower())
-                    if not user:
-                        continue
-                    for course_info in fac.get("courses", []):
-                        for section_name in course_info.get("sections", []):
-                            section_faculty[(section_name, course_info.get("code", ""))] = user
-
                 default_curriculum, _ = Curriculum.objects.get_or_create(year="2025")
                 saved_section_ids = set()
 
@@ -487,13 +492,21 @@ class SectionViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
+                    assigned_user = None
+                    assigned_email = (sec.get("facultyEmail") or "").strip().lower()
+                    if assigned_email:
+                        assigned_user = User.objects.filter(
+                            email__iexact=assigned_email,
+                            role__in=["admin", "staff"],
+                        ).first()
+
                     section_obj, _ = Section.objects.update_or_create(
                         name=sec["name"],
                         course=course,
                         academic_year=academic_year,
                         semester=semester or "1st Semester",
                         defaults={
-                            "faculty": section_faculty.get((sec["name"], course_code)),
+                            "faculty": assigned_user,
                             "is_active": sec.get("isActive", True),
                         },
                     )
