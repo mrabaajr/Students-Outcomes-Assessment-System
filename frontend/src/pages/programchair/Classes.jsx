@@ -41,6 +41,9 @@ const Index = () => {
   const [selectedHandledCourse, setSelectedHandledCourse] = useState("All Courses");
   const autoSaveTimeoutRef = useRef(null);
   const hasLoadedRef = useRef(false);
+  const latestSectionsRef = useRef([]);
+  const latestFacultyRef = useRef([]);
+  const latestDeletedFacultyIdsRef = useRef([]);
 
   const setActiveTab = (tab) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -95,6 +98,12 @@ const Index = () => {
       }
     };
   }, [hasUnsavedChanges, isSaving, sectionsData, facultyData, deletedFacultyIds]);
+
+  useEffect(() => {
+    latestSectionsRef.current = sectionsData;
+    latestFacultyRef.current = facultyData;
+    latestDeletedFacultyIdsRef.current = deletedFacultyIds;
+  }, [sectionsData, facultyData, deletedFacultyIds]);
 
   const sectionFilterOptions = useMemo(() => {
     const courses = ["All Courses", ...new Set(sectionsData.map((section) => section.courseCode).filter(Boolean))];
@@ -602,33 +611,49 @@ const Index = () => {
       clearTimeout(autoSaveTimeoutRef.current);
     }
 
+    const payload = {
+      sections: latestSectionsRef.current,
+      faculty: latestFacultyRef.current,
+      deletedFacultyIds: latestDeletedFacultyIdsRef.current,
+    };
+    const payloadSnapshot = JSON.stringify(payload);
+
     setIsSaving(true);
     try {
-      const response = await axios.post(`${API_BASE_URL}/sections/bulk_save/`, {
-        sections: sectionsData,
-        faculty: facultyData,
-        deletedFacultyIds,
-      }, {
+      const response = await axios.post(`${API_BASE_URL}/sections/bulk_save/`, payload, {
         headers: getAuthHeaders(),
       });
       if (response.data.success) {
-        setHasUnsavedChanges(false);
-        setDeletedFacultyIds([]);
-        // Reload data from backend so IDs are synced with DB
-        try {
-          const reloadRes = await axios.get(`${API_BASE_URL}/sections/load_all/`);
-          const { sections, faculty, assignable_users } = reloadRes.data;
-          setSectionsData(Array.isArray(sections) ? sections : []);
-          setFacultyData(Array.isArray(faculty) ? faculty : []);
-          setAssignableUsers(
-            Array.isArray(assignable_users) && assignable_users.length > 0
-              ? assignable_users
-              : Array.isArray(faculty)
-                ? faculty
-                : []
-          );
-        } catch (e) {
-          console.error('Failed to reload after save:', e);
+        const hasNewerLocalChanges =
+          payloadSnapshot !==
+          JSON.stringify({
+            sections: latestSectionsRef.current,
+            faculty: latestFacultyRef.current,
+            deletedFacultyIds: latestDeletedFacultyIdsRef.current,
+          });
+
+        if (!hasNewerLocalChanges) {
+          setHasUnsavedChanges(false);
+          setDeletedFacultyIds([]);
+          latestDeletedFacultyIdsRef.current = [];
+
+          // Reload data from backend only when no newer local edits happened
+          // during the save request. Otherwise, the reload can resurrect older state.
+          try {
+            const reloadRes = await axios.get(`${API_BASE_URL}/sections/load_all/`);
+            const { sections, faculty, assignable_users } = reloadRes.data;
+            setSectionsData(Array.isArray(sections) ? sections : []);
+            setFacultyData(Array.isArray(faculty) ? faculty : []);
+            setAssignableUsers(
+              Array.isArray(assignable_users) && assignable_users.length > 0
+                ? assignable_users
+                : Array.isArray(faculty)
+                  ? faculty
+                  : []
+            );
+          } catch (e) {
+            console.error('Failed to reload after save:', e);
+          }
         }
       }
     } catch (error) {
