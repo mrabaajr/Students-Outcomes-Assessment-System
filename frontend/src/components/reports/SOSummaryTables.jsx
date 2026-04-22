@@ -73,7 +73,10 @@ const recalculateTable = (table, formula, variables) => {
   });
 
   const virtualTotal = next.courses.reduce((sum, course) => sum + num(course.virtual_class_size), 0);
-  const weightedTotal = next.courses.reduce((sum, course) => sum + num(course.weighted_total), 0);
+  const weightedTotal = next.courses.reduce(
+    (sum, course) => sum + (num(course.weighted_total) * num(course.cli)),
+    0
+  );
   const actualTotal = next.courses.reduce((sum, course) => sum + num(course.actual_class_size), 0);
   const attainment = virtualTotal > 0 ? Number(((weightedTotal / virtualTotal) * 100).toFixed(2)) : 0;
   const nextConclusion = conclusionText(attainment, target);
@@ -249,6 +252,10 @@ function SOSummaryCard({ table, onSaveTable, schoolYearOptions = [] }) {
                   <td className="px-4 py-3"><ReadOnlyCell value={fmt(course.virtual_class_size)} align="center" strong /></td>
                 </tr>
               ))}
+              <tr className="border-t border-[#ECE5D8] bg-[#FCF8EE] font-semibold">
+                <td colSpan={4} className="px-4 py-3 text-right">Total Virtual Class Size</td>
+                <td className="px-4 py-3 text-center text-[#231F20]">{fmt(draftTable.totals?.virtual_class_size_total)}</td>
+              </tr>
             </tbody>
           </table>
         </div>

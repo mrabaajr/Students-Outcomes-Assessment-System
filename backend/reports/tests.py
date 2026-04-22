@@ -287,3 +287,66 @@ class ReportsDashboardTests(TestCase):
 
         self.assertEqual(course_row["actual_class_size"], 2)
         self.assertEqual(course_row["answered_count"], 1)
+
+    def test_dashboard_applies_cli_to_each_course_weighted_total_before_attainment(self):
+        second_course = Course.objects.create(
+            code="CPE102",
+            name="Programming Logic",
+            curriculum=self.curriculum,
+            year_level="1st Year",
+            semester="1st Semester",
+            credits=3,
+        )
+        second_section = Section.objects.create(
+            name="CPE12S1",
+            course=second_course,
+            academic_year="2025-2026",
+            semester="1st Semester",
+        )
+        second_student = Student.objects.create(
+            student_id="2025-0002",
+            first_name="Grace",
+            last_name="Hopper",
+            program="Computer Engineering",
+            year_level=1,
+        )
+        Enrollment.objects.create(student=second_student, section=second_section, course=second_course)
+        second_assessment = Assessment.objects.create(
+            section=second_section,
+            student_outcome=self.student_outcome,
+            school_year="2025-2026",
+        )
+        Grade.objects.create(
+            assessment=second_assessment,
+            student=self.student,
+            performance_indicator=self.indicator,
+            score=5,
+        )
+        Grade.objects.create(
+            assessment=second_assessment,
+            student=second_student,
+            performance_indicator=self.indicator,
+            score=5,
+        )
+        second_mapping = CourseSOMapping.objects.create(
+            course=second_course,
+            code=second_course.code,
+            name=second_course.name,
+            curriculum=self.curriculum,
+            year_level=second_course.year_level,
+            semester=second_course.semester,
+            credits=second_course.credits,
+            description=second_course.description,
+            academic_year="2025-2026",
+        )
+        second_mapping.mapped_sos.add(self.student_outcome)
+
+        response = self.client.get("/api/reports/dashboard/", {"school_year": "2025-2026"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        table = payload["so_summary_tables"][0]
+
+        self.assertEqual(table["totals"]["weighted_satisfactory_total"], 1.0)
+        self.assertEqual(table["totals"]["virtual_class_size_total"], 1.0)
+        self.assertEqual(table["totals"]["attainment_percent"], 100.0)
