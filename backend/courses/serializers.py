@@ -247,6 +247,53 @@ class SchoolYearSerializer(serializers.ModelSerializer):
 
 
 class CourseSerializer(serializers.ModelSerializer):
+    curriculum_year = serializers.CharField(source='curriculum.year', read_only=True)
+
     class Meta:
         model = Course
-        fields = '__all__'
+        fields = (
+            'id', 'code', 'name', 'curriculum', 'curriculum_year',
+            'year_level', 'semester', 'credits', 'description',
+            'created_at', 'updated_at',
+        )
+
+
+class CourseCreateUpdateSerializer(serializers.ModelSerializer):
+    curriculum = serializers.CharField()
+
+    class Meta:
+        model = Course
+        fields = (
+            'id', 'code', 'name', 'curriculum', 'year_level',
+            'semester', 'credits', 'description',
+        )
+        read_only_fields = ('id',)
+
+    def _resolve_curriculum(self, curriculum_value):
+        if curriculum_value in (None, ''):
+            raise serializers.ValidationError({'curriculum': 'This field is required.'})
+
+        curriculum_str = str(curriculum_value).strip()
+
+        if curriculum_str.isdigit():
+            curriculum = Curriculum.objects.filter(id=int(curriculum_str)).first()
+            if curriculum:
+                return curriculum
+
+        curriculum, _ = Curriculum.objects.get_or_create(year=curriculum_str)
+        return curriculum
+
+    def create(self, validated_data):
+        curriculum = self._resolve_curriculum(validated_data.pop('curriculum', None))
+        validated_data['curriculum'] = curriculum
+        return Course.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        curriculum = self._resolve_curriculum(validated_data.pop('curriculum', instance.curriculum_id))
+        instance.curriculum = curriculum
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance

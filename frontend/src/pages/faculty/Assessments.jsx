@@ -4,6 +4,7 @@ import axios from "axios";
 import { SectionsGrid } from "@/components/assessment/SectionsGrid";
 import { CourseSectionsModal } from "@/components/assessment/CourseSectionsModal";
 import { AssessStudentsModal } from "@/components/assessment/AssessStudentsModal";
+import { StudentRubricModal } from "@/components/assessment/StudentRubricModal";
 import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
 import {
@@ -209,6 +210,7 @@ export default function FacultyAssessments() {
   // ── Modal state ───────────────────────────────────────
   const [selectedCourseForModal, setSelectedCourseForModal] = useState(null); // Course to show sections modal
   const [selectedSectionForAssessment, setSelectedSectionForAssessment] = useState(null); // Section for student assessment modal
+  const [selectedStudentForAssessment, setSelectedStudentForAssessment] = useState(null);
 
   const clearAllFilters = useCallback(() => {
     setSelectedSOIds([]);
@@ -1709,19 +1711,33 @@ export default function FacultyAssessments() {
           selectedSOId={selectedCourseForModal ? getRelevantSOIdForCourse(selectedCourseForModal.courseCode) : null}
           sectionStatusMap={sectionAssessmentStatus}
           sectionLastAssessedMap={sectionLastAssessed}
-          onClose={() => setSelectedCourseForModal(null)}
+          onClose={() => {
+            setSelectedCourseForModal(null);
+            setSelectedSectionForAssessment(null);
+            setSelectedStudentForAssessment(null);
+          }}
           onSelectSection={(section) => {
             setSelectedCourseCode(section.courseCode);
             setSelectedSectionName(section.name);
             setSelectedSemester(section.semester || "");
             setSelectedSchoolYear(section.schoolYear);
+            setSelectedStudentForAssessment(null);
             setSelectedSectionForAssessment(section);
+          }}
+          onSelectStudent={(section, student) => {
+            setSelectedCourseCode(section.courseCode);
+            setSelectedSectionName(section.name);
+            setSelectedSemester(section.semester || "");
+            setSelectedSchoolYear(section.schoolYear);
+            setSelectedCourseForModal(null);
+            setSelectedSectionForAssessment(section);
+            setSelectedStudentForAssessment(student);
           }}
         />
 
         {/* Student Assessment Modal */}
         <AssessStudentsModal
-          isOpen={!!selectedSectionForAssessment}
+          isOpen={!!selectedSectionForAssessment && !selectedStudentForAssessment}
           selectedSection={selectedSectionForAssessment}
           studentOutcomes={studentOutcomes}
           courseMappings={courseMappings}
@@ -1730,7 +1746,29 @@ export default function FacultyAssessments() {
           onChangeSelectedSO={setSelectedSOIds}
           onClose={() => {
             setSelectedSectionForAssessment(null);
-            setSelectedCourseForModal(null);
+            setSelectedStudentForAssessment(null);
+          }}
+          onCourseFiltersChange={(courseCode, sectionName, schoolYear) => {
+            setSelectedCourseCode(courseCode);
+            setSelectedSectionName(sectionName);
+            setSelectedSchoolYear(schoolYear);
+          }}
+          onSaveSuccess={triggerStatusRefresh}
+        />
+
+        <StudentRubricModal
+          isOpen={!!selectedSectionForAssessment && !!selectedStudentForAssessment}
+          selectedSection={selectedSectionForAssessment}
+          selectedStudent={selectedStudentForAssessment}
+          studentOutcomes={studentOutcomes}
+          courseMappings={courseMappings}
+          facultyData={facultyData}
+          selectedSOIds={selectedSOIds}
+          onChangeSelectedSO={setSelectedSOIds}
+          onSelectStudent={setSelectedStudentForAssessment}
+          onClose={() => {
+            setSelectedSectionForAssessment(null);
+            setSelectedStudentForAssessment(null);
           }}
           onCourseFiltersChange={(courseCode, sectionName, schoolYear) => {
             setSelectedCourseCode(courseCode);

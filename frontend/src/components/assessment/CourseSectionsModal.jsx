@@ -1,4 +1,4 @@
-import { Users, CheckCircle2, Clock3, AlertCircle } from "lucide-react";
+import { Users, CheckCircle2, Clock3, AlertCircle, ChevronRight } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,7 @@ export function CourseSectionsModal({
   sectionLastAssessedMap,
   onClose,
   onSelectSection,
+  onSelectStudent,
 }) {
   const getStatusBadge = (status) => {
     switch (status) {
@@ -80,7 +81,7 @@ export function CourseSectionsModal({
             {selectedCourse?.courseName} ({selectedCourse?.courseCode})
           </DialogTitle>
           <DialogDescription>
-            View all sections, faculty, and student enrollment details
+            View all sections, faculty, and student enrollment details. Click a student row to open the rubric and assess one student at a time.
           </DialogDescription>
         </DialogHeader>
 
@@ -152,7 +153,7 @@ export function CourseSectionsModal({
                             disabled={!hasStudents}
                             className="px-3 py-1.5 bg-[#FFC20E] text-[#231F20] rounded text-xs font-medium hover:bg-[#FFC20E]/90 transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:bg-[#E5E7EB] disabled:text-[#6B6B6B] disabled:hover:bg-[#E5E7EB]"
                           >
-                            {hasStudents ? "Assess Student" : "No Students Yet"}
+                            {hasStudents ? "View Summary" : "No Students Yet"}
                           </button>
                         </div>
                       </div>
@@ -169,15 +170,21 @@ export function CourseSectionsModal({
                             </div>
                           </div>
                           {section.students.map((student, idx) => (
-                            <div
+                            <button
                               key={student.id}
-                              className="px-5 py-3 grid grid-cols-12 text-sm items-center hover:bg-[#FFC20E]/5 transition-colors gap-2"
+                              type="button"
+                              onClick={() => onSelectStudent?.(section, student)}
+                              title={`Assess ${student.name}`}
+                              className="group w-full cursor-pointer px-5 py-3 grid grid-cols-12 text-sm items-center text-left hover:bg-[#FFC20E]/10 focus:bg-[#FFC20E]/10 focus:outline-none transition-colors gap-2"
                             >
                               <span className="col-span-1 text-[#6B6B6B] font-medium">
                                 {idx + 1}
                               </span>
-                              <span className="col-span-4 font-medium text-[#231F20]">
-                                {student.name}
+                              <span className="col-span-4 flex items-center gap-2 font-medium text-[#231F20]">
+                                <span>{student.name}</span>
+                                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#F59E0B] opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100">
+                                  Assess
+                                </span>
                               </span>
                               <span className="col-span-3 text-[#6B6B6B] font-mono text-xs">
                                 {student.studentId}
@@ -185,10 +192,11 @@ export function CourseSectionsModal({
                               <span className="col-span-2 text-[#6B6B6B] text-xs">
                                 {student.yearLevel || "-"}
                               </span>
-                              <span className="col-span-2 text-right text-[#6B6B6B] text-xs truncate">
-                                {section.curriculum || "-"}
+                              <span className="col-span-2 flex items-center justify-end gap-2 text-right text-[#6B6B6B] text-xs truncate">
+                                <span>{section.curriculum || "-"}</span>
+                                <ChevronRight className="h-4 w-4 text-[#F59E0B] opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100 group-focus:translate-x-0.5 group-focus:opacity-100" />
                               </span>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       )}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Grid, TableIcon, Filter, Search, GraduationCap, CalendarRange } from 'lucide-react';
+import { Plus, Grid, TableIcon, Filter, Search, GraduationCap, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 import Navbar from '../../components/dashboard/Navbar';
 import Footer from '../../components/dashboard/Footer';
@@ -7,21 +7,24 @@ import CourseStats from '../../components/courses/CourseStats';
 import CourseCard from '../../components/courses/CourseCard';
 import AddCourseModal from '../../components/courses/AddCourseModal';
 import AddCurriculumModal from '../../components/courses/AddCurriculumModal';
-import AddSchoolYearModal from '../../components/courses/AddSchoolYearModal';
 import DeleteConfirmModal from '../../components/courses/DeleteConfirmModal';
 import ViewCourseModal from '../../components/courses/ViewCourseModal';
 import SOMappingMatrix from '../../components/courses/SOMappingMatrix';
 import { useToast } from '../../hooks/use-toast';
 import { useCourses } from '../../hooks/useCourses';
 import { useStudentOutcomes } from '../../hooks/useStudentOutcomes';
-import { academicYears as fallbackAcademicYears, semesters } from '../../data/mockCoursesData';
+import { semesters } from '../../data/mockCoursesData';
 import { API_BASE_URL, unwrapListResponse } from '@/lib/api';
+
+const sortYearValues = (values = []) =>
+  [...values].sort((a, b) => Number(a) - Number(b));
 
 const Courses = () => {
   const { toast } = useToast();
 
   const {
     courses,
+    fetchCourses,
     addCourse,
     updateCourse,
     deleteCourse,
@@ -34,14 +37,13 @@ const Courses = () => {
 
   /* Filters */
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedYear, setSelectedYear] = useState('All Years');
   const [selectedSemester, setSelectedSemester] = useState('All Semesters');
   const [selectedCurriculum, setSelectedCurriculum] = useState('All Curriculums');
 
   /* Curriculum list from backend */
   const [curriculums, setCurriculums] = useState(['All Curriculums']);
   const [currriculumsLoading, setCurriculumsLoading] = useState(true);
-  const [schoolYears, setSchoolYears] = useState(fallbackAcademicYears);
+  const [courseMappings, setCourseMappings] = useState([]);
 
   /* Fetch curriculums from backend */
   useEffect(() => {
@@ -50,7 +52,9 @@ const Courses = () => {
         const response = await axios.get(`${API_BASE_URL}/curricula/`);
         const curriculumList = unwrapListResponse(response.data);
         if (Array.isArray(curriculumList)) {
-          const curriculumNames = curriculumList.map(c => c.year || c.name || c.id).filter(Boolean);
+          const curriculumNames = sortYearValues(
+            curriculumList.map(c => c.year || c.name || c.id).filter(Boolean)
+          );
           setCurriculums(['All Curriculums', ...curriculumNames]);
         }
       } catch (err) {
@@ -66,23 +70,17 @@ const Courses = () => {
   }, []);
 
   useEffect(() => {
-    const fetchSchoolYears = async () => {
+    const fetchCourseMappings = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/school-years/`);
-        const schoolYearList = unwrapListResponse(response.data);
-        if (Array.isArray(schoolYearList)) {
-          const years = schoolYearList.map(item => item.year).filter(Boolean);
-          if (years.length > 0) {
-            setSchoolYears(years);
-          }
-        }
+        const response = await axios.get(`${API_BASE_URL}/course-so-mappings/`);
+        setCourseMappings(unwrapListResponse(response.data));
       } catch (err) {
-        console.error('Error fetching school years:', err);
-        setSchoolYears(fallbackAcademicYears);
+        console.error('Error fetching course mappings:', err);
+        setCourseMappings([]);
       }
     };
 
-    fetchSchoolYears();
+    fetchCourseMappings();
   }, []);
 
   /* Modals */
@@ -90,12 +88,10 @@ const Courses = () => {
   const [isAddCurriculumModalOpen, setIsAddCurriculumModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isAddSchoolYearModalOpen, setIsAddSchoolYearModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingCurriculum, setIsSavingCurriculum] = useState(false);
-  const [isSavingSchoolYear, setIsSavingSchoolYear] = useState(false);
 
   /* Filtering Logic */
   const filteredCourses = courses.filter(course => {
@@ -104,10 +100,6 @@ const Courses = () => {
       course.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       course.name.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesYear =
-      selectedYear === 'All Years' ||
-      (course.academic_year || course.academicYear) === selectedYear;
-
     const matchesSemester =
       selectedSemester === 'All Semesters' || course.semester === selectedSemester;
 
@@ -115,13 +107,61 @@ const Courses = () => {
       selectedCurriculum === 'All Curriculums' ||
       course.curriculum === selectedCurriculum;
 
-    return matchesSearch && matchesYear && matchesSemester && matchesCurriculum;
+    return matchesSearch && matchesSemester && matchesCurriculum;
 
+  });
+
+  const mappingLookup = courseMappings.reduce((acc, mapping) => {
+    const mappingCourseId = String(mapping.course);
+    const matchesSemester = selectedSemester === 'All Semesters' || mapping.semester === selectedSemester;
+
+    if (!matchesSemester) {
+      return acc;
+    }
+
+    const mappedSOs = mapping.mappedSOs || mapping.mapped_sos || [];
+    const existing = acc[mappingCourseId];
+
+    if (!existing) {
+      acc[mappingCourseId] = {
+        ...mapping,
+        mappedSOs,
+      };
+      return acc;
+    }
+
+    acc[mappingCourseId] = {
+      ...existing,
+      mappedSOs: [...new Set([...(existing.mappedSOs || []), ...mappedSOs])],
+      id: existing.id || mapping.id,
+      academic_year: existing.academic_year || mapping.academic_year,
+      semester:
+        selectedSemester === 'All Semesters' ? existing.semester || mapping.semester : mapping.semester,
+    };
+
+    return acc;
+  }, {});
+
+  const mappingCourses = filteredCourses.map((course) => {
+    const mapping = mappingLookup[String(course.id)];
+
+    return {
+      ...course,
+      academicYear: mapping?.academic_year || 'Not set',
+      mappedSOs: mapping?.mappedSOs || [],
+      mappingId: mapping?.id || null,
+    };
   });
 
   const handleAddCourse = () => {
     setEditingCourse(null);
     setIsAddModalOpen(true);
+  };
+
+  const resetCourseFilters = () => {
+    setSearchTerm('');
+    setSelectedCurriculum('All Curriculums');
+    setSelectedSemester('All Semesters');
   };
 
   const handleEditCourse = (course) => {
@@ -131,10 +171,6 @@ const Courses = () => {
 
   const handleAddCurriculum = () => {
     setIsAddCurriculumModalOpen(true);
-  };
-
-  const handleAddSchoolYear = () => {
-    setIsAddSchoolYearModalOpen(true);
   };
 
   const handleViewCourse = (course) => {
@@ -183,7 +219,10 @@ const Courses = () => {
 
     setIsSaving(false);
 
-    if (result.success) setIsAddModalOpen(false);
+    if (result.success) {
+      setIsAddModalOpen(false);
+      fetchCourses();
+    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -198,6 +237,7 @@ const Courses = () => {
         description: `${selectedCourse.code} deleted.`,
         variant: 'destructive',
       });
+      fetchCourses();
     } else {
       toast({
         title: 'Error',
@@ -224,7 +264,7 @@ const Courses = () => {
 
         return [
           'All Curriculums',
-          ...uniqueValues.filter(curriculum => curriculum !== 'All Curriculums').sort(),
+          ...sortYearValues(uniqueValues.filter(curriculum => curriculum !== 'All Curriculums')),
         ];
       });
 
@@ -248,9 +288,18 @@ const Courses = () => {
 
   const handleToggleMapping = async (courseId, soId, shouldMap) => {
 
-    const result = await toggleSOMapping(courseId, soId, shouldMap);
+    const result = await toggleSOMapping(courseId, soId, shouldMap, {
+      academic_year: activeAcademicYear,
+      semester: selectedSemester === 'All Semesters' ? undefined : selectedSemester,
+    });
 
     if (result.success) {
+      if (result.courseMapping) {
+        setCourseMappings(prev => {
+          const next = prev.filter(mapping => mapping.id !== result.courseMapping.id);
+          return [...next, result.courseMapping];
+        });
+      }
       toast({
         title: shouldMap ? 'Mapping Added' : 'Mapping Removed',
         description: `SO mapping ${shouldMap ? 'added' : 'removed'}.`,
@@ -261,33 +310,6 @@ const Courses = () => {
         description: result.message,
         variant: 'destructive',
       });
-    }
-  };
-
-  const handleSaveSchoolYear = async (schoolYearData) => {
-    setIsSavingSchoolYear(true);
-    try {
-      const response = await axios.post(`${API_BASE_URL}/school-years/`, {
-        year: schoolYearData.year,
-      });
-      const newSchoolYear = response.data?.year || schoolYearData.year;
-
-      setSchoolYears(prev => [...new Set([...prev, newSchoolYear])].sort());
-      setSelectedYear(newSchoolYear);
-      setIsAddSchoolYearModalOpen(false);
-
-      toast({
-        title: 'School Year Added',
-        description: `${newSchoolYear} is now available in course and section forms.`,
-      });
-    } catch (err) {
-      toast({
-        title: 'Error',
-        description: err.response?.data?.year?.[0] || err.response?.data?.detail || 'Failed to add school year.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSavingSchoolYear(false);
     }
   };
 
@@ -335,14 +357,6 @@ const Courses = () => {
                 <GraduationCap className="w-5 h-5" /> ADD CURRICULUM
               </button>
 
-              <button
-                type="button"
-                onClick={handleAddSchoolYear}
-                className="relative z-10 flex cursor-pointer items-center gap-2 px-6 py-3 bg-white text-[#231F20] rounded-lg font-medium hover:bg-gray-100"
-              >
-                <CalendarRange className="w-5 h-5" /> ADD SCHOOL YEAR
-              </button>
-
               {/* VIEW TOGGLE */}
               <div className="flex items-center bg-[#3A3A3A] rounded-lg p-1">
 
@@ -355,7 +369,7 @@ const Courses = () => {
                       : 'text-[#A5A8AB]'
                   }`}
                 >
-                  <Grid className="h-4 w-4" /> Grid
+                  <Grid className="h-4 w-4" /> Add Courses
                 </button>
 
                 <button
@@ -367,7 +381,7 @@ const Courses = () => {
                       : 'text-[#A5A8AB]'
                   }`}
                 >
-                  <TableIcon className="h-4 w-4" /> Matrix
+                  <TableIcon className="h-4 w-4" /> SO Mapping
                 </button>
 
               </div>
@@ -381,95 +395,76 @@ const Courses = () => {
 
           {/* FILTERS */}
           <div className="glass-card p-6 mb-6">
-
-            <div className="flex items-center gap-2 mb-4">
-              <Filter className="w-5 h-5 text-primary" />
-              <h3 className="font-semibold text-[#231F20]">Filters</h3>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold text-[#231F20]">Filters</h3>
+              </div>
+              <button
+                onClick={resetCourseFilters}
+                className="inline-flex items-center gap-2 rounded-lg border border-[#D1D5DB] px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB]"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Reset
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-              {/* SEARCH */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div>
-                <label className="text-xs font-medium text-[#6B6B6B] mb-2 block">
+                <label className="mb-2 block text-xs font-medium text-[#6B6B6B]">
                   Search Courses
                 </label>
-
                 <div className="relative">
-
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#6B6B6B]" />
-
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6B6B6B]" />
                   <input
                     type="text"
                     placeholder="Search by code or name..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-[#E5E7EB] rounded-md"
+                    className="w-full rounded-lg border border-[#D1D5DB] bg-white pl-9 pr-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
                   />
-
                 </div>
               </div>
 
-              {/* CURRICULUM FILTER */}
               <div>
-                <label className="text-xs font-medium text-[#6B6B6B] mb-2 block">
+                <label className="mb-2 block text-xs font-medium text-[#6B6B6B]">
                   Curriculum
                 </label>
-
                 <select
                   value={selectedCurriculum}
                   onChange={(e) => setSelectedCurriculum(e.target.value)}
-                  className="w-full p-2 text-sm bg-white border border-[#E5E7EB] rounded-md"
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
                 >
                   {curriculums.map(curr => (
                     <option key={curr} value={curr}>{curr}</option>
                   ))}
                 </select>
-
               </div>
 
-              {/* ACADEMIC YEAR FILTER */}
               <div>
-                <label className="text-xs font-medium text-[#6B6B6B] mb-2 block">
-                  Academic Year
-                </label>
-
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="w-full p-2 text-sm bg-white border border-[#E5E7EB] rounded-md"
-                >
-                  <option value="All Years">All Years</option>
-                  {schoolYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-
-              </div>
-
-              {/* SEMESTER FILTER */}
-              <div>
-                <label className="text-xs font-medium text-[#6B6B6B] mb-2 block">
+                <label className="mb-2 block text-xs font-medium text-[#6B6B6B]">
                   Semester
                 </label>
-
                 <select
                   value={selectedSemester}
                   onChange={(e) => setSelectedSemester(e.target.value)}
-                  className="w-full p-2 text-sm bg-white border border-[#E5E7EB] rounded-md"
+                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
                 >
                   <option value="All Semesters">All Semesters</option>
                   {semesters.map(semester => (
                     <option key={semester} value={semester}>{semester}</option>
                   ))}
                 </select>
-
               </div>
+            </div>
 
+            <div className="mt-4 text-sm text-[#6B6B6B]">
+              Showing <span className="font-semibold text-[#231F20]">{viewMode === 'grid' ? filteredCourses.length : mappingCourses.length}</span> of{" "}
+              <span className="font-semibold text-[#231F20]">{courses.length}</span> courses
             </div>
           </div>
 
-          <CourseStats courses={courses} studentOutcomes={studentOutcomes} />
+          <CourseStats courses={mappingCourses} studentOutcomes={studentOutcomes} />
 
           <div className="mt-6">
 
@@ -477,7 +472,7 @@ const Courses = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
-                {filteredCourses.map(course => (
+                {mappingCourses.map(course => (
 
                   <CourseCard
                     key={course.id}
@@ -495,7 +490,7 @@ const Courses = () => {
             ) : (
 
               <SOMappingMatrix
-                courses={filteredCourses}
+                courses={mappingCourses}
                 studentOutcomes={studentOutcomes}
                 onToggleMapping={handleToggleMapping}
               />
@@ -514,7 +509,6 @@ const Courses = () => {
         onClose={() => setIsAddModalOpen(false)}
         onSave={handleSaveCourse}
         editingCourse={editingCourse}
-        studentOutcomes={studentOutcomes}
         isSaving={isSaving}
         curriculumOptions={curriculums.filter(curriculum => curriculum !== 'All Curriculums')}
       />
@@ -525,14 +519,6 @@ const Courses = () => {
         onSave={handleSaveCurriculum}
         isSaving={isSavingCurriculum}
         existingCurriculums={curriculums.filter(curriculum => curriculum !== 'All Curriculums')}
-      />
-
-      <AddSchoolYearModal
-        isOpen={isAddSchoolYearModalOpen}
-        onClose={() => setIsAddSchoolYearModalOpen(false)}
-        onSave={handleSaveSchoolYear}
-        isSaving={isSavingSchoolYear}
-        existingSchoolYears={schoolYears}
       />
 
       <DeleteConfirmModal
@@ -546,7 +532,6 @@ const Courses = () => {
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
         course={selectedCourse}
-        studentOutcomes={studentOutcomes}
       />
 
     </div>

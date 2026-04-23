@@ -65,12 +65,12 @@ const PAGE_GUIDES = [
     id: "student-outcomes",
     title: "Student Outcomes",
     icon: GraduationCap,
-    summary: "Create and maintain Student Outcomes, indicators, and criteria.",
+    summary: "Create and maintain Student Outcomes, indicators, and sub performance indicators.",
     previewTitle: "Student Outcomes and Rubric Builder",
     previewMetrics: [
       { label: "Outcome", value: "SO" },
       { label: "Indicators", value: "PI" },
-      { label: "Criteria", value: "PC" },
+      { label: "Sub PI", value: "SPI" },
       { label: "Version", value: "Draft" },
     ],
     howItWorks: [
@@ -85,7 +85,7 @@ const PAGE_GUIDES = [
         imageAlt: "SO definitions and rubric structure",
       },
       {
-        text: "View SO Rubric with Rubric Table to edit the Performance indicator and Criterion.",
+        text: "View SO Rubric with Rubric Table to edit the Performance Indicator and Sub Performance Indicator.",
         imageSrc: "/getting-started/SO_3.png",
         imageAlt: "SO rubric table and performance indicators",
       },
@@ -205,7 +205,7 @@ const PAGE_GUIDES = [
     previewMetrics: [
       { label: "Section", value: "Selected" },
       { label: "Outcome", value: "SO" },
-      { label: "Rubric", value: "Criteria" },
+      { label: "Rubric", value: "Sub PI" },
       { label: "Save", value: "Progress" },
     ],
     howItWorks: [
@@ -220,7 +220,7 @@ const PAGE_GUIDES = [
         imageAlt: "Assess Students and mapped SO view",
       },
       {
-        text: "Enter rubric-based scores for indicators and criteria.",
+        text: "Enter rubric-based scores for indicators and sub performance indicators.",
         imageSrc: "/getting-started/Assessment_3.png",
         imageAlt: "Enter rubric-based scores",
       },

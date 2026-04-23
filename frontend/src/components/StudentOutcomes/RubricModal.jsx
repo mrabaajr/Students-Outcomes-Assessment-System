@@ -110,11 +110,11 @@ export function RubricModal({ open, onOpenChange, studentOutcome, onSave }) {
               <table className="border-collapse text-sm" style={{ width: `${(indicators.length * 220) + 140}px`, minWidth: `calc(100% + 20px)` }}>
                 <thead>
                   <tr className="bg-[#231F20]">
-                    <th className="w-[120px] border-b border-r border-[#D1D5DB] px-3 py-2.5 text-left text-xs font-bold text-white">Criteria</th>
+                    <th className="w-[120px] border-b border-r border-[#D1D5DB] px-3 py-2.5 text-left text-xs font-bold text-white">Sub Performance Indicator</th>
                     {indicators.map((pi, idx) => (
                       <th key={pi.id} className="min-w-[200px] border-b border-r border-[#D1D5DB] px-3 py-2.5 text-left text-xs font-bold text-white last:border-r-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span>PI {idx + 1}</span>
+                          <span>Performance Indicator {idx + 1}</span>
                           <div className="flex items-center gap-1">
                             <button onClick={() => { setEditingPIId(pi.id); setEditingPIText(pi.description); }} className="rounded p-1 text-[#D1D5DB] hover:bg-[#3A3A3A] hover:text-white"><Pencil className="h-3.5 w-3.5" /></button>
                             <button onClick={() => deletePI(pi.id)} className="rounded p-1 text-[#FCA5A5] hover:bg-[#7F1D1D]/20 hover:text-[#FECACA]"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -150,7 +150,7 @@ export function RubricModal({ open, onOpenChange, studentOutcome, onSave }) {
                   {Array.from({ length: maxCriteria }).map((_, rowIdx) => (
                     <tr key={rowIdx} className="hover:bg-[#FFFDF2]">
                       <td className="border-b border-r border-[#D1D5DB] px-3 py-2 text-xs font-medium text-[#6B6B6B]">
-                        <span className="inline-block rounded bg-[#FFF8DB] px-1.5 py-0.5 text-[11px] font-semibold text-[#231F20]">PC {rowIdx + 1}</span>
+                        <span className="inline-block rounded bg-[#FFF8DB] px-1.5 py-0.5 text-[11px] font-semibold text-[#231F20]">Sub Performance Indicator {rowIdx + 1}</span>
                       </td>
                       {indicators.map((pi) => {
                         const pc = pi.criteria[rowIdx];
@@ -194,12 +194,12 @@ export function RubricModal({ open, onOpenChange, studentOutcome, onSave }) {
                       <td key={pi.id} className="border-r border-[#D1D5DB] px-3 py-2 last:border-r-0">
                         {addingCriterionToPI === pi.id ? (
                           <div className="flex items-center gap-1">
-                            <Input value={newCriterionText} onChange={(e) => setNewCriterionText(e.target.value)} placeholder="Criterion name..." className="h-7 border-[#D1D5DB] bg-white text-xs text-[#231F20]" onKeyDown={(e) => e.key === "Enter" && addCriterion(pi.id)} autoFocus />
+                            <Input value={newCriterionText} onChange={(e) => setNewCriterionText(e.target.value)} placeholder="Sub performance indicator name..." className="h-7 border-[#D1D5DB] bg-white text-xs text-[#231F20]" onKeyDown={(e) => e.key === "Enter" && addCriterion(pi.id)} autoFocus />
                             <button onClick={() => addCriterion(pi.id)} className="rounded bg-[#231F20] p-1 text-white hover:bg-[#3A3A3A]"><Check className="h-3 w-3" /></button>
                             <button onClick={() => setAddingCriterionToPI(null)} className="rounded border border-[#D1D5DB] bg-white p-1 text-[#231F20] hover:bg-[#F5F5F5]"><X className="h-3 w-3" /></button>
                           </div>
                         ) : (
-                          <button onClick={() => { setAddingCriterionToPI(pi.id); setNewCriterionText(""); }} className="flex items-center gap-1 text-xs font-medium text-[#231F20] hover:underline"><Plus className="h-3 w-3" /> Add Criterion</button>
+                          <button onClick={() => { setAddingCriterionToPI(pi.id); setNewCriterionText(""); }} className="flex items-center gap-1 text-xs font-medium text-[#231F20] hover:underline"><Plus className="h-3 w-3" /> Add Sub Performance Indicator</button>
                         )}
                       </td>
                     ))}

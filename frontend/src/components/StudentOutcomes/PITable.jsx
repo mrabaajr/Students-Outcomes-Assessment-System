@@ -39,7 +39,7 @@ export function PITable({
   };
 
   // ---------------------------
-  // CRITERION EDIT HANDLERS
+  // SUB PERFORMANCE INDICATOR EDIT HANDLERS
   // ---------------------------
 
   const handleEditCriterion = (piId, criterion) => {
@@ -152,7 +152,7 @@ export function PITable({
               </div>
 
               {/* ------------------ */}
-              {/* PERFORMANCE CRITERIA */}
+              {/* SUB PERFORMANCE INDICATORS */}
               {/* ------------------ */}
 
               <div className="mt-4 space-y-2">
@@ -206,7 +206,7 @@ export function PITable({
                         <div className="flex-1 text-sm text-gray-700">
                           {criterion.name || (
                             <span className="italic text-gray-400">
-                              Empty criterion
+                              Empty sub performance indicator
                             </span>
                           )}
                         </div>
@@ -238,7 +238,7 @@ export function PITable({
                   </div>
                 ))}
 
-                {/* Add Criterion Button */}
+                {/* Add Sub Performance Indicator Button */}
                 <div className="ml-10">
                   <Button
                     size="sm"
@@ -246,7 +246,7 @@ export function PITable({
                     onClick={() => onAddCriterion(pi.id)}
                   >
                     <Plus className="w-4 h-4 mr-1" />
-                    Add Criterion
+                    Add Sub Performance Indicator
                   </Button>
                 </div>
               </div>

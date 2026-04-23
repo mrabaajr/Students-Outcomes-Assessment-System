@@ -55,18 +55,18 @@ export function SOCard({ so, onEdit, onDelete, onOpenRubric }) {
         </div>
       </div>
       {so.indicators.length > 0 && (() => {
-        const totalCriteria = so.indicators.reduce((sum, pi) => sum + Math.max(pi.criteria.length, 1), 0);
+        const totalColumns = so.indicators.reduce((sum, pi) => sum + Math.max(pi.criteria.length, 1), 0);
         return (
           <div className="border-t border-[#E5E7EB] px-5 pb-5 pt-3">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
-              Performance Indicators &amp; Criteria
+              Performance Indicators &amp; Sub Performance Indicators
             </p>
             <div className="overflow-x-auto rounded-lg border border-[#D1D5DB] bg-white scrollbar-visible">
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="bg-[#231F20]">
                     <th
-                      colSpan={totalCriteria}
+                      colSpan={totalColumns}
                       className="border-b border-[#D1D5DB] px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-white"
                     >
                       Performance Indicator
@@ -76,7 +76,7 @@ export function SOCard({ so, onEdit, onDelete, onOpenRubric }) {
                     {so.indicators.map((pi) => (
                       <td
                         key={pi.id}
-                        colSpan={Math.max(pi.criteria.length, 1)}
+                        colSpan={pi.criteria.length > 0 ? pi.criteria.length : 1}
                         className="border-b border-r border-[#D1D5DB] px-3 py-2.5 text-center text-xs leading-relaxed text-[#231F20] align-top last:border-r-0"
                       >
                         {pi.description}
@@ -84,7 +84,7 @@ export function SOCard({ so, onEdit, onDelete, onOpenRubric }) {
                     ))}
                   </tr>
                   <tr className="bg-[#FFF8DB]">
-                    {so.indicators.map((pi) =>
+                    {so.indicators.map((pi) => (
                       pi.criteria.length > 0 ? (
                         pi.criteria.map((pc) => (
                           <th
@@ -97,12 +97,12 @@ export function SOCard({ so, onEdit, onDelete, onOpenRubric }) {
                       ) : (
                         <th
                           key={`${pi.id}-empty`}
-                          className="min-w-[120px] border-b border-r border-[#D1D5DB] px-3 py-2 text-center text-xs italic text-[#6B6B6B] last:border-r-0"
+                          className="min-w-[120px] border-b border-r border-[#D1D5DB] px-3 py-2 text-center text-xs font-medium text-[#6B6B6B] last:border-r-0"
                         >
-                          No criteria
+                          -
                         </th>
                       )
-                    )}
+                    ))}
                   </tr>
                 </thead>
               </table>

@@ -115,12 +115,11 @@ const Login = () => {
         {/* Content */}
         <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 2xl:px-24">
           <div className="animate-slide-right">
-            <h1 className="font-display text-5xl md:text-6xl xl:text-7xl 2xl:text-8xl text-white tracking-wide leading-none mb-4 sm:mb-6">
-              WELCOME<br />
-              <span className="text-yellow-400">BACK</span>
+            <h1 className="font-display text-5xl md:text-6xl xl:text-7xl 2xl:text-8xl text-yellow-400 tracking-wide leading-none mb-4 sm:mb-6">
+              WELCOME
             </h1>
             <p className="text-white/70 text-base lg:text-lg max-w-md leading-relaxed">
-              Sign in to access your account and continue your journey with us.
+              SOAMS: Student Outcomes Assessment Management System
             </p>
           </div>
 
@@ -138,9 +137,12 @@ const Login = () => {
         <div className="w-full max-w-md animate-slide-up">
           {/* Mobile branding */}
           <div className="lg:hidden text-center mb-8 sm:mb-10">
-            <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-dark-gray">
-              WELCOME <span className="text-yellow-400">BACK</span>
+            <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-yellow-400">
+              WELCOME
             </h1>
+            <p className="mt-3 text-sm sm:text-base text-gray leading-relaxed">
+              SOAMS: Student Outcomes Assessment Management System
+            </p>
           </div>
 
           {/* Error Message */}

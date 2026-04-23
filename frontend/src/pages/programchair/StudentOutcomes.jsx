@@ -43,7 +43,7 @@ const StudentOutcomes = () => {
   const [pendingAction, setPendingAction] = useState(null);
   const [deletingSO, setDeletingSO] = useState(null);
 
-  // Transform backend format (performanceIndicators/performanceCriteria) to UI format (indicators/criteria)
+  // Backend keeps `performanceCriteria`; in the frontend UI these are presented as Sub Performance Indicators.
   const transformToUIFormat = (outcome) => ({
     ...outcome,
     indicators: (outcome.performanceIndicators || []).map((pi) => ({
@@ -183,7 +183,7 @@ const StudentOutcomes = () => {
             </h1>
             <p className="text-sm sm:text-base text-[#A5A8AB] max-w-xl mb-6 sm:mb-8">
               Define and manage student outcomes, performance indicators, and
-              evaluation criteria for your program assessment.
+              sub performance indicators for your program assessment.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <button
