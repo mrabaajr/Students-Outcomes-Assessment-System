@@ -1,4 +1,5 @@
-import { Users, CheckCircle2, Clock3, AlertCircle, ChevronRight } from "lucide-react";
+import { useRef, useState } from "react";
+import { Users, CheckCircle2, Clock3, AlertCircle, ChevronRight, Plus, Upload, Loader2, Download } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -6,6 +7,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import StudentFormDialog from "@/components/classes/StudentFormDialog";
 
 const getFacultyForSection = (section, facultyData) => {
   const match = facultyData.find((faculty) =>
@@ -28,7 +30,19 @@ export function CourseSectionsModal({
   onClose,
   onSelectSection,
   onSelectStudent,
+  onAddStudent,
+  onImportStudents,
 }) {
+  const fileInputRef = useRef(null);
+  const [studentDialogSection, setStudentDialogSection] = useState(null);
+  const [pendingImportSection, setPendingImportSection] = useState(null);
+  const [importState, setImportState] = useState({
+    sectionId: null,
+    loading: false,
+    message: "",
+    error: "",
+  });
+
   const getStatusBadge = (status) => {
     switch (status) {
       case "assessed":
@@ -68,6 +82,95 @@ export function CourseSectionsModal({
     });
   };
 
+  const handleOpenStudentDialog = (section) => {
+    setStudentDialogSection(section);
+  };
+
+  const handleSaveStudent = async (studentData) => {
+    if (!studentDialogSection || !onAddStudent) {
+      return;
+    }
+
+    await onAddStudent(studentDialogSection, studentData);
+    setStudentDialogSection(null);
+  };
+
+  const handleStartImport = (section) => {
+    setPendingImportSection(section);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleImportFileSelected = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !pendingImportSection || !onImportStudents) {
+      return;
+    }
+
+    setImportState({
+      sectionId: pendingImportSection.id,
+      loading: true,
+      message: "",
+      error: "",
+    });
+
+    try {
+      const result = await onImportStudents(pendingImportSection, file);
+      setImportState({
+        sectionId: pendingImportSection.id,
+        loading: false,
+        message: result?.message || "Students imported successfully.",
+        error: "",
+      });
+    } catch (error) {
+      setImportState({
+        sectionId: pendingImportSection.id,
+        loading: false,
+        message: "",
+        error: error?.message || "Failed to import students.",
+      });
+    } finally {
+      setPendingImportSection(null);
+      if (event.target) {
+        event.target.value = "";
+      }
+    }
+  };
+
+  const handleExportSectionStudents = (section) => {
+    const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const rows = [
+      ["Section", section.name],
+      ["Course Code", section.courseCode],
+      ["Course Name", selectedCourse?.courseName || section.courseName || ""],
+      ["Semester", section.semester || ""],
+      ["School Year", section.schoolYear || ""],
+      ["Curriculum", section.curriculum || ""],
+      ["Faculty", getFacultyForSection(section, facultyData)],
+      [],
+      ["Student ID", "Student Name", "Program", "Year Level"],
+      ...(section.students || []).map((student) => [
+        student.studentId || "",
+        student.name || "",
+        student.course || "",
+        student.yearLevel || "",
+      ]),
+    ];
+
+    const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${section.courseCode || "section"}_${section.name}_students.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
   return (
     <Dialog
       open={isOpen}
@@ -87,6 +190,13 @@ export function CourseSectionsModal({
 
         {selectedCourse && (
           <div className="space-y-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleImportFileSelected}
+            />
             {selectedCourse.sections && selectedCourse.sections.length > 0 ? (
               <div className="space-y-4">
                 {selectedCourse.sections.map((section) => {
@@ -147,6 +257,54 @@ export function CourseSectionsModal({
                               <span className="font-semibold text-[#231F20]">Last assessed:</span>{" "}
                               {formatLastAssessed(lastAssessed)}
                             </div>
+                            {(onAddStudent || onImportStudents) && (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {onAddStudent && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenStudentDialog(section)}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-[#D1D5DB] bg-white px-3 py-1.5 text-xs font-semibold text-[#231F20] transition hover:border-[#FFC20E] hover:bg-[#FFF8DB]"
+                                  >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Add Student
+                                  </button>
+                                )}
+                                {onImportStudents && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartImport(section)}
+                                    disabled={importState.loading && importState.sectionId === section.id}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-[#D1D5DB] bg-white px-3 py-1.5 text-xs font-semibold text-[#231F20] transition hover:border-[#FFC20E] hover:bg-[#FFF8DB] disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {importState.loading && importState.sectionId === section.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Upload className="h-3.5 w-3.5" />
+                                    )}
+                                    Import CSV
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleExportSectionStudents(section)}
+                                  disabled={!hasStudents}
+                                  className="inline-flex items-center gap-2 rounded-lg border border-[#D1D5DB] bg-white px-3 py-1.5 text-xs font-semibold text-[#231F20] transition hover:border-[#FFC20E] hover:bg-[#FFF8DB] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  Export CSV
+                                </button>
+                              </div>
+                            )}
+                            {importState.sectionId === section.id && importState.message && (
+                              <div className="mt-2 text-xs font-medium text-emerald-700">
+                                {importState.message}
+                              </div>
+                            )}
+                            {importState.sectionId === section.id && importState.error && (
+                              <div className="mt-2 text-xs font-medium text-red-600">
+                                {importState.error}
+                              </div>
+                            )}
                           </div>
                           <button
                             onClick={() => onSelectSection(section)}
@@ -218,6 +376,13 @@ export function CourseSectionsModal({
           </div>
         )}
       </DialogContent>
+
+      <StudentFormDialog
+        open={!!studentDialogSection}
+        onClose={() => setStudentDialogSection(null)}
+        onSave={handleSaveStudent}
+        initialData={null}
+      />
     </Dialog>
   );
 }

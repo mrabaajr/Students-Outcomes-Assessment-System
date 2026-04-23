@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { API_BASE_URL } from "@/lib/api";
+import { API_BASE_URL, getAuthHeader } from "@/lib/api";
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("accessToken");
@@ -182,6 +182,26 @@ const parseSOQuery = (value) =>
     .map((item) => parseInt(item, 10))
     .filter((item) => Number.isInteger(item));
 
+const formatYearLevel = (value) => {
+  const numeric = typeof value === "number" ? value : parseInt(String(value || "").match(/\d+/)?.[0] || "", 10);
+  if (!Number.isInteger(numeric)) {
+    return value || "-";
+  }
+  const suffix = { 1: "st", 2: "nd", 3: "rd" }[numeric] || "th";
+  return `${numeric}${suffix} Year`;
+};
+
+const normalizeStudentRecord = (student) => ({
+  id: String(student.id),
+  name:
+    student.name ||
+    [student.first_name, student.last_name].filter(Boolean).join(" ").trim() ||
+    "-",
+  studentId: student.studentId || student.student_id || "",
+  course: student.course || student.program || "",
+  yearLevel: student.yearLevel || formatYearLevel(student.year_level),
+});
+
 export default function FacultyAssessments() {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -211,6 +231,30 @@ export default function FacultyAssessments() {
   const [selectedCourseForModal, setSelectedCourseForModal] = useState(null); // Course to show sections modal
   const [selectedSectionForAssessment, setSelectedSectionForAssessment] = useState(null); // Section for student assessment modal
   const [selectedStudentForAssessment, setSelectedStudentForAssessment] = useState(null);
+
+  const patchSectionStudents = useCallback((sectionId, patchFn) => {
+    const applyPatch = (section) => {
+      if (String(section.id) !== String(sectionId)) {
+        return section;
+      }
+
+      return {
+        ...section,
+        students: patchFn(section.students || []),
+      };
+    };
+
+    setSectionsData((prev) => prev.map(applyPatch));
+    setSelectedCourseForModal((prev) =>
+      prev
+        ? {
+            ...prev,
+            sections: prev.sections.map(applyPatch),
+          }
+        : prev
+    );
+    setSelectedSectionForAssessment((prev) => (prev ? applyPatch(prev) : prev));
+  }, []);
 
   const clearAllFilters = useCallback(() => {
     setSelectedSOIds([]);
@@ -375,6 +419,32 @@ export default function FacultyAssessments() {
       setIsLoading(false);
     }
   }, [toast]);
+
+  const handleImportStudentsToSection = useCallback(async (section, file) => {
+    const headers = await getAuthHeader();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const importResponse = await axios.post(
+      `${API_BASE_URL}/sections/${section.id}/import-csv/`,
+      formData,
+      { headers }
+    );
+
+    const detailResponse = await axios.get(`${API_BASE_URL}/sections/${section.id}/`, {
+      headers,
+    });
+
+    const nextStudents = (detailResponse.data?.students || []).map(normalizeStudentRecord);
+    patchSectionStudents(section.id, () => nextStudents);
+
+    toast({
+      title: "Students imported",
+      description: importResponse.data?.message || `Updated ${section.name} from CSV.`,
+    });
+
+    return importResponse.data;
+  }, [patchSectionStudents, toast]);
 
   // Load data on component mount
   useEffect(() => {
@@ -1733,6 +1803,7 @@ export default function FacultyAssessments() {
             setSelectedSectionForAssessment(section);
             setSelectedStudentForAssessment(student);
           }}
+          onImportStudents={handleImportStudentsToSection}
         />
 
         {/* Student Assessment Modal */}

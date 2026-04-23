@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { API_BASE_URL } from "@/lib/api";
+import { API_BASE_URL, getAuthHeader } from "@/lib/api";
 
 // Icons mapping for SOs (cycles if more than 6)
 const soIconList = [Lightbulb, PenTool, MessageSquare, Scale, UsersRound, FlaskConical];
@@ -59,6 +59,26 @@ const parseSOQuery = (value) =>
     .split(",")
     .map((item) => parseInt(item, 10))
     .filter((item) => Number.isInteger(item));
+
+const formatYearLevel = (value) => {
+  const numeric = typeof value === "number" ? value : parseInt(String(value || "").match(/\d+/)?.[0] || "", 10);
+  if (!Number.isInteger(numeric)) {
+    return value || "-";
+  }
+  const suffix = { 1: "st", 2: "nd", 3: "rd" }[numeric] || "th";
+  return `${numeric}${suffix} Year`;
+};
+
+const normalizeStudentRecord = (student) => ({
+  id: String(student.id),
+  name:
+    student.name ||
+    [student.first_name, student.last_name].filter(Boolean).join(" ").trim() ||
+    "-",
+  studentId: student.studentId || student.student_id || "",
+  course: student.course || student.program || "",
+  yearLevel: student.yearLevel || formatYearLevel(student.year_level),
+});
 
 export default function SOAssessment() {
   const { toast } = useToast();
@@ -89,6 +109,30 @@ export default function SOAssessment() {
   const [selectedCourseForModal, setSelectedCourseForModal] = useState(null); // Course to show sections modal
   const [selectedSectionForAssessment, setSelectedSectionForAssessment] = useState(null); // Section for student assessment modal
   const [selectedStudentForAssessment, setSelectedStudentForAssessment] = useState(null);
+
+  const patchSectionStudents = useCallback((sectionId, patchFn) => {
+    const applyPatch = (section) => {
+      if (String(section.id) !== String(sectionId)) {
+        return section;
+      }
+
+      return {
+        ...section,
+        students: patchFn(section.students || []),
+      };
+    };
+
+    setSectionsData((prev) => prev.map(applyPatch));
+    setSelectedCourseForModal((prev) =>
+      prev
+        ? {
+            ...prev,
+            sections: prev.sections.map(applyPatch),
+          }
+        : prev
+    );
+    setSelectedSectionForAssessment((prev) => (prev ? applyPatch(prev) : prev));
+  }, []);
 
   const clearAllFilters = useCallback(() => {
     setSelectedSOIds([]);
@@ -209,6 +253,76 @@ export default function SOAssessment() {
     }
     setIsLoading(false);
   }, [toast]);
+
+  const handleAddStudentToSection = useCallback(async (section, studentData) => {
+    const headers = await getAuthHeader();
+    const [firstName, ...lastNameParts] = String(studentData.name || "").trim().split(/\s+/);
+    const lastName = lastNameParts.join(" ");
+    const yearLevelNumber = parseInt(String(studentData.yearLevel || "").match(/\d+/)?.[0] || "", 10);
+
+    if (!firstName || !lastName || !Number.isInteger(yearLevelNumber)) {
+      throw new Error("Please provide a full name and a valid year level.");
+    }
+
+    const studentResponse = await axios.post(
+      `${API_BASE_URL}/students/`,
+      {
+        student_id: studentData.studentId,
+        first_name: firstName,
+        last_name: lastName,
+        program: studentData.course,
+        year_level: yearLevelNumber,
+      },
+      { headers }
+    );
+
+    await axios.post(
+      `${API_BASE_URL}/enrollments/`,
+      {
+        student: studentResponse.data.id,
+        section: section.id,
+      },
+      { headers }
+    );
+
+    const normalizedStudent = normalizeStudentRecord(studentResponse.data);
+    patchSectionStudents(section.id, (students) => [...students, normalizedStudent]);
+
+    toast({
+      title: "Student added",
+      description: `${normalizedStudent.name} was enrolled in ${section.name}.`,
+    });
+
+    return normalizedStudent;
+  }, [patchSectionStudents, toast]);
+
+  const handleImportStudentsToSection = useCallback(async (section, file) => {
+    const headers = await getAuthHeader();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const importResponse = await axios.post(
+      `${API_BASE_URL}/sections/${section.id}/import-csv/`,
+      formData,
+      {
+        headers,
+      }
+    );
+
+    const detailResponse = await axios.get(`${API_BASE_URL}/sections/${section.id}/`, {
+      headers,
+    });
+
+    const nextStudents = (detailResponse.data?.students || []).map(normalizeStudentRecord);
+    patchSectionStudents(section.id, () => nextStudents);
+
+    toast({
+      title: "Students imported",
+      description: importResponse.data?.message || `Updated ${section.name} from CSV.`,
+    });
+
+    return importResponse.data;
+  }, [patchSectionStudents, toast]);
 
   // Load data on component mount
   useEffect(() => {
@@ -1516,6 +1630,8 @@ export default function SOAssessment() {
             setSelectedSectionForAssessment(section);
             setSelectedStudentForAssessment(student);
           }}
+          onAddStudent={handleAddStudentToSection}
+          onImportStudents={handleImportStudentsToSection}
         />
 
         {/* Student Assessment Modal */}
