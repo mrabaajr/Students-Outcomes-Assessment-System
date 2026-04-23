@@ -60,7 +60,7 @@ const buildAssessmentBases = (studentOutcome) => {
     if (pi.performanceCriteria && pi.performanceCriteria.length > 0) {
       return pi.performanceCriteria.map((pc) => ({
         key: `criterion:${pc.id}`,
-        label: pc.name || pi.name || "Unnamed criterion",
+        label: pc.name || pi.name || "Unnamed sub performance indicator",
       }));
     }
 
@@ -1091,11 +1091,11 @@ export function AssessStudentsModal({
                           Assess Students — {selectedAssessmentSO.code}
                         </h4>
                         <p className="text-xs text-[#6B6B6B] mb-3">
-                          Rate each student's performance for each criterion or performance indicator (1-6 scale, where 6 is highest)
+                          Rate each student's performance for each sub performance indicator or performance indicator (1-6 scale, where 6 is highest)
                         </p>
                         {indicatorsWithoutCriteria > 0 && (
                           <div className="mb-3 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
-                            {indicatorsWithoutCriteria} performance indicator{indicatorsWithoutCriteria > 1 ? "s use" : " uses"} the performance indicator itself as the grading basis because no criteria are defined yet.
+                            {indicatorsWithoutCriteria} performance indicator{indicatorsWithoutCriteria > 1 ? "s use" : " uses"} the performance indicator itself as the grading basis because no sub performance indicators are defined yet.
                           </div>
                         )}
                         {hasMissingGrades && (
@@ -1167,7 +1167,7 @@ export function AssessStudentsModal({
                               })}
                             </tr>
 
-                            {/* Row 3: Performance Criteria */}
+                            {/* Row 3: Sub Performance Indicators */}
                             {displayIndicators.length > 0 && (
                               <tr className="bg-[#FFF8DB] border-b border-[#E5E7EB]">
                                 <th
@@ -1175,18 +1175,17 @@ export function AssessStudentsModal({
                                   className="border-r border-[#D1D5DB] px-4 py-2 text-left text-xs font-semibold text-[#6B6B6B] bg-[#FFF8DB]"
                                   style={{ position: 'sticky', top: stickyHeaderTops.row3, left: 0, zIndex: 70 }}
                                 >
-                                  Criteria
+                                  Sub Performance Indicator
                                 </th>
                                 {displayIndicators.map((pi) => {
                                   if (!pi.performanceCriteria || pi.performanceCriteria.length === 0) {
                                     return (
                                       <th
                                         key={`pc-${pi.id}-indicator`}
-                                        className="min-w-[110px] border-r border-[#E5E7EB] px-2 py-2 text-center text-xs italic text-[#6B6B6B] bg-[#FFF8DB] last:border-r-0 leading-tight"
+                                        className="min-w-[110px] border-r border-[#E5E7EB] bg-[#FFF8DB] last:border-r-0"
                                         style={{ position: 'sticky', top: stickyHeaderTops.row3, zIndex: 65 }}
-                                      >
-                                        No criteria
-                                      </th>
+                                        aria-hidden="true"
+                                      />
                                     );
                                   }
 
@@ -1280,7 +1279,7 @@ export function AssessStudentsModal({
                                     className="border-r border-[#D1D5DB] px-4 py-2 text-left text-xs font-semibold text-[#231F20] bg-[#FFF8DB]"
                                     style={{ position: "sticky", left: 0, zIndex: 15 }}
                                   >
-                                    No. of Students Answered per criterion / indicator
+                                    No. of Students Answered per sub performance indicator / indicator
                                   </td>
                                   {footerSummary.map((basis) => (
                                     <td

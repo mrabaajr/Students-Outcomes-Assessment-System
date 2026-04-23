@@ -12,7 +12,7 @@ const getAuthHeaders = () => {
 };
 
 const quickActions = [
-  { icon: ClipboardCheck, label: "Input Grades", desc: "Grade students on performance criteria", to: "/faculty/assessments", color: "bg-primary/10 text-primary" },
+  { icon: ClipboardCheck, label: "Input Grades", desc: "Grade students on sub performance indicators", to: "/faculty/assessments", color: "bg-primary/10 text-primary" },
   { icon: BookOpen, label: "My Classes", desc: "View sections and student rosters", to: "/faculty/classes", color: "bg-info/10 text-info" },
   { icon: BarChart3, label: "View Reports", desc: "Section-level analytics and exports", to: "/faculty/reports", color: "bg-success/10 text-success" },
   { icon: Target, label: "SO Overview", desc: "View mapped student outcomes", to: "/faculty/classes", color: "bg-purple-500/10 text-purple-400" },
