@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import {
   Dialog,
@@ -23,6 +23,7 @@ import {
   Save,
   ArrowLeft,
   Eraser,
+  Printer,
   PenTool,
   MessageSquare,
   Scale,
@@ -43,8 +44,6 @@ const getFacultyForSection = (section, facultyData) => {
   );
   return match?.name || "No faculty assigned";
 };
-
-const SATISFACTORY_THRESHOLD = 5;
 
 const buildAssessmentBases = (studentOutcome) => {
   if (!studentOutcome?.performanceIndicators) {
@@ -68,9 +67,10 @@ const buildAssessmentBases = (studentOutcome) => {
   });
 };
 
-export function AssessStudentsModal({
+export function StudentRubricModal({
   isOpen,
   selectedSection,
+  selectedStudent,
   studentOutcomes,
   courseMappings,
   facultyData,
@@ -88,9 +88,6 @@ export function AssessStudentsModal({
   const [missingGradeMap, setMissingGradeMap] = useState({});
   const [modalWidth, setModalWidth] = useState(95); // in vw
   const [modalHeight, setModalHeight] = useState(96); // in vh
-  const headerRow1Ref = useRef(null);
-  const headerRow2Ref = useRef(null);
-  const [stickyHeaderTops, setStickyHeaderTops] = useState({ row2: 48, row3: 88 });
   const [statusPopup, setStatusPopup] = useState({
     open: false,
     title: "",
@@ -104,6 +101,7 @@ export function AssessStudentsModal({
   const autoSaveTimeoutRef = useRef(null);
   const latestStudentsRef = useRef([]);
   const lastSavedSignatureRef = useRef("");
+  const rubricSheetRef = useRef(null);
 
   const getActiveSOId = (selectedSOOverride = selectedAssessmentSO) => {
     if (selectedSOOverride?.id) {
@@ -208,7 +206,11 @@ export function AssessStudentsModal({
     const validBases = new Set(assessmentBases.map((basis) => basis.key));
     const nextMissingGradeMap = {};
     const missingEntries = [];
-    studentList.forEach((student) => {
+    const validationStudents = selectedStudent
+      ? studentList.filter((student) => student.id === selectedStudent.id)
+      : studentList;
+
+    validationStudents.forEach((student) => {
       assessmentBases.forEach((basis) => {
         const score = student.grades?.[basis.key];
         if (score === null || score === undefined || score === "") {
@@ -489,62 +491,6 @@ export function AssessStudentsModal({
     };
   }, [students, selectedAssessmentSO, selectedSection, isOpen, isLoadingAssessment]);
 
-  useLayoutEffect(() => {
-    let rafId = null;
-    let timeoutId = null;
-
-    const updateStickyHeaderOffsets = () => {
-      const row1Height = headerRow1Ref.current?.getBoundingClientRect().height || 0;
-      const row2Height = headerRow2Ref.current?.getBoundingClientRect().height || 0;
-
-      if (row1Height > 0 || row2Height > 0) {
-        setStickyHeaderTops({
-          row2: row1Height,
-          row3: row1Height + row2Height,
-        });
-      }
-    };
-
-    const scheduleStickyHeaderOffsetsUpdate = () => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-      rafId = requestAnimationFrame(updateStickyHeaderOffsets);
-    };
-
-    scheduleStickyHeaderOffsetsUpdate();
-    timeoutId = setTimeout(scheduleStickyHeaderOffsetsUpdate, 120);
-
-    const resizeObserver = typeof ResizeObserver !== "undefined"
-      ? new ResizeObserver(scheduleStickyHeaderOffsetsUpdate)
-      : null;
-
-    if (resizeObserver) {
-      if (headerRow1Ref.current) resizeObserver.observe(headerRow1Ref.current);
-      if (headerRow2Ref.current) resizeObserver.observe(headerRow2Ref.current);
-    }
-
-    window.addEventListener("resize", scheduleStickyHeaderOffsetsUpdate);
-
-    return () => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", scheduleStickyHeaderOffsetsUpdate);
-    };
-  }, [
-    selectedAssessmentSO?.id,
-    selectedAssessmentSO?.performanceIndicators?.length,
-    students.length,
-    isLoadingAssessment,
-    modalWidth,
-    modalHeight,
-  ]);
-
   const loadGrades = async (sectionId, soId, schoolYear, initialStudents, courseCode) => {
     let resolvedSelectedSO = null;
     setIsLoadingAssessment(true);
@@ -809,10 +755,16 @@ export function AssessStudentsModal({
 
   const handleClearAssessment = () => {
     setStudents((prevStudents) => {
-      const nextStudents = prevStudents.map((student) => ({
-        ...student,
-        grades: {},
-      }));
+      const nextStudents = prevStudents.map((student) => {
+        if (selectedStudent && student.id !== selectedStudent.id) {
+          return student;
+        }
+
+        return {
+          ...student,
+          grades: {},
+        };
+      });
 
       const activeSOId = getActiveSOId();
       if (selectedSection && activeSOId) {
@@ -868,6 +820,185 @@ export function AssessStudentsModal({
     });
   };
 
+  const handlePrintRubric = () => {
+    if (!selectedAssessmentSO || !activeStudent) {
+      return;
+    }
+
+    const escapeHtml = (value) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    const buildRubricRowMarkup = (rows) =>
+      rows
+        .map((row, rowIndex) => {
+          const currentScore = Number(activeStudent?.grades?.[row.scoreKey] || 0);
+          const previousIndicator = rows[rowIndex - 1]?.performanceIndicator;
+          const showIndicatorCell = rowIndex === 0 || previousIndicator !== row.performanceIndicator;
+          const indicatorRowSpan = rows.filter((item) => item.performanceIndicator === row.performanceIndicator).length;
+
+          const scoreColumnsMarkup = rubricScale
+            .map((level) => {
+              const isSelected = currentScore === level.value;
+              return `
+                <td class="${isSelected ? "selected-cell" : ""}">
+                  <div class="level-badge">${level.value}</div>
+                  <div>${escapeHtml(getRubricDescriptor(selectedAssessmentSO.number, row.criterionLabel, level.value))}</div>
+                </td>
+              `;
+            })
+            .join("");
+
+          return `
+            <tr>
+              ${showIndicatorCell ? `<td rowspan="${indicatorRowSpan}" class="indicator-cell">${escapeHtml(row.performanceIndicator)}</td>` : ""}
+              <td class="criterion-cell">${escapeHtml(row.criterionLabel)}</td>
+              ${scoreColumnsMarkup}
+              <td class="score-cell">${currentScore || "-"}</td>
+            </tr>
+          `;
+        })
+        .join("");
+
+    const buildTableMarkup = (rows, includeTotals = false) => `
+      <table>
+        <thead>
+          <tr>
+            <th>Performance Indicator</th>
+            <th>Sub Performance Indicator</th>
+            ${rubricScale
+              .map(
+                (level) => `<th>${escapeHtml(level.label)}<br>${level.value}</th>`
+              )
+              .join("")}
+            <th>Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${buildRubricRowMarkup(rows)}
+          ${
+            includeTotals
+              ? `
+            <tr>
+              <td colspan="8" class="totals-label">Total Score</td>
+              <td class="score-cell">${rubricTotalScore}</td>
+            </tr>
+            <tr>
+              <td colspan="9" class="totals-label">Percentage Rating = (Total Score / ${rubricMaxScore}) x 100% = ${rubricPercentage}%</td>
+            </tr>
+          `
+              : ""
+          }
+        </tbody>
+      </table>
+    `;
+
+    const printablePagesHtml = `
+      <section class="print-page">
+        <div class="rubric-sheet">
+          <div class="sheet-header">
+            <div class="school-name">TECHNOLOGICAL INSTITUTE OF THE PHILIPPINES</div>
+            <div class="rubric-title">RUBRIC FOR ${escapeHtml(selectedAssessmentSO.code)}</div>
+            <div class="rubric-subtitle">(ENGINEERING PROGRAMS)</div>
+            <div class="so-description">
+              <strong>T.I.P. ${escapeHtml(selectedAssessmentSO.code)}</strong> ${escapeHtml(selectedAssessmentSO.description)}
+            </div>
+          </div>
+
+          <div class="meta-grid">
+            <div><span>Name</span><strong>${escapeHtml(activeStudent.name || "-")}</strong></div>
+            <div><span>Program</span><strong>${escapeHtml(activeStudent.program || "Computer Engineering")}</strong></div>
+            <div><span>Course</span><strong>${escapeHtml(selectedSection.courseCode || "-")}</strong></div>
+            <div><span>Section</span><strong>${escapeHtml(selectedSection.name || "-")}</strong></div>
+            <div><span>Semester</span><strong>${escapeHtml(selectedSection.semester || "-")}</strong></div>
+            <div><span>School Year</span><strong>${escapeHtml(selectedSection.schoolYear || "-")}</strong></div>
+          </div>
+
+          ${buildTableMarkup(rubricRows, true)}
+
+          <div class="signature-grid">
+            <div class="signature-block">
+              <div class="signature-label">Evaluated by:</div>
+              <div class="signature-line"></div>
+              <div class="signature-caption">Printed Name and Signature of Faculty Member</div>
+            </div>
+            <div class="signature-block signature-date">
+              <div class="signature-label">Date</div>
+              <div class="signature-line"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+
+    const printWindow = window.open("", "_blank", "width=1200,height=900");
+    if (!printWindow) {
+      toast({
+        title: "Unable to open print preview",
+        description: "Please allow pop-ups for this site to print or save the rubric as PDF.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const printStyles = `
+      <style>
+        @page { size: legal landscape; margin: 6mm; }
+        body { font-family: Arial, sans-serif; color: #231F20; margin: 0; background: white; }
+        .print-shell { padding: 0; }
+        .print-page { width: 100%; }
+        .rubric-sheet { width: 100%; }
+        .sheet-header { text-align: center; margin-bottom: 8px; }
+        .school-name { font-size: 10px; letter-spacing: 0.16em; }
+        .rubric-title { margin-top: 6px; font-size: 16px; font-weight: 700; }
+        .rubric-subtitle { margin-top: 2px; font-size: 11px; color: #555; }
+        .so-description { margin-top: 8px; text-align: left; font-size: 11px; line-height: 1.25; }
+        .meta-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 8px 0 10px; font-size: 10px; }
+        .meta-grid span { display: block; text-transform: uppercase; font-size: 9px; color: #666; margin-bottom: 2px; }
+        .meta-grid strong { font-size: 11px; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9px; }
+        th, td { border: 1px solid #231F20; padding: 4px; vertical-align: top; }
+        th { background: #f5f5f5; text-align: center; font-weight: 700; }
+        .indicator-cell { width: 17%; }
+        .criterion-cell { width: 15%; }
+        .selected-cell { background: #FFF3C4; }
+        .level-badge { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border: 1px solid #231F20; border-radius: 9999px; font-size: 9px; font-weight: 700; margin-bottom: 4px; }
+        .score-cell { width: 34px; text-align: center; font-weight: 700; }
+        .totals-label { text-align: right; font-weight: 700; }
+        .signature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 16px; font-size: 11px; }
+        .signature-block { min-height: 52px; }
+        .signature-date { justify-self: end; width: 60%; }
+        .signature-label { margin-bottom: 16px; }
+        .signature-line { border-bottom: 1px solid #231F20; height: 1px; }
+        .signature-caption { margin-top: 4px; font-size: 9px; color: #555; }
+      </style>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${selectedAssessmentSO.code} - ${activeStudent.name} Rubric</title>
+          ${printStyles}
+        </head>
+        <body>
+          <div class="print-shell">
+            ${printablePagesHtml}
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+  };
+
   if (!selectedSection) return null;
 
   const courseSOs = courseMappings[selectedSection.courseCode] || [];
@@ -877,41 +1008,119 @@ export function AssessStudentsModal({
   // Use the state variable selectedAssessmentSO which is populated from backend data with correct criteria
   // This ensures we display only the criteria that belong to the selected SO
   const displayIndicators = selectedAssessmentSO?.performanceIndicators || [];
-  const fixedStudentColumnsWidth = 260;
-  const indicatorColumnCount = displayIndicators.reduce(
-    (sum, pi) => sum + Math.max(pi.performanceCriteria?.length || 1, 1),
-    0
-  );
-  const calculatedTableWidth = Math.max(fixedStudentColumnsWidth + indicatorColumnCount * 110, 800);
+  const activeStudent =
+    students.find((student) => student.id === selectedStudent?.id) ||
+    (selectedStudent ? null : students[0] || null);
+  const visibleStudents = activeStudent ? [activeStudent] : students;
   const indicatorsWithoutCriteria = displayIndicators.filter(
     (pi) => !pi.performanceCriteria || pi.performanceCriteria.length === 0
   ).length;
-  const displayBases = buildAssessmentBases(selectedAssessmentSO);
   const hasMissingGrades = Object.keys(missingGradeMap).length > 0;
-  const hasAnyEnteredGrade = students.some((student) =>
+  const hasAnyEnteredGrade = visibleStudents.some((student) =>
     Object.values(student.grades || {}).some((score) => score !== null && score !== undefined && score !== "")
   );
-  const footerSummary = displayBases.map((basis) => {
-    const answeredCount = students.filter((student) => {
-      const score = student.grades?.[basis.key];
-      return score !== null && score !== undefined && score !== "";
-    }).length;
+  const rubricScale = [
+    { value: 1, label: "Very Poor" },
+    { value: 2, label: "Poor" },
+    { value: 3, label: "Unsatisfactory" },
+    { value: 4, label: "Satisfactory" },
+    { value: 5, label: "Good" },
+    { value: 6, label: "Excellent" },
+  ];
+  const normalizeRubricKey = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  const so4RubricDescriptors = {
+    [normalizeRubricKey("Apply principles of ethics and comply with professional Ethics, Technology Ethics, and Data Ethics")]: {
+      1: "Student is fully not compliant with professional ethics, technology ethics, and data ethics.",
+      2: "Student is not compliant with professional ethics, technology ethics, and data ethics.",
+      3: "Student minimally complies with professional ethics, technology ethics, and data ethics.",
+      4: "Student is compliant to a certain extent with professional ethics, technology ethics, and data ethics.",
+      5: "Student is compliant with professional ethics and follows technology ethics and data ethics.",
+      6: "Student fully complies with professional ethics, technology ethics, and data ethics.",
+    },
+    [normalizeRubricKey("Adopt global responsibilities and norms of engineering practice")]: {
+      1: "Student is fully not able to adopt global responsibilities and norms of engineering practice.",
+      2: "Student is not able to adopt global responsibilities and norms of engineering practice.",
+      3: "Student is able to minimally adopt global responsibilities and norms of engineering practice.",
+      4: "Student is able to adopt to a certain extent global responsibilities and norms of engineering practice.",
+      5: "Student is able to adopt global responsibilities and norms of engineering practice.",
+      6: "Student is fully able to adopt global responsibilities and norms of engineering practice.",
+    },
+    [normalizeRubricKey("Adhere to relevant national and international laws")]: {
+      1: "Student is fully not adherent to relevant national and international laws.",
+      2: "Student is not adherent to relevant national and international laws.",
+      3: "Student is minimally adherent to relevant national and international laws.",
+      4: "Student is adherent to a certain extent to relevant national and international laws.",
+      5: "Student is adherent to relevant national and international laws.",
+      6: "Student is fully adherent to relevant national and international laws.",
+    },
+    [normalizeRubricKey("Comprehend the need for diversity and inclusion")]: {
+      1: "Student does not totally understand the need for diversity and inclusion.",
+      2: "Student does not understand the need for diversity and inclusion.",
+      3: "Student minimally understands the need for diversity and inclusion.",
+      4: "Student understands to a certain extent the need for diversity and inclusion.",
+      5: "Student understands the need for diversity and inclusion.",
+      6: "Student fully understands the need for diversity and inclusion.",
+    },
+    [normalizeRubricKey("Ability to recognize ethical and professional responsibilities in engineering situations")]: {
+      1: "Student does not totally recognize ethical and professional responsibilities in engineering situations.",
+      2: "Student does not recognize ethical and professional responsibilities in engineering situations.",
+      3: "Student minimally recognizes ethical and professional responsibilities in engineering situations.",
+      4: "Student recognizes to a certain extent ethical and professional responsibilities in engineering situations.",
+      5: "Student recognizes ethical and professional responsibilities in engineering situations.",
+      6: "Student fully recognizes ethical and professional responsibilities in engineering situations.",
+    },
+    [normalizeRubricKey("Ability to make informed judgments which must consider the sustainability impact of engineering solutions in human, cultural, global, economic, environmental, and societal contexts")]: {
+      1: "Student is totally unable to make informed judgments which must consider the sustainability impact of engineering solutions in human, cultural, global, economic, environmental, and societal contexts.",
+      2: "Student is unable to make informed judgments which must consider the sustainability impact of engineering solutions in human, cultural, global, economic, environmental, and societal contexts.",
+      3: "Student can minimally make informed judgments which must consider the sustainability impact of engineering solutions in human, cultural, global, economic, environmental, and societal contexts.",
+      4: "Student makes informed judgments to a certain extent which must consider the sustainability impact of engineering solutions in human, cultural, global, economic, environmental, and societal contexts.",
+      5: "Student makes informed judgments which must consider the sustainability impact of engineering solutions in human, cultural, global, economic, environmental, and societal contexts.",
+      6: "Student fully makes informed judgments which must consider the sustainability impact of engineering solutions in human, cultural, global, economic, environmental, and societal contexts.",
+    },
+  };
+  const getRubricDescriptor = (soNumber, basisLabel, scoreValue) => {
+    const normalizedLabel = normalizeRubricKey(basisLabel);
+    if (Number(soNumber) === 4 && so4RubricDescriptors[normalizedLabel]?.[scoreValue]) {
+      return so4RubricDescriptors[normalizedLabel][scoreValue];
+    }
 
-    const satisfactoryCount = students.filter((student) => {
-      const score = student.grades?.[basis.key];
-      return score !== null && score !== undefined && score !== "" && Number(score) >= SATISFACTORY_THRESHOLD;
-    }).length;
-
-    return {
-      ...basis,
-      answeredCount,
-      satisfactoryCount,
+    const scaleLead = {
+      1: "Student shows very limited evidence of",
+      2: "Student shows weak evidence of",
+      3: "Student shows emerging evidence of",
+      4: "Student demonstrates acceptable performance in",
+      5: "Student demonstrates strong performance in",
+      6: "Student demonstrates excellent performance in",
     };
+
+    return `${scaleLead[scoreValue] || "Student demonstrates performance in"} ${String(basisLabel || "this criterion").toLowerCase()}.`;
+  };
+  const rubricRows = displayIndicators.flatMap((pi) => {
+    if (!pi.performanceCriteria || pi.performanceCriteria.length === 0) {
+      return [
+        {
+          key: `indicator:${pi.id}`,
+          performanceIndicator: pi.name,
+          criterionLabel: pi.name,
+          scoreKey: `indicator:${pi.id}`,
+        },
+      ];
+    }
+
+    return pi.performanceCriteria.map((pc) => ({
+      key: `criterion:${pc.id}`,
+      performanceIndicator: pi.name,
+      criterionLabel: pc.name,
+      scoreKey: `criterion:${pc.id}`,
+    }));
   });
-  const averageSatisfactoryCount =
-    footerSummary.length > 0
-      ? (footerSummary.reduce((sum, basis) => sum + basis.satisfactoryCount, 0) / footerSummary.length).toFixed(0)
-      : "0";
+  const rubricTotalScore = rubricRows.reduce((sum, row) => sum + (Number(activeStudent?.grades?.[row.scoreKey]) || 0), 0);
+  const rubricMaxScore = rubricRows.length * 6;
+  const rubricPercentage = rubricMaxScore > 0 ? ((rubricTotalScore / rubricMaxScore) * 100).toFixed(0) : "0";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -964,10 +1173,12 @@ export function AssessStudentsModal({
             </button>
             <div className="flex-1">
               <DialogTitle className="text-2xl">
-                Assess Students — {selectedSection?.name}
+                {selectedStudent ? `Assess ${selectedStudent.name}` : `Assess Students — ${selectedSection?.name}`}
               </DialogTitle>
               <DialogDescription>
-                Review section details, select a Student Outcome, and assess students.
+                {selectedStudent
+                  ? "Review the selected student and complete the rubric one student at a time."
+                  : "Review section details, select a Student Outcome, and assess students."}
               </DialogDescription>
             </div>
           </div>
@@ -995,6 +1206,46 @@ export function AssessStudentsModal({
               </div>
             </div>
           </div>
+
+          {activeStudent && (
+            <div className="rounded-lg border border-[#231F20]/10 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">Student Rubric Sheet</p>
+                  <h3 className="mt-1 text-xl font-bold text-[#231F20]">{activeStudent.name}</h3>
+                </div>
+                <div className="rounded-full bg-[#FFF8DB] px-3 py-1 text-xs font-semibold text-[#231F20]">
+                  {selectedSection.courseCode} · {selectedSection.name}
+                </div>
+              </div>
+              <div className="grid gap-3 text-sm text-[#231F20] md:grid-cols-3 lg:grid-cols-6">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B6B6B]">Student ID</p>
+                  <p className="mt-1 font-medium">{activeStudent.studentId || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B6B6B]">Program</p>
+                  <p className="mt-1 font-medium">{activeStudent.program || selectedSection.courseCode || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B6B6B]">Course</p>
+                  <p className="mt-1 font-medium">{selectedSection.courseName}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B6B6B]">Section</p>
+                  <p className="mt-1 font-medium">{selectedSection.name}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B6B6B]">Semester</p>
+                  <p className="mt-1 font-medium">{selectedSection.semester || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B6B6B]">School Year</p>
+                  <p className="mt-1 font-medium">{selectedSection.schoolYear || "-"}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* SO Selection */}
           <div className="space-y-4">
@@ -1077,15 +1328,17 @@ export function AssessStudentsModal({
                     </div>
                   )}
 
-                  {!isLoadingAssessment && selectedAssessmentSO && students.length > 0 && displayIndicators.length > 0 && (
+                  {!isLoadingAssessment && selectedAssessmentSO && visibleStudents.length > 0 && displayIndicators.length > 0 && (
                     <div className="mt-6 pt-6 border-t border-[#E5E7EB] space-y-3">
                       <div>
                         <h4 className="text-base font-semibold text-[#231F20] mb-3 flex items-center gap-2">
                           <UsersRound className="w-5 h-5 text-[#FFC20E]" />
-                          Assess Students — {selectedAssessmentSO.code}
+                          {selectedStudent ? `Rubric Assessment — ${selectedAssessmentSO.code}` : `Assess Students — ${selectedAssessmentSO.code}`}
                         </h4>
                         <p className="text-xs text-[#6B6B6B] mb-3">
-                          Rate each student's performance for each sub performance indicator or performance indicator (1-6 scale, where 6 is highest)
+                          {selectedStudent
+                            ? "Rate the selected student for each sub performance indicator or performance indicator using the 1-6 rubric scale."
+                            : "Rate each student's performance for each sub performance indicator or performance indicator (1-6 scale, where 6 is highest)."}
                         </p>
                         {indicatorsWithoutCriteria > 0 && (
                           <div className="mb-3 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
@@ -1099,227 +1352,153 @@ export function AssessStudentsModal({
                         )}
                       </div>
 
-                      <div
-                        className="assessment-table-container rounded-lg border border-[#D1D5DB] bg-white shadow-sm"
-                        style={{ minHeight: '560px', height: 'clamp(560px, 74vh, 980px)', display: 'block', overflow: 'auto' }}
-                      >
-                        <table
-                          className="border-separate border-spacing-0 text-sm"
-                          style={{
-                            width: `${calculatedTableWidth}px`,
-                            minWidth: 'calc(100% + 20px)'
-                          }}
-                        >
-                          <thead>
-                            {/* Row 1: Performance Indicator Headers */}
-                            <tr ref={headerRow1Ref} className="bg-gradient-to-r from-[#231F20] to-[#3A3A3A]">
-                              <th
-                                colSpan={2}
-                                className="border-r border-[#D1D5DB] px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-white min-w-[260px] bg-gradient-to-r from-[#231F20] to-[#3A3A3A]"
-                                style={{ position: 'sticky', top: 0, left: 0, zIndex: 90 }}
-                              >
-                                Student
-                              </th>
-                              <th
-                                colSpan={indicatorColumnCount}
-                                className="relative overflow-hidden border-r border-[#D1D5DB] px-4 py-3 text-center text-xs font-bold uppercase tracking-widest text-white last:border-r-0"
-                                style={{ position: 'sticky', top: 0, zIndex: 110 }}
-                              >
-                                <div
-                                  className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#111111] to-[#1F1F1F]"
-                                  aria-hidden="true"
-                                />
-                                <span className="relative z-[1]">Performance Indicators</span>
-                              </th>
-                            </tr>
+                      <div ref={rubricSheetRef} className="rounded-xl border border-[#D1D5DB] bg-white shadow-sm overflow-hidden">
+                        <div className="border-b border-[#D1D5DB] bg-[#FAFAF7] px-6 py-5 text-center">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#231F20]">
+                            Technological Institute of the Philippines
+                          </p>
+                          <h5 className="mt-3 text-lg font-semibold uppercase text-[#231F20]">
+                            Rubric for {selectedAssessmentSO.title}
+                          </h5>
+                          <p className="text-sm font-medium uppercase text-[#6B6B6B]">(Engineering Programs)</p>
+                          <p className="mt-4 text-left text-sm leading-relaxed text-[#231F20]">
+                            <span className="font-semibold">T.I.P. {selectedAssessmentSO.code}</span> {selectedAssessmentSO.description}
+                          </p>
+                        </div>
 
-                            {/* Row 2: PI Names */}
-                            <tr ref={headerRow2Ref} className="bg-[#F5F5F5] border-b border-[#E5E7EB]">
-                              <th
-                                colSpan={2}
-                                className="border-r border-[#D1D5DB] px-4 py-2.5 text-left text-xs font-semibold text-[#231F20] bg-[#F5F5F5]"
-                                style={{ position: 'sticky', top: stickyHeaderTops.row2, left: 0, zIndex: 80 }}
-                              >
-                                No. / Name
-                              </th>
-                              {displayIndicators.map((pi) => {
-                                return (
-                                  <td
-                                    key={`pi-name-${pi.id}`}
-                                    colSpan={Math.max(pi.performanceCriteria?.length || 0, 1)}
-                                    className="border-r border-[#E5E7EB] px-2 py-2.5 text-center text-xs font-semibold text-[#231F20] bg-[#F5F5F5] align-middle last:border-r-0 leading-tight"
-                                    style={{
-                                      minWidth: `${Math.max(pi.performanceCriteria?.length || 0, 1) * 110}px`,
-                                      position: 'sticky',
-                                      top: stickyHeaderTops.row2,
-                                      zIndex: 75,
-                                    }}
-                                  >
-                                    {pi.name}
-                                  </td>
-                                );
-                              })}
-                            </tr>
+                        <div className="grid gap-3 border-b border-[#D1D5DB] px-6 py-4 text-sm text-[#231F20] md:grid-cols-3 lg:grid-cols-6">
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wider text-[#6B6B6B]">Name</p>
+                            <p className="mt-1 font-medium">{activeStudent?.name || "-"}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wider text-[#6B6B6B]">Program</p>
+                            <p className="mt-1 font-medium">{activeStudent?.program || "Computer Engineering"}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wider text-[#6B6B6B]">Course</p>
+                            <p className="mt-1 font-medium">{selectedSection.courseCode}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wider text-[#6B6B6B]">Section</p>
+                            <p className="mt-1 font-medium">{selectedSection.name}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wider text-[#6B6B6B]">Semester</p>
+                            <p className="mt-1 font-medium">{selectedSection.semester || "-"}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wider text-[#6B6B6B]">School Year</p>
+                            <p className="mt-1 font-medium">{selectedSection.schoolYear || "-"}</p>
+                          </div>
+                        </div>
 
-                            {/* Row 3: Sub Performance Indicators */}
-                            {displayIndicators.length > 0 && (
-                              <tr className="bg-[#FFF8DB] border-b border-[#E5E7EB]">
-                                <th
-                                  colSpan={2}
-                                  className="border-r border-[#D1D5DB] px-4 py-2 text-left text-xs font-semibold text-[#6B6B6B] bg-[#FFF8DB]"
-                                  style={{ position: 'sticky', top: stickyHeaderTops.row3, left: 0, zIndex: 70 }}
-                                >
-                                  Sub Performance Indicator
-                                </th>
-                                {displayIndicators.map((pi) => {
-                                  if (!pi.performanceCriteria || pi.performanceCriteria.length === 0) {
-                                    return (
-                                      <th
-                                        key={`pc-${pi.id}-indicator`}
-                                        className="min-w-[110px] border-r border-[#E5E7EB] bg-[#FFF8DB] last:border-r-0"
-                                        style={{ position: 'sticky', top: stickyHeaderTops.row3, zIndex: 65 }}
-                                        aria-hidden="true"
-                                      />
-                                    );
-                                  }
-
-                                  return pi.performanceCriteria.map((pc) => (
-                                    <th
-                                      key={`pc-${pi.id}-${pc.id}`}
-                                      className="min-w-[110px] border-r border-[#E5E7EB] px-2 py-2 text-center text-xs font-semibold text-[#231F20] bg-[#FFF8DB] last:border-r-0 leading-tight"
-                                      style={{ position: 'sticky', top: stickyHeaderTops.row3, zIndex: 65 }}
-                                    >
-                                      {pc.name}
-                                    </th>
-                                  ));
-                                })}
+                        <div className="overflow-auto">
+                          <table className="min-w-[1280px] w-full border-collapse text-[11px] leading-tight text-[#231F20]">
+                            <thead>
+                              <tr className="bg-[#F5F5F5]">
+                                <th className="border border-[#231F20] px-2 py-2 text-center font-semibold">Performance Indicator</th>
+                                <th className="border border-[#231F20] px-2 py-2 text-center font-semibold">Sub Performance Indicator</th>
+                                {rubricScale.map((level) => (
+                                  <th key={`level-${level.value}`} className="border border-[#231F20] px-2 py-2 text-center font-semibold min-w-[140px]">
+                                    <div>{level.label}</div>
+                                    <div>{level.value}</div>
+                                  </th>
+                                ))}
+                                <th className="border border-[#231F20] px-2 py-2 text-center font-semibold min-w-[90px]">Score</th>
                               </tr>
-                            )}
-                          </thead>
+                            </thead>
+                            <tbody>
+                              {rubricRows.map((row, rowIndex) => {
+                                const currentScore = activeStudent?.grades?.[row.scoreKey] ?? "";
+                                const previousIndicator = rubricRows[rowIndex - 1]?.performanceIndicator;
+                                const showIndicatorCell = rowIndex === 0 || previousIndicator !== row.performanceIndicator;
+                                const indicatorRowSpan = rubricRows.filter((item) => item.performanceIndicator === row.performanceIndicator).length;
 
-                          <tbody>
-                            {students.map((student, idx) => (
-                              <tr key={student.id} className="border-b border-[#E5E7EB] last:border-b-0 hover:bg-[#FFC20E]/5 transition-colors">
-                                <td className="border-r border-[#E5E7EB] px-4 py-2.5 text-center text-sm font-bold text-white bg-[#231F20] min-w-[50px]" style={{position: 'sticky', left: 0, zIndex: 30}}>
-                                  {idx + 1}
-                                </td>
-                                <td className="border-r border-[#E5E7EB] px-4 py-2.5 text-sm bg-[#F9F9F9] min-w-[210px]" style={{position: 'sticky', left: '50px', zIndex: 30}}>
-                                  <p className="font-semibold text-[#231F20]">{student.name}</p>
-                                  <p className="text-xs text-[#6B6B6B] mt-1">{student.studentId}</p>
-                                </td>
-                                {displayIndicators.map((pi) => {
-                                  if (!pi.performanceCriteria || pi.performanceCriteria.length === 0) {
-                                    return (
-                                      <td
-                                        key={`grade-${student.id}-${pi.id}-indicator`}
-                                        className="border-r border-[#E5E7EB] px-2 py-2 text-center min-w-[110px] last:border-r-0"
-                                      >
-                                        <select
-                                          id={`grade-${student.id}-${pi.id}-indicator`}
-                                          name={`grade-${student.id}-${pi.id}-indicator`}
-                                          value={student.grades?.[`indicator:${pi.id}`] ?? ""}
-                                          onChange={(e) => handleGradeChange(student.id, `indicator:${pi.id}`, e.target.value ? parseInt(e.target.value) : null)}
-                                          className={getGradeInputClassName(
-                                            student.grades?.[`indicator:${pi.id}`],
-                                            missingGradeMap[`${student.id}::indicator:${pi.id}`]
+                                return (
+                                  <tr key={row.key} className="align-top">
+                                    {showIndicatorCell && (
+                                      <td rowSpan={indicatorRowSpan} className="border border-[#231F20] px-2 py-3 font-medium">
+                                        {row.performanceIndicator}
+                                      </td>
+                                    )}
+                                    <td className="border border-[#231F20] px-2 py-3 font-medium">
+                                      {row.criterionLabel}
+                                    </td>
+                                    {rubricScale.map((level) => {
+                                      const isSelected = Number(currentScore) === level.value;
+                                      return (
+                                        <td
+                                          key={`${row.key}-${level.value}`}
+                                          className={cn(
+                                            "border border-[#231F20] px-2 py-3 align-top transition-colors",
+                                            isSelected && "bg-[#FFF3C4]"
                                           )}
                                         >
-                                          <option value="">-</option>
-                                          <option value="1">1</option>
-                                          <option value="2">2</option>
-                                          <option value="3">3</option>
-                                          <option value="4">4</option>
-                                          <option value="5">5</option>
-                                          <option value="6">6</option>
-                                        </select>
-                                      </td>
-                                    );
-                                  }
-
-                                  return pi.performanceCriteria.map((pc) => (
-                                    <td
-                                      key={`grade-${student.id}-${pi.id}-${pc.id}`}
-                                      className="border-r border-[#E5E7EB] px-2 py-2 text-center min-w-[110px] last:border-r-0"
-                                    >
+                                          <button
+                                            type="button"
+                                            onClick={() => handleGradeChange(activeStudent.id, row.scoreKey, level.value)}
+                                            className={cn(
+                                              "flex h-full w-full flex-col items-start gap-2 text-left",
+                                              isSelected ? "text-[#231F20]" : "text-[#3A3A3A]"
+                                            )}
+                                          >
+                                            <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full border border-[#231F20] px-1 text-[10px] font-bold">
+                                              {level.value}
+                                            </span>
+                                            <span>{getRubricDescriptor(selectedAssessmentSO.number, row.criterionLabel, level.value)}</span>
+                                          </button>
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="border border-[#231F20] px-2 py-3">
                                       <select
-                                        id={`grade-${student.id}-${pi.id}-${pc.id}`}
-                                        name={`grade-${student.id}-${pi.id}-${pc.id}`}
-                                        value={student.grades?.[`criterion:${pc.id}`] ?? ""}
-                                        onChange={(e) => handleGradeChange(student.id, `criterion:${pc.id}`, e.target.value ? parseInt(e.target.value) : null)}
+                                        value={currentScore}
+                                        onChange={(e) => handleGradeChange(activeStudent.id, row.scoreKey, e.target.value ? parseInt(e.target.value, 10) : null)}
                                         className={getGradeInputClassName(
-                                          student.grades?.[`criterion:${pc.id}`],
-                                          missingGradeMap[`${student.id}::criterion:${pc.id}`]
+                                          currentScore,
+                                          missingGradeMap[`${activeStudent.id}::${row.scoreKey}`]
                                         )}
-                                        >
-                                          <option value="">-</option>
-                                          <option value="1">1</option>
-                                        <option value="2">2</option>
-                                        <option value="3">3</option>
-                                        <option value="4">4</option>
-                                        <option value="5">5</option>
-                                        <option value="6">6</option>
+                                      >
+                                        <option value="">-</option>
+                                        {rubricScale.map((level) => (
+                                          <option key={`score-option-${row.key}-${level.value}`} value={level.value}>
+                                            {level.value}
+                                          </option>
+                                        ))}
                                       </select>
                                     </td>
-                                  ));
-                                })}
+                                  </tr>
+                                );
+                              })}
+                              <tr className="bg-[#FAFAF7]">
+                                <td colSpan={8} className="border border-[#231F20] px-3 py-2 text-right font-semibold">
+                                  Total Score
+                                </td>
+                                <td className="border border-[#231F20] px-3 py-2 text-center font-semibold">
+                                  {rubricTotalScore}
+                                </td>
                               </tr>
-                            ))}
+                              <tr className="bg-[#FAFAF7]">
+                                <td colSpan={9} className="border border-[#231F20] px-3 py-2 text-right font-semibold">
+                                  Percentage Rating = (Total Score / {rubricMaxScore}) x 100% = {rubricPercentage}%
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
 
-                            {footerSummary.length > 0 && (
-                              <>
-                                <tr className="border-t-2 border-[#231F20] bg-[#FFF8DB]">
-                                  <td
-                                    colSpan={2}
-                                    className="border-r border-[#D1D5DB] px-4 py-2 text-left text-xs font-semibold text-[#231F20] bg-[#FFF8DB]"
-                                    style={{ position: "sticky", left: 0, zIndex: 15 }}
-                                  >
-                                    No. of Students Answered per sub performance indicator / indicator
-                                  </td>
-                                  {footerSummary.map((basis) => (
-                                    <td
-                                      key={`answered-summary-${basis.key}`}
-                                      className="border-r border-[#E5E7EB] px-2 py-2 text-center text-sm font-semibold text-[#231F20] bg-[#FFF8DB] last:border-r-0"
-                                    >
-                                      {basis.answeredCount}
-                                    </td>
-                                  ))}
-                                </tr>
-                                <tr className="bg-white">
-                                  <td
-                                    colSpan={2}
-                                    className="border-r border-[#D1D5DB] px-4 py-2 text-left text-xs font-semibold text-[#231F20] bg-white"
-                                    style={{ position: "sticky", left: 0, zIndex: 15 }}
-                                  >
-                                    Actual no. of students who got satisfactory rating
-                                  </td>
-                                  {footerSummary.map((basis) => (
-                                    <td
-                                      key={`satisfactory-summary-${basis.key}`}
-                                      className="border-r border-[#E5E7EB] px-2 py-2 text-center text-sm font-semibold text-[#231F20] bg-white last:border-r-0"
-                                    >
-                                      {basis.satisfactoryCount}
-                                    </td>
-                                  ))}
-                                </tr>
-                                <tr className="bg-[#FFF8DB]">
-                                  <td
-                                    colSpan={2}
-                                    className="border-r border-[#D1D5DB] px-4 py-2 text-left text-xs font-semibold text-[#231F20] bg-[#FFF8DB]"
-                                    style={{ position: "sticky", left: 0, zIndex: 15 }}
-                                  >
-                                    Average no. of students who got satisfactory rating
-                                  </td>
-                                  <td
-                                    colSpan={footerSummary.length}
-                                    className="px-2 py-2 text-center text-sm font-semibold text-[#231F20] bg-[#FFF8DB]"
-                                  >
-                                    {averageSatisfactoryCount}
-                                  </td>
-                                </tr>
-                              </>
-                            )}
-                          </tbody>
-                        </table>
+                        <div className="grid gap-4 px-6 py-6 text-sm text-[#231F20] md:grid-cols-3">
+                          <div>
+                            <p className="mb-6">Evaluated by:</p>
+                            <div className="border-b border-[#231F20] pb-1" />
+                            <p className="mt-2 text-xs text-[#6B6B6B]">Printed Name and Signature of Faculty Member</p>
+                          </div>
+                          <div className="md:col-start-3">
+                            <p className="mb-6">Date</p>
+                            <div className="border-b border-[#231F20] pb-1" />
+                          </div>
+                        </div>
                       </div>
 
                       {/* Action Buttons */}
@@ -1335,12 +1514,20 @@ export function AssessStudentsModal({
                         </div>
                         <div className="flex justify-end gap-3">
                         <button
+                          onClick={handlePrintRubric}
+                          disabled={!selectedAssessmentSO || !activeStudent}
+                          className="flex items-center gap-2 px-5 py-2.5 border border-[#231F20] text-[#231F20] rounded-lg font-semibold hover:bg-[#F9FAFB] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Printer className="w-4 h-4" />
+                          Print / Save PDF
+                        </button>
+                        <button
                           onClick={() => setIsClearConfirmOpen(true)}
                           disabled={isSaving || isAutoSaving || !hasAnyEnteredGrade}
                           className="flex items-center gap-2 px-5 py-2.5 border border-[#D1D5DB] text-[#231F20] rounded-lg font-semibold hover:bg-[#F9FAFB] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           <Eraser className="w-4 h-4" />
-                          Clear Assessment
+                          {selectedStudent ? "Clear Student Assessment" : "Clear Assessment"}
                         </button>
                         <button
                           onClick={handleSave}
@@ -1389,7 +1576,9 @@ export function AssessStudentsModal({
           <AlertDialogHeader>
             <AlertDialogTitle>Clear assessment fields?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove all current ratings in the table and save the cleared state automatically.
+              {selectedStudent
+                ? "This will remove the selected student's current ratings and save the cleared state automatically."
+                : "This will remove all current ratings in the table and save the cleared state automatically."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1398,7 +1587,7 @@ export function AssessStudentsModal({
               onClick={handleClearAssessment}
               className="bg-red-600 text-white hover:bg-red-700"
             >
-              Clear All
+              {selectedStudent ? "Clear Student" : "Clear All"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

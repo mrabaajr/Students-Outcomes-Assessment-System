@@ -4,6 +4,7 @@ import axios from "axios";
 import { SectionsGrid } from "@/components/assessment/SectionsGrid";
 import { CourseSectionsModal } from "@/components/assessment/CourseSectionsModal";
 import { AssessStudentsModal } from "@/components/assessment/AssessStudentsModal";
+import { StudentRubricModal } from "@/components/assessment/StudentRubricModal";
 import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
 import {
@@ -87,6 +88,7 @@ export default function SOAssessment() {
   // ── Modal state ───────────────────────────────────────
   const [selectedCourseForModal, setSelectedCourseForModal] = useState(null); // Course to show sections modal
   const [selectedSectionForAssessment, setSelectedSectionForAssessment] = useState(null); // Section for student assessment modal
+  const [selectedStudentForAssessment, setSelectedStudentForAssessment] = useState(null);
 
   const clearAllFilters = useCallback(() => {
     setSelectedSOIds([]);
@@ -1476,7 +1478,11 @@ export default function SOAssessment() {
           selectedSOId={selectedCourseForModal ? getRelevantSOIdForCourse(selectedCourseForModal.courseCode) : null}
           sectionStatusMap={sectionAssessmentStatus}
           sectionLastAssessedMap={sectionLastAssessed}
-          onClose={() => setSelectedCourseForModal(null)}
+          onClose={() => {
+            setSelectedCourseForModal(null);
+            setSelectedSectionForAssessment(null);
+            setSelectedStudentForAssessment(null);
+          }}
           onSelectSection={(section) => {
             if (!section.students || section.students.length === 0) {
               toast({
@@ -1490,13 +1496,30 @@ export default function SOAssessment() {
             setSelectedSectionName(section.name);
             setSelectedSemester(section.semester || "");
             setSelectedFaculty(section.facultyName || "No faculty assigned");
+            setSelectedStudentForAssessment(null);
             setSelectedSectionForAssessment(section);
+          }}
+          onSelectStudent={(section, student) => {
+            if (!section.students || section.students.length === 0) {
+              toast({
+                title: "Section has no students",
+                description: "Add students to this section in the Classes page before assessing it.",
+                variant: "destructive",
+              });
+              return;
+            }
+            setSelectedCourseCode(section.courseCode);
+            setSelectedSectionName(section.name);
+            setSelectedSemester(section.semester || "");
+            setSelectedFaculty(section.facultyName || "No faculty assigned");
+            setSelectedSectionForAssessment(section);
+            setSelectedStudentForAssessment(student);
           }}
         />
 
         {/* Student Assessment Modal */}
         <AssessStudentsModal
-          isOpen={!!selectedSectionForAssessment}
+          isOpen={!!selectedSectionForAssessment && !selectedStudentForAssessment}
           selectedSection={selectedSectionForAssessment}
           studentOutcomes={studentOutcomes}
           courseMappings={courseMappings}
@@ -1505,7 +1528,26 @@ export default function SOAssessment() {
           onChangeSelectedSO={setSelectedSOIds}
           onClose={() => {
             setSelectedSectionForAssessment(null);
-            setSelectedCourseForModal(null);
+          }}
+          onCourseFiltersChange={(courseCode, sectionName) => {
+            setSelectedCourseCode(courseCode);
+            setSelectedSectionName(sectionName);
+          }}
+          onSaveSuccess={triggerStatusRefresh}
+        />
+
+        <StudentRubricModal
+          isOpen={!!selectedSectionForAssessment && !!selectedStudentForAssessment}
+          selectedSection={selectedSectionForAssessment}
+          selectedStudent={selectedStudentForAssessment}
+          studentOutcomes={studentOutcomes}
+          courseMappings={courseMappings}
+          facultyData={facultyData}
+          selectedSOIds={selectedSOIds}
+          onChangeSelectedSO={setSelectedSOIds}
+          onClose={() => {
+            setSelectedSectionForAssessment(null);
+            setSelectedStudentForAssessment(null);
           }}
           onCourseFiltersChange={(courseCode, sectionName) => {
             setSelectedCourseCode(courseCode);
