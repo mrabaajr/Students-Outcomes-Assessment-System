@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { ChevronDown, Download, FileText, Plus, Table2 } from "lucide-react";
 import Navbar from "@/components/dashboard/Navbar";
 import Footer from "@/components/dashboard/Footer";
 import { SOCard, SOFormDialog } from "@/components/StudentOutcomes/SOCard";
@@ -16,6 +16,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const StudentOutcomes = () => {
   const { toast } = useToast();
@@ -129,6 +135,129 @@ const StudentOutcomes = () => {
     }
   };
 
+  const exportStudentOutcomesCsv = () => {
+    const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const rows = [
+      [
+        "SO Number",
+        "SO Title",
+        "SO Description",
+        "Performance Indicator Number",
+        "Performance Indicator",
+        "Sub Performance Indicator",
+      ],
+    ];
+
+    [...outcomes]
+      .sort((a, b) => a.number - b.number)
+      .forEach((so) => {
+        if (!so.indicators?.length) {
+          rows.push([so.number, so.title, so.description, "", "", ""]);
+          return;
+        }
+
+        so.indicators.forEach((indicator, indicatorIndex) => {
+          const criteria = indicator.criteria?.length ? indicator.criteria : [null];
+          criteria.forEach((criterion) => {
+            rows.push([
+              so.number,
+              so.title,
+              so.description,
+              indicator.number ?? indicatorIndex + 1,
+              indicator.description || indicator.name || "",
+              criterion?.name || "-",
+            ]);
+          });
+        });
+      });
+
+    const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "student_outcomes_export.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Student Outcomes Exported",
+      description: "The Student Outcomes structure was exported as CSV.",
+    });
+  };
+
+  const exportStudentOutcomesPdf = () => {
+    const exportWindow = window.open("", "_blank", "width=1280,height=900");
+    if (!exportWindow) {
+      toast({
+        title: "Popup Blocked",
+        description: "Allow popups for this site to export the Student Outcomes PDF.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const sectionsMarkup = [...outcomes]
+      .sort((a, b) => a.number - b.number)
+      .map((so) => `
+        <section class="so-block">
+          <h2>SO ${so.number}: ${so.title}</h2>
+          <p class="so-description">${so.description || ""}</p>
+          ${(so.indicators || [])
+            .map((indicator, index) => `
+              <div class="indicator-block">
+                <h3>Performance Indicator ${indicator.number ?? index + 1}</h3>
+                <p>${indicator.description || indicator.name || ""}</p>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Sub Performance Indicator</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${(indicator.criteria?.length ? indicator.criteria : [{ name: "-" }])
+                      .map((criterion) => `<tr><td>${criterion.name || "-"}</td></tr>`)
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>
+            `)
+            .join("")}
+        </section>
+      `)
+      .join("");
+
+    exportWindow.document.write(`
+      <html>
+        <head>
+          <title>Student Outcomes Export</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 32px; color: #231F20; }
+            h1 { margin: 0 0 8px; }
+            .subtitle { margin: 0 0 24px; color: #6B6B6B; }
+            .so-block { margin-bottom: 28px; page-break-inside: avoid; }
+            h2 { margin: 0 0 8px; font-size: 18px; }
+            h3 { margin: 16px 0 6px; font-size: 14px; }
+            .so-description { margin: 0 0 12px; line-height: 1.5; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+            th, td { border: 1px solid #D1D5DB; padding: 8px; text-align: left; font-size: 12px; }
+            th { background: #F5F5F5; }
+          </style>
+        </head>
+        <body>
+          <h1>Student Outcomes Export</h1>
+          <p class="subtitle">Program structure with performance indicators and sub performance indicators.</p>
+          ${sectionsMarkup}
+        </body>
+      </html>
+    `);
+    exportWindow.document.close();
+    exportWindow.focus();
+    setTimeout(() => exportWindow.print(), 300);
+  };
+
   useEffect(() => {
     if (!pendingAutoSave || !hasUnsavedChanges) return;
 
@@ -194,6 +323,28 @@ const StudentOutcomes = () => {
                 <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
                 ADD NEW SO
               </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-white text-[#231F20] rounded-lg text-sm sm:text-base font-medium hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isLoading || outcomes.length === 0}
+                  >
+                    <Download className="w-4 h-4 sm:w-5 sm:h-5" />
+                    EXPORT SO
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-44">
+                  <DropdownMenuItem onClick={exportStudentOutcomesCsv} className="gap-2">
+                    <Table2 className="h-4 w-4" />
+                    Export CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportStudentOutcomesPdf} className="gap-2">
+                    <FileText className="h-4 w-4" />
+                    Export PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               {hasUnsavedChanges && (
                 <button
                   onClick={handleManualSave}

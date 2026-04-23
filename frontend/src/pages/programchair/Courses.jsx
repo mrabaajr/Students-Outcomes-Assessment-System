@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Grid, TableIcon, Filter, Search, GraduationCap, RotateCcw } from 'lucide-react';
+import { Plus, Grid, TableIcon, Filter, Search, GraduationCap, RotateCcw, Download, ChevronDown, FileText, Table2 } from 'lucide-react';
 import axios from 'axios';
 import Navbar from '../../components/dashboard/Navbar';
 import Footer from '../../components/dashboard/Footer';
@@ -15,6 +15,12 @@ import { useCourses } from '../../hooks/useCourses';
 import { useStudentOutcomes } from '../../hooks/useStudentOutcomes';
 import { semesters } from '../../data/mockCoursesData';
 import { API_BASE_URL, unwrapListResponse } from '@/lib/api';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const sortYearValues = (values = []) =>
   [...values].sort((a, b) => Number(a) - Number(b));
@@ -313,6 +319,174 @@ const Courses = () => {
     }
   };
 
+  const downloadCsv = (filename, rows) => {
+    const csvEscape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const exportCoursesCsv = () => {
+    const rows = [
+      ['Course Code', 'Course Name', 'Curriculum', 'Year Level', 'Semester', 'Mapped SOs'],
+      ...mappingCourses.map((course) => {
+        const mappedCodes = studentOutcomes
+          .filter((so) => (course.mappedSOs || []).some((mappedId) => String(mappedId) === String(so.id)))
+          .sort((a, b) => a.number - b.number)
+          .map((so) => `SO ${so.number}`)
+          .join(', ');
+
+        return [
+          course.code,
+          course.name,
+          course.curriculum || '',
+          course.yearLevel || '',
+          course.semester || '',
+          mappedCodes || 'None',
+        ];
+      }),
+    ];
+
+    downloadCsv('courses_export.csv', rows);
+    toast({
+      title: 'Courses Exported',
+      description: 'The course list was exported as CSV.',
+    });
+  };
+
+  const exportMatrixCsv = () => {
+    const rows = [
+      ['Course Code', 'Course Name', ...studentOutcomes.map((so) => `SO ${so.number}`)],
+      ...mappingCourses.map((course) => [
+        course.code,
+        course.name,
+        ...studentOutcomes.map((so) =>
+          (course.mappedSOs || []).some((mappedId) => String(mappedId) === String(so.id)) ? 'Mapped' : 'Not Mapped'
+        ),
+      ]),
+    ];
+
+    downloadCsv('course_so_mapping_matrix.csv', rows);
+    toast({
+      title: 'SO Mapping Exported',
+      description: 'The course-to-SO mapping matrix was exported as CSV.',
+    });
+  };
+
+  const openPrintWindow = (title, bodyMarkup) => {
+    const exportWindow = window.open('', '_blank', 'width=1280,height=900');
+    if (!exportWindow) {
+      toast({
+        title: 'Popup Blocked',
+        description: 'Allow popups for this site to export the PDF.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    exportWindow.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 32px; color: #231F20; }
+            h1 { margin: 0 0 8px; }
+            p { color: #6B6B6B; margin: 0 0 20px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #D1D5DB; padding: 8px; text-align: left; vertical-align: top; }
+            th { background: #F5F5F5; }
+          </style>
+        </head>
+        <body>
+          ${bodyMarkup}
+        </body>
+      </html>
+    `);
+    exportWindow.document.close();
+    exportWindow.focus();
+    setTimeout(() => exportWindow.print(), 300);
+  };
+
+  const exportCoursesPdf = () => {
+    const rows = mappingCourses.map((course) => {
+      const mappedCodes = studentOutcomes
+        .filter((so) => (course.mappedSOs || []).some((mappedId) => String(mappedId) === String(so.id)))
+        .sort((a, b) => a.number - b.number)
+        .map((so) => `SO ${so.number}`)
+        .join(', ');
+
+      return `
+        <tr>
+          <td>${course.code}</td>
+          <td>${course.name}</td>
+          <td>${course.curriculum || ''}</td>
+          <td>${course.yearLevel || ''}</td>
+          <td>${course.semester || ''}</td>
+          <td>${mappedCodes || 'None'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    openPrintWindow(
+      'Courses Export',
+      `
+        <h1>Courses Export</h1>
+        <p>Course list with current mapped Student Outcomes.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Course Code</th>
+              <th>Course Name</th>
+              <th>Curriculum</th>
+              <th>Year Level</th>
+              <th>Semester</th>
+              <th>Mapped SOs</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `
+    );
+  };
+
+  const exportMatrixPdf = () => {
+    const headers = studentOutcomes.map((so) => `<th>SO ${so.number}</th>`).join('');
+    const rows = mappingCourses.map((course) => `
+      <tr>
+        <td>${course.code}</td>
+        <td>${course.name}</td>
+        ${studentOutcomes.map((so) =>
+          `<td>${(course.mappedSOs || []).some((mappedId) => String(mappedId) === String(so.id)) ? 'Mapped' : 'Not Mapped'}</td>`
+        ).join('')}
+      </tr>
+    `).join('');
+
+    openPrintWindow(
+      'Course SO Mapping Matrix',
+      `
+        <h1>Course-to-SO Mapping Matrix</h1>
+        <p>Current course mapping relationships exported from the Courses page.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Course Code</th>
+              <th>Course Name</th>
+              ${headers}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `
+    );
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
 
@@ -356,6 +530,28 @@ const Courses = () => {
               >
                 <GraduationCap className="w-5 h-5" /> ADD CURRICULUM
               </button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="relative z-10 flex cursor-pointer items-center gap-2 px-6 py-3 bg-white text-[#231F20] rounded-lg font-medium hover:bg-gray-100"
+                  >
+                    <Download className="w-5 h-5" /> {viewMode === 'grid' ? 'EXPORT COURSES' : 'EXPORT MATRIX'}
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-44">
+                  <DropdownMenuItem onClick={viewMode === 'grid' ? exportCoursesCsv : exportMatrixCsv} className="gap-2">
+                    <Table2 className="h-4 w-4" />
+                    Export CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={viewMode === 'grid' ? exportCoursesPdf : exportMatrixPdf} className="gap-2">
+                    <FileText className="h-4 w-4" />
+                    Export PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* VIEW TOGGLE */}
               <div className="flex items-center bg-[#3A3A3A] rounded-lg p-1">
@@ -493,6 +689,7 @@ const Courses = () => {
                 courses={mappingCourses}
                 studentOutcomes={studentOutcomes}
                 onToggleMapping={handleToggleMapping}
+                onExport={(format) => (format === 'pdf' ? exportMatrixPdf() : exportMatrixCsv())}
               />
 
             )}
