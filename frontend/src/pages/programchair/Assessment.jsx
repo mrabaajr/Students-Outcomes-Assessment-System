@@ -1512,6 +1512,7 @@ export default function SOAssessment() {
             setSelectedSectionName(section.name);
             setSelectedSemester(section.semester || "");
             setSelectedFaculty(section.facultyName || "No faculty assigned");
+            setSelectedCourseForModal(null);
             setSelectedSectionForAssessment(section);
             setSelectedStudentForAssessment(student);
           }}
@@ -1545,6 +1546,7 @@ export default function SOAssessment() {
           facultyData={facultyData}
           selectedSOIds={selectedSOIds}
           onChangeSelectedSO={setSelectedSOIds}
+          onSelectStudent={setSelectedStudentForAssessment}
           onClose={() => {
             setSelectedSectionForAssessment(null);
             setSelectedStudentForAssessment(null);

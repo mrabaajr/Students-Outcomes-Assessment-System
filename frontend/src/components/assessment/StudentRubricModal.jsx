@@ -22,6 +22,7 @@ import {
   UsersRound,
   Save,
   ArrowLeft,
+  ArrowRight,
   Eraser,
   Printer,
   PenTool,
@@ -77,6 +78,7 @@ export function StudentRubricModal({
   selectedSOIds,
   onChangeSelectedSO,
   onClose,
+  onSelectStudent,
   onCourseFiltersChange,
   onSaveSuccess,
 }) {
@@ -820,6 +822,57 @@ export function StudentRubricModal({
     });
   };
 
+  const handleNextStudent = async () => {
+    if (!selectedSection?.students?.length || !selectedStudent || !onSelectStudent) {
+      return;
+    }
+
+    await flushAutoSave();
+
+    const currentIndex = selectedSection.students.findIndex(
+      (student) => String(student.id) === String(selectedStudent.id)
+    );
+    const nextStudent = currentIndex >= 0 ? selectedSection.students[currentIndex + 1] : null;
+
+    if (nextStudent) {
+      onSelectStudent(nextStudent);
+    }
+  };
+
+  const handlePreviousStudent = async () => {
+    if (!selectedSection?.students?.length || !selectedStudent || !onSelectStudent) {
+      return;
+    }
+
+    await flushAutoSave();
+
+    const currentIndex = selectedSection.students.findIndex(
+      (student) => String(student.id) === String(selectedStudent.id)
+    );
+    const previousStudent = currentIndex > 0 ? selectedSection.students[currentIndex - 1] : null;
+
+    if (previousStudent) {
+      onSelectStudent(previousStudent);
+    }
+  };
+
+  const handleStudentJump = async (studentId) => {
+    if (!selectedSection?.students?.length || !onSelectStudent || !studentId) {
+      return;
+    }
+
+    const targetStudent = selectedSection.students.find(
+      (student) => String(student.id) === String(studentId)
+    );
+
+    if (!targetStudent || String(targetStudent.id) === String(selectedStudent?.id)) {
+      return;
+    }
+
+    await flushAutoSave();
+    onSelectStudent(targetStudent);
+  };
+
   const handlePrintRubric = () => {
     if (!selectedAssessmentSO || !activeStudent) {
       return;
@@ -1012,6 +1065,14 @@ export function StudentRubricModal({
     students.find((student) => student.id === selectedStudent?.id) ||
     (selectedStudent ? null : students[0] || null);
   const visibleStudents = activeStudent ? [activeStudent] : students;
+  const rosterStudents = selectedSection?.students || [];
+  const currentStudentIndex = selectedSection?.students?.findIndex(
+    (student) => String(student.id) === String(selectedStudent?.id)
+  ) ?? -1;
+  const hasPreviousStudent = currentStudentIndex > 0;
+  const hasNextStudent =
+    currentStudentIndex >= 0 &&
+    currentStudentIndex < ((selectedSection?.students?.length || 0) - 1);
   const indicatorsWithoutCriteria = displayIndicators.filter(
     (pi) => !pi.performanceCriteria || pi.performanceCriteria.length === 0
   ).length;
@@ -1512,7 +1573,26 @@ export function StudentRubricModal({
                                 ? `Progress saved at ${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
                                 : "Progress saves automatically as you grade."}
                         </div>
-                        <div className="flex justify-end gap-3">
+                        <div className="flex flex-col gap-3 md:items-end">
+                        <div className="flex flex-col gap-2 md:min-w-[300px]">
+                          <label className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6B6B6B]">
+                            Jump To Student
+                          </label>
+                          <select
+                            value={activeStudent?.id ? String(activeStudent.id) : ""}
+                            onChange={(e) => handleStudentJump(e.target.value)}
+                            disabled={isSaving || isAutoSaving || rosterStudents.length <= 1}
+                            className="min-w-[280px] rounded-lg border border-[#D1D5DB] bg-white px-4 py-2.5 text-sm font-medium text-[#231F20] focus:border-[#FFC20E] focus:outline-none focus:ring-2 focus:ring-[#FFC20E]/30 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="" disabled>Select a student</option>
+                            {rosterStudents.map((student, index) => (
+                              <option key={`student-jump-${student.id}`} value={String(student.id)}>
+                                {index + 1}. {student.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-3">
                         <button
                           onClick={handlePrintRubric}
                           disabled={!selectedAssessmentSO || !activeStudent}
@@ -1537,6 +1617,23 @@ export function StudentRubricModal({
                           <Save className="w-4 h-4" />
                           {isSaving ? 'Saving...' : 'Save Assessment'}
                         </button>
+                        <button
+                          onClick={handlePreviousStudent}
+                          disabled={isSaving || isAutoSaving || !hasPreviousStudent}
+                          className="flex items-center gap-2 px-6 py-2.5 border border-[#231F20] text-[#231F20] rounded-lg font-semibold hover:bg-[#F9FAFB] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          Previous Student
+                        </button>
+                        <button
+                          onClick={handleNextStudent}
+                          disabled={isSaving || isAutoSaving || !hasNextStudent}
+                          className="flex items-center gap-2 px-6 py-2.5 bg-[#231F20] text-white rounded-lg font-semibold hover:bg-[#3A3A3A] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ArrowRight className="w-4 h-4" />
+                          Next Student
+                        </button>
+                        </div>
                         </div>
                       </div>
                     </div>

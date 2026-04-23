@@ -13,7 +13,7 @@ import SOMappingMatrix from '../../components/courses/SOMappingMatrix';
 import { useToast } from '../../hooks/use-toast';
 import { useCourses } from '../../hooks/useCourses';
 import { useStudentOutcomes } from '../../hooks/useStudentOutcomes';
-import { academicYears as fallbackAcademicYears, semesters } from '../../data/mockCoursesData';
+import { semesters } from '../../data/mockCoursesData';
 import { API_BASE_URL, unwrapListResponse } from '@/lib/api';
 
 const sortYearValues = (values = []) =>
@@ -37,14 +37,12 @@ const Courses = () => {
 
   /* Filters */
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedYear, setSelectedYear] = useState('All Years');
   const [selectedSemester, setSelectedSemester] = useState('All Semesters');
   const [selectedCurriculum, setSelectedCurriculum] = useState('All Curriculums');
 
   /* Curriculum list from backend */
   const [curriculums, setCurriculums] = useState(['All Curriculums']);
   const [currriculumsLoading, setCurriculumsLoading] = useState(true);
-  const [schoolYears, setSchoolYears] = useState(fallbackAcademicYears);
   const [courseMappings, setCourseMappings] = useState([]);
 
   /* Fetch curriculums from backend */
@@ -69,26 +67,6 @@ const Courses = () => {
     };
     
     fetchCurriculums();
-  }, []);
-
-  useEffect(() => {
-    const fetchSchoolYears = async () => {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/school-years/`);
-        const schoolYearList = unwrapListResponse(response.data);
-        if (Array.isArray(schoolYearList)) {
-          const years = schoolYearList.map(item => item.year).filter(Boolean);
-          if (years.length > 0) {
-            setSchoolYears(years);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching school years:', err);
-        setSchoolYears(fallbackAcademicYears);
-      }
-    };
-
-    fetchSchoolYears();
   }, []);
 
   useEffect(() => {
@@ -133,20 +111,33 @@ const Courses = () => {
 
   });
 
-  const activeAcademicYear = selectedYear === 'All Years'
-    ? schoolYears[schoolYears.length - 1] || ''
-    : selectedYear;
-
   const mappingLookup = courseMappings.reduce((acc, mapping) => {
-    const matchesYear = !activeAcademicYear || mapping.academic_year === activeAcademicYear;
+    const mappingCourseId = String(mapping.course);
     const matchesSemester = selectedSemester === 'All Semesters' || mapping.semester === selectedSemester;
 
-    if (matchesYear && matchesSemester) {
-      acc[String(mapping.course)] = {
-        ...mapping,
-        mappedSOs: mapping.mappedSOs || mapping.mapped_sos || [],
-      };
+    if (!matchesSemester) {
+      return acc;
     }
+
+    const mappedSOs = mapping.mappedSOs || mapping.mapped_sos || [];
+    const existing = acc[mappingCourseId];
+
+    if (!existing) {
+      acc[mappingCourseId] = {
+        ...mapping,
+        mappedSOs,
+      };
+      return acc;
+    }
+
+    acc[mappingCourseId] = {
+      ...existing,
+      mappedSOs: [...new Set([...(existing.mappedSOs || []), ...mappedSOs])],
+      id: existing.id || mapping.id,
+      academic_year: existing.academic_year || mapping.academic_year,
+      semester:
+        selectedSemester === 'All Semesters' ? existing.semester || mapping.semester : mapping.semester,
+    };
 
     return acc;
   }, {});
@@ -156,7 +147,7 @@ const Courses = () => {
 
     return {
       ...course,
-      academicYear: mapping?.academic_year || activeAcademicYear || 'Not set',
+      academicYear: mapping?.academic_year || 'Not set',
       mappedSOs: mapping?.mappedSOs || [],
       mappingId: mapping?.id || null,
     };
@@ -170,7 +161,6 @@ const Courses = () => {
   const resetCourseFilters = () => {
     setSearchTerm('');
     setSelectedCurriculum('All Curriculums');
-    setSelectedYear('All Years');
     setSelectedSemester('All Semesters');
   };
 
@@ -419,7 +409,7 @@ const Courses = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div>
                 <label className="mb-2 block text-xs font-medium text-[#6B6B6B]">
                   Search Courses
@@ -447,22 +437,6 @@ const Courses = () => {
                 >
                   {curriculums.map(curr => (
                     <option key={curr} value={curr}>{curr}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-xs font-medium text-[#6B6B6B]">
-                  Academic Year
-                </label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="w-full rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#231F20] outline-none transition focus:border-[#FFC20E]"
-                >
-                  <option value="All Years">All Years</option>
-                  {schoolYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
                   ))}
                 </select>
               </div>

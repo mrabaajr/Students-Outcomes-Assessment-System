@@ -1214,24 +1214,14 @@ export function AssessStudentsModal({
                                         key={`grade-${student.id}-${pi.id}-indicator`}
                                         className="border-r border-[#E5E7EB] px-2 py-2 text-center min-w-[110px] last:border-r-0"
                                       >
-                                        <select
-                                          id={`grade-${student.id}-${pi.id}-indicator`}
-                                          name={`grade-${student.id}-${pi.id}-indicator`}
-                                          value={student.grades?.[`indicator:${pi.id}`] ?? ""}
-                                          onChange={(e) => handleGradeChange(student.id, `indicator:${pi.id}`, e.target.value ? parseInt(e.target.value) : null)}
+                                        <div
                                           className={getGradeInputClassName(
                                             student.grades?.[`indicator:${pi.id}`],
                                             missingGradeMap[`${student.id}::indicator:${pi.id}`]
                                           )}
                                         >
-                                          <option value="">-</option>
-                                          <option value="1">1</option>
-                                          <option value="2">2</option>
-                                          <option value="3">3</option>
-                                          <option value="4">4</option>
-                                          <option value="5">5</option>
-                                          <option value="6">6</option>
-                                        </select>
+                                          {student.grades?.[`indicator:${pi.id}`] ?? "-"}
+                                        </div>
                                       </td>
                                     );
                                   }
@@ -1241,24 +1231,14 @@ export function AssessStudentsModal({
                                       key={`grade-${student.id}-${pi.id}-${pc.id}`}
                                       className="border-r border-[#E5E7EB] px-2 py-2 text-center min-w-[110px] last:border-r-0"
                                     >
-                                      <select
-                                        id={`grade-${student.id}-${pi.id}-${pc.id}`}
-                                        name={`grade-${student.id}-${pi.id}-${pc.id}`}
-                                        value={student.grades?.[`criterion:${pc.id}`] ?? ""}
-                                        onChange={(e) => handleGradeChange(student.id, `criterion:${pc.id}`, e.target.value ? parseInt(e.target.value) : null)}
+                                      <div
                                         className={getGradeInputClassName(
                                           student.grades?.[`criterion:${pc.id}`],
                                           missingGradeMap[`${student.id}::criterion:${pc.id}`]
                                         )}
-                                        >
-                                          <option value="">-</option>
-                                          <option value="1">1</option>
-                                        <option value="2">2</option>
-                                        <option value="3">3</option>
-                                        <option value="4">4</option>
-                                        <option value="5">5</option>
-                                        <option value="6">6</option>
-                                      </select>
+                                      >
+                                        {student.grades?.[`criterion:${pc.id}`] ?? "-"}
+                                      </div>
                                     </td>
                                   ));
                                 })}
@@ -1322,34 +1302,9 @@ export function AssessStudentsModal({
                         </table>
                       </div>
 
-                      {/* Action Buttons */}
-                      <div className="flex flex-col gap-3 pt-3 md:flex-row md:items-center md:justify-between">
-                        <div className="text-xs text-[#6B6B6B]">
-                          {isAutoSaving
-                            ? "Saving progress automatically..."
-                            : autoSaveError
-                              ? autoSaveError
-                              : lastSavedAt
-                                ? `Progress saved at ${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                                : "Progress saves automatically as you grade."}
-                        </div>
-                        <div className="flex justify-end gap-3">
-                        <button
-                          onClick={() => setIsClearConfirmOpen(true)}
-                          disabled={isSaving || isAutoSaving || !hasAnyEnteredGrade}
-                          className="flex items-center gap-2 px-5 py-2.5 border border-[#D1D5DB] text-[#231F20] rounded-lg font-semibold hover:bg-[#F9FAFB] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <Eraser className="w-4 h-4" />
-                          Clear Assessment
-                        </button>
-                        <button
-                          onClick={handleSave}
-                          disabled={isSaving || isAutoSaving}
-                          className="flex items-center gap-2 px-6 py-2.5 bg-[#FFC20E] text-[#231F20] rounded-lg font-semibold hover:bg-[#FFC20E]/90 disabled:opacity-50 transition-colors"
-                        >
-                          <Save className="w-4 h-4" />
-                          {isSaving ? 'Saving...' : 'Save Assessment'}
-                        </button>
+                      <div className="pt-3">
+                        <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#6B6B6B]">
+                          This summary is locked. Use the individual student rubric view to enter or update scores.
                         </div>
                       </div>
                     </div>
