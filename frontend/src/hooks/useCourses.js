@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { API_BASE_URL, unwrapListResponse } from '@/lib/api';
+import { API_BASE_URL, getAuthHeader, unwrapListResponse } from '@/lib/api';
 
 const normalizeCourse = (course) => ({
   id: course.id,
-  course: course.course,
+  course: course.course || course.id,
   code: course.code,
   name: course.name,
   section: course.section || '',
@@ -43,12 +43,6 @@ const getErrorMessage = (err, fallback) => {
   return fallback;
 };
 
-// Helper: Get auth header
-const getAuthHeader = () => {
-  const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
 export function useCourses() {
   const [courses, setCourses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,15 +58,18 @@ export function useCourses() {
       if (filters.department && filters.department !== 'All Departments') {
         params.append('department', filters.department);
       }
-      if (filters.academicYear && filters.academicYear !== 'All Years') {
-        params.append('academic_year', filters.academicYear);
-      }
       if (filters.search) {
         params.append('search', filters.search);
       }
+      if (filters.curriculum && filters.curriculum !== 'All Curriculums') {
+        params.append('curriculum', filters.curriculum);
+      }
+      if (filters.semester && filters.semester !== 'All Semesters') {
+        params.append('semester', filters.semester);
+      }
 
-      const response = await axios.get(`${API_BASE_URL}/course-so-mappings/?${params.toString()}`, {
-        headers: getAuthHeader(),
+      const response = await axios.get(`${API_BASE_URL}/courses/?${params.toString()}`, {
+        headers: await getAuthHeader(),
       });
 
       const transformed = unwrapListResponse(response.data).map(normalizeCourse);
@@ -96,21 +93,18 @@ export function useCourses() {
     try {
       // Map frontend field names to backend expected fields
       const payload = {
-        course: courseData.selectedCourseId ? parseInt(courseData.selectedCourseId, 10) : null,
         code: courseData.code,
         name: courseData.name,
         curriculum: courseData.curriculum,
         semester: courseData.semester,
-        academic_year: courseData.academic_year,
         year_level: courseData.year_level || '',
         credits: courseData.credits || 3,
         description: courseData.description || '',
-        mappedSOs: courseData.mappedSOs || [],
       };
       const response = await axios.post(
-        `${API_BASE_URL}/course-so-mappings/`,
+        `${API_BASE_URL}/courses/`,
         payload,
-        { headers: getAuthHeader() }
+        { headers: await getAuthHeader() }
       );
 
       const newCourse = normalizeCourse(response.data);
@@ -133,24 +127,21 @@ export function useCourses() {
       // Map frontend field names to backend expected fields
       // IMPORTANT: PUT requests require ALL fields including course and curriculum
       const payload = {
-        course: courseData.course || (courseData.selectedCourseId ? parseInt(courseData.selectedCourseId, 10) : null),
         curriculum: courseData.curriculum,
         code: courseData.code,
         name: courseData.name,
         semester: courseData.semester,
-        academic_year: courseData.academic_year,
         year_level: courseData.year_level || '',
         credits: courseData.credits || 3,
         description: courseData.description || '',
-        mappedSOs: courseData.mappedSOs || [],
       };
       
       console.log('Updating course:', courseId, 'Payload:', payload);
       
       const response = await axios.put(
-        `${API_BASE_URL}/course-so-mappings/${courseId}/`,
+        `${API_BASE_URL}/courses/${courseId}/`,
         payload,
-        { headers: getAuthHeader() }
+        { headers: await getAuthHeader() }
       );
 
       const updated = normalizeCourse(response.data);
@@ -171,8 +162,8 @@ export function useCourses() {
   const deleteCourse = async (courseId) => {
     setError(null);
     try {
-      await axios.delete(`${API_BASE_URL}/course-so-mappings/${courseId}/`, {
-        headers: getAuthHeader(),
+      await axios.delete(`${API_BASE_URL}/courses/${courseId}/`, {
+        headers: await getAuthHeader(),
       });
 
       setCourses(prev => prev.filter(c => c.id !== courseId));
@@ -186,20 +177,21 @@ export function useCourses() {
     }
   };
 
-  // Toggle SO mapping
-  const toggleSOMapping = async (courseId, soId, shouldMap) => {
+  const toggleSOMapping = async (courseId, soId, shouldMap, context = {}) => {
     setError(null);
     try {
       const response = await axios.post(
-        `${API_BASE_URL}/course-so-mappings/${courseId}/toggle_so/`,
-        { so_id: parseInt(soId), should_map: shouldMap },
-        { headers: getAuthHeader() }
+        `${API_BASE_URL}/courses/${courseId}/toggle_so_mapping/`,
+        {
+          so_id: parseInt(soId, 10),
+          should_map: shouldMap,
+          academic_year: context.academic_year,
+          semester: context.semester,
+        },
+        { headers: await getAuthHeader() }
       );
 
-      const updated = normalizeCourse(response.data.courseMapping);
-
-      setCourses(prev => prev.map(c => c.id === courseId ? updated : c));
-      return { success: true, message: response.data.message };
+      return { success: true, message: response.data.message, courseMapping: response.data.courseMapping };
     } catch (err) {
       console.error('Error toggling SO mapping:', err);
       return {

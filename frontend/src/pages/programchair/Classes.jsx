@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { BookOpen, Users, Plus, Settings, Loader2, Search, Filter, RotateCcw, AlertCircle, CheckCircle, X, TriangleAlert } from "lucide-react";
+import { BookOpen, Users, Plus, Settings, Loader2, Search, Filter, RotateCcw, AlertCircle, CheckCircle, X, TriangleAlert, CalendarRange } from "lucide-react";
 import axios from "axios";
 import { useSearchParams } from "react-router-dom";
 import Navbar from "@/components/dashboard/Navbar";
@@ -7,18 +7,14 @@ import Footer from "@/components/dashboard/Footer";
 import SectionCard from "@/components/classes/SectionCard";
 import FacultyCard from "@/components/classes/FacultyCard";
 import SectionFormDialog from "@/components/classes/SectionFormDialog";
+import SchoolYearManagementModal from "@/components/classes/SchoolYearManagementModal";
 import StudentFormDialog from "@/components/classes/StudentFormDialog";
 import FacultyFormDialog from "@/components/classes/FacultyFormDialog";
 import DeleteConfirmDialog from "@/components/classes/DeleteConfirmDialog";
 import FacultyAccountModal from "@/components/accounts/FacultyAccountModal";
 import { sections as initialSections, faculty as initialFaculty } from "@/data/classesData";
 import { toast } from "@/hooks/use-toast";
-import { API_BASE_URL } from "@/lib/api";
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem("accessToken");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
+import { API_BASE_URL, getAuthHeader } from "@/lib/api";
 
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -40,6 +36,9 @@ const Index = () => {
   const [selectedAssignmentStatus, setSelectedAssignmentStatus] = useState("All Sections");
   const [facultySearch, setFacultySearch] = useState("");
   const [selectedHandledCourse, setSelectedHandledCourse] = useState("All Courses");
+  const [schoolYears, setSchoolYears] = useState([]);
+  const [schoolYearModalOpen, setSchoolYearModalOpen] = useState(false);
+  const [isSavingSchoolYear, setIsSavingSchoolYear] = useState(false);
   const autoSaveTimeoutRef = useRef(null);
   const hasLoadedRef = useRef(false);
 
@@ -68,6 +67,23 @@ const Index = () => {
       hasLoadedRef.current = true;
     };
     loadData();
+  }, []);
+
+  useEffect(() => {
+    const loadSchoolYears = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/school-years/`);
+        const loadedSchoolYears = Array.isArray(response.data)
+          ? response.data.map((item) => item.year).filter(Boolean)
+          : (response.data?.results || []).map((item) => item.year).filter(Boolean);
+        setSchoolYears(loadedSchoolYears);
+      } catch (error) {
+        console.error("Failed to load school years:", error);
+        setSchoolYears([]);
+      }
+    };
+
+    loadSchoolYears();
   }, []);
 
   useEffect(() => {
@@ -201,6 +217,31 @@ const Index = () => {
   const resetFacultyFilters = () => {
     setFacultySearch("");
     setSelectedHandledCourse("All Courses");
+  };
+
+  const handleSaveSchoolYear = async ({ year }) => {
+    setIsSavingSchoolYear(true);
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/school-years/`,
+        { year },
+        { headers: await getAuthHeader() }
+      );
+      const savedYear = response.data?.year || year;
+      setSchoolYears((prev) => [...new Set([...prev, savedYear])].sort());
+      toast({
+        title: "School year added",
+        description: `${savedYear} is now available for section assignment.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error adding school year",
+        description: error.response?.data?.year?.[0] || error.response?.data?.detail || "Failed to add school year.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingSchoolYear(false);
+    }
   };
 
   // Section CRUD
@@ -439,10 +480,9 @@ const Index = () => {
     setIsSaving(true);
 
     try {
+      const headers = await getAuthHeader();
       await axios.delete(`${API_BASE_URL}/users/${deletingFacultyId}/`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-        },
+        headers,
       });
 
       setFacultyData((prev) => prev.filter((faculty) => faculty.id !== deletingFacultyId));
@@ -511,6 +551,7 @@ const Index = () => {
     }));
 
     try {
+      const headers = await getAuthHeader();
       const formData = new FormData();
       formData.append('file', file);
 
@@ -520,7 +561,7 @@ const Index = () => {
         {
           headers: {
             'Content-Type': 'multipart/form-data',
-            ...getAuthHeaders(),
+            ...headers,
           },
         }
       );
@@ -584,12 +625,13 @@ const Index = () => {
 
     setIsSaving(true);
     try {
+      const headers = await getAuthHeader();
       const response = await axios.post(`${API_BASE_URL}/sections/bulk_save/`, {
         sections: sectionsData,
         faculty: facultyData,
         deletedFacultyIds,
       }, {
-        headers: getAuthHeaders(),
+        headers,
       });
       if (response.data.success) {
         setHasUnsavedChanges(false);
@@ -848,6 +890,14 @@ const Index = () => {
                       <RotateCcw className="h-4 w-4" />
                       Reset
                     </button>
+
+                    <button
+                      onClick={() => setSchoolYearModalOpen(true)}
+                      className="inline-flex items-center justify-center gap-2 self-start rounded-lg bg-[#231F20] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#3A3A3A] xl:self-auto"
+                    >
+                      <CalendarRange className="h-4 w-4" />
+                      Manage School Years
+                    </button>
                   </div>
                 </div>
 
@@ -1028,6 +1078,15 @@ const Index = () => {
         onSave={handleSaveSection}
         initialData={editingSection}
         facultyOptions={assignableUsers}
+      />
+      <SchoolYearManagementModal
+        open={schoolYearModalOpen}
+        onClose={() => setSchoolYearModalOpen(false)}
+        schoolYears={schoolYears}
+        sections={sectionsData}
+        faculty={facultyData}
+        onAddSchoolYear={handleSaveSchoolYear}
+        isSaving={isSavingSchoolYear}
       />
       <StudentFormDialog
         open={studentDialog}

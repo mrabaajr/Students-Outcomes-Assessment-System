@@ -1,17 +1,8 @@
-import { BookOpen, Calendar, Tag } from 'lucide-react';
+import { BookOpen, Calendar, GraduationCap } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Badge } from '../ui/badge';
 
-const ViewCourseModal = ({ isOpen, onClose, course, studentOutcomes = [] }) => {
+const ViewCourseModal = ({ isOpen, onClose, course }) => {
   if (!course) return null;
-
-  // Filter mapped SOs - handle both string/number IDs or full objects
-  const mappedSODetails = studentOutcomes.filter(so => 
-    course.mappedSOs?.some(mapped => {
-      if (typeof mapped === 'object') return mapped.id === so.id;
-      return String(mapped) === String(so.id);
-    })
-  );
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -39,36 +30,19 @@ const ViewCourseModal = ({ isOpen, onClose, course, studentOutcomes = [] }) => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Tag className="h-4 w-4 text-muted-foreground" />
+              <GraduationCap className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-xs text-muted-foreground">Academic Year</p>
-                <p className="text-sm font-medium">{course.academicYear}</p>
+                <p className="text-xs text-muted-foreground">Curriculum</p>
+                <p className="text-sm font-medium">{course.curriculum}</p>
               </div>
             </div>
-          </div>
-
-          {/* Mapped Student Outcomes */}
-          <div>
-            <h4 className="font-medium mb-3">Mapped Student Outcomes</h4>
-            {mappedSODetails.length > 0 ? (
-              <div className="space-y-2">
-                {mappedSODetails.map((so) => (
-                  <div key={so.id} className="flex items-start gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
-                    <Badge className="bg-primary text-primary-foreground shrink-0">
-                      SO {so.number}
-                    </Badge>
-                    <div>
-                      <p className="text-sm font-medium">{so.title}</p>
-                      <p className="text-xs text-muted-foreground">{so.description}</p>
-                    </div>
-                  </div>
-                ))}
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Year Level</p>
+                <p className="text-sm font-medium">{course.year_level}</p>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-lg">
-                No Student Outcomes mapped to this course.
-              </p>
-            )}
+            </div>
           </div>
         </div>
       </DialogContent>

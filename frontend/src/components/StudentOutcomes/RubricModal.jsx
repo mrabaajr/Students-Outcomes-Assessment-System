@@ -114,7 +114,7 @@ export function RubricModal({ open, onOpenChange, studentOutcome, onSave }) {
                     {indicators.map((pi, idx) => (
                       <th key={pi.id} className="min-w-[200px] border-b border-r border-[#D1D5DB] px-3 py-2.5 text-left text-xs font-bold text-white last:border-r-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span>PI {idx + 1}</span>
+                          <span>Performance Indicator {idx + 1}</span>
                           <div className="flex items-center gap-1">
                             <button onClick={() => { setEditingPIId(pi.id); setEditingPIText(pi.description); }} className="rounded p-1 text-[#D1D5DB] hover:bg-[#3A3A3A] hover:text-white"><Pencil className="h-3.5 w-3.5" /></button>
                             <button onClick={() => deletePI(pi.id)} className="rounded p-1 text-[#FCA5A5] hover:bg-[#7F1D1D]/20 hover:text-[#FECACA]"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -150,7 +150,7 @@ export function RubricModal({ open, onOpenChange, studentOutcome, onSave }) {
                   {Array.from({ length: maxCriteria }).map((_, rowIdx) => (
                     <tr key={rowIdx} className="hover:bg-[#FFFDF2]">
                       <td className="border-b border-r border-[#D1D5DB] px-3 py-2 text-xs font-medium text-[#6B6B6B]">
-                        <span className="inline-block rounded bg-[#FFF8DB] px-1.5 py-0.5 text-[11px] font-semibold text-[#231F20]">SPI {rowIdx + 1}</span>
+                        <span className="inline-block rounded bg-[#FFF8DB] px-1.5 py-0.5 text-[11px] font-semibold text-[#231F20]">Sub Performance Indicator {rowIdx + 1}</span>
                       </td>
                       {indicators.map((pi) => {
                         const pc = pi.criteria[rowIdx];

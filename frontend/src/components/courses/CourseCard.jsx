@@ -1,13 +1,9 @@
-import { Eye, Pencil, Trash2, BookMarked, Calendar, GraduationCap } from 'lucide-react';
+import { Eye, Pencil, Trash2, Calendar, GraduationCap } from 'lucide-react';
 import { Button } from '../ui/button';
 
 const CourseCard = ({ course, onView, onEdit, onDelete, studentOutcomes = [] }) => {
-  // Filter mapped SOs - handle both string/number IDs or full objects
-  const mappedSODetails = studentOutcomes.filter(so => 
-    course.mappedSOs?.some(mapped => {
-      if (typeof mapped === 'object') return mapped.id === so.id;
-      return String(mapped) === String(so.id);
-    })
+  const mappedSODetails = studentOutcomes.filter((so) =>
+    course.mappedSOs?.some((mapped) => String(mapped) === String(so.id))
   );
 
   return (
@@ -23,10 +19,6 @@ const CourseCard = ({ course, onView, onEdit, onDelete, studentOutcomes = [] }) 
       {/* Details */}
       <div className="space-y-2 mb-4">
         <div className="flex items-center gap-2 text-sm text-[#6B6B6B]">
-          <BookMarked className="h-4 w-4" />
-          <span>{course.academicYear}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-[#6B6B6B]">
           <Calendar className="h-4 w-4" />
           <span>{course.semester || 'No semester assigned'}</span>
         </div>
@@ -34,20 +26,26 @@ const CourseCard = ({ course, onView, onEdit, onDelete, studentOutcomes = [] }) 
           <GraduationCap className="h-4 w-4" />
           <span>{course.curriculum || 'No curriculum assigned'}</span>
         </div>
+        <div className="flex items-center gap-2 text-sm text-[#6B6B6B]">
+          <GraduationCap className="h-4 w-4" />
+          <span>{course.year_level || 'No year level assigned'}</span>
+        </div>
       </div>
 
-      {/* SO Badges */}
-      <div className="mb-4 pb-4 border-b border-[#E5E7EB]">
-        <p className="text-xs text-[#6B6B6B] mb-2">Mapped SOs:</p>
-        <div className="flex flex-wrap gap-1">
+      <div className="mb-4 border-t border-[#E5E7EB] pt-4">
+        <p className="mb-2 text-xs font-medium text-[#6B6B6B]">Mapped SOs</p>
+        <div className="flex flex-wrap gap-1.5">
           {mappedSODetails.length > 0 ? (
             mappedSODetails.map((so) => (
-              <span key={so.id} className="bg-[#FFC20E]/20 text-[#231F20] border border-[#FFC20E]/30 text-xs px-2 py-1 rounded font-medium">
+              <span
+                key={so.id}
+                className="rounded-md border border-[#FFC20E]/40 bg-[#FFC20E]/15 px-2 py-1 text-xs font-semibold text-[#231F20]"
+              >
                 SO {so.number}
               </span>
             ))
           ) : (
-            <span className="text-xs text-[#A5A8AB] italic">No SOs mapped</span>
+            <span className="text-xs italic text-[#A5A8AB]">No SOs mapped</span>
           )}
         </div>
       </div>

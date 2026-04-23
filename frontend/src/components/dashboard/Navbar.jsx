@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { GraduationCap, BookOpen, FileText, BarChart3, Users, Settings, LogOut, CircleHelp } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import GettingStartedModal from "@/components/dashboard/GettingStartedModal";
-import { API_BASE_URL } from "@/lib/api";
+import { API_BASE_URL, getAuthHeader } from "@/lib/api";
 
 const programChairNavItems = [
   { icon: GraduationCap, label: "Student Outcomes", link: "/programchair/student-outcomes" },
@@ -30,7 +30,6 @@ const Navbar = () => {
   const dashboardLink = isFaculty ? '/faculty/dashboard' : '/programchair/dashboard';
   const userRole = String(localStorage.getItem("userRole") || "").toLowerCase();
   const userId = localStorage.getItem("userId");
-  const token = localStorage.getItem("accessToken");
   const roleLabel = userRole === "admin" ? "Program Chair" : userRole === "staff" ? "Faculty" : "User";
   const displayNameStorageKey = useMemo(() => (userId ? `displayName:${userId}` : ""), [userId]);
 
@@ -49,7 +48,7 @@ const Navbar = () => {
   }, [gettingStartedStorageKey, userRole]);
 
   useEffect(() => {
-    if (!userId || !token) {
+    if (!userId) {
       setDisplayName("");
       return;
     }
@@ -64,10 +63,9 @@ const Navbar = () => {
 
     const loadDisplayName = async () => {
       try {
+        const headers = await getAuthHeader();
         const response = await fetch(`${API_BASE_URL}/users/${userId}/`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers,
         });
 
         if (!response.ok) {
@@ -97,7 +95,7 @@ const Navbar = () => {
     return () => {
       isMounted = false;
     };
-  }, [displayNameStorageKey, token, userId]);
+  }, [displayNameStorageKey, userId]);
 
   const isActive = (link) => {
     if (link === "#") return false;
