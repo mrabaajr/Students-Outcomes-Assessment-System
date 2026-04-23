@@ -1,6 +1,12 @@
-import { Check, X } from 'lucide-react';
+import { Check, ChevronDown, Download, FileText, Table2, X } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-const SOMappingMatrix = ({ courses, studentOutcomes = [], onToggleMapping }) => {
+const SOMappingMatrix = ({ courses, studentOutcomes = [], onToggleMapping, onExport }) => {
   const handleCellClick = (courseId, soId, isMapped) => {
     if (onToggleMapping) {
       onToggleMapping(courseId, soId, !isMapped);
@@ -16,10 +22,37 @@ const SOMappingMatrix = ({ courses, studentOutcomes = [], onToggleMapping }) => 
   return (
     <div className="glass-card p-6">
       <div className="mb-6">
-        <h3 className="text-lg font-semibold text-[#231F20] mb-2">Course-to-SO Mapping Matrix</h3>
-        <p className="text-sm text-[#6B6B6B]">
-          Click on cells to toggle mappings. Yellow indicates a mapped relationship.
-        </p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-[#231F20] mb-2">Course-to-SO Mapping Matrix</h3>
+            <p className="text-sm text-[#6B6B6B]">
+              Click on cells to toggle mappings. Yellow indicates a mapped relationship.
+            </p>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                disabled={!courses.length || !studentOutcomes.length}
+                className="inline-flex items-center gap-2 rounded-lg border border-[#D1D5DB] bg-white px-4 py-2.5 text-sm font-medium text-[#231F20] transition hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Download className="h-4 w-4" />
+                Export Matrix
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => onExport?.('csv')} className="gap-2">
+                <Table2 className="h-4 w-4" />
+                Export CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onExport?.('pdf')} className="gap-2">
+                <FileText className="h-4 w-4" />
+                Export PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {studentOutcomes.length === 0 ? (
