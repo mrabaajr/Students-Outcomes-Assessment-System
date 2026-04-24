@@ -899,7 +899,6 @@ export function StudentRubricModal({
               const isSelected = currentScore === level.value;
               return `
                 <td class="${isSelected ? "selected-cell" : ""}">
-                  <div class="level-badge">${level.value}</div>
                   <div>${escapeHtml(getRubricDescriptor(selectedAssessmentSO.number, row.criterionLabel, level.value))}</div>
                 </td>
               `;
@@ -1019,7 +1018,6 @@ export function StudentRubricModal({
         .indicator-cell { width: 17%; }
         .criterion-cell { width: 15%; }
         .selected-cell { background: #FFF3C4; }
-        .level-badge { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border: 1px solid #231F20; border-radius: 9999px; font-size: 9px; font-weight: 700; margin-bottom: 4px; }
         .score-cell { width: 34px; text-align: center; font-weight: 700; }
         .totals-label { text-align: right; font-weight: 700; }
         .signature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 16px; font-size: 11px; }
@@ -1504,9 +1502,6 @@ export function StudentRubricModal({
                                               isSelected ? "text-[#231F20]" : "text-[#3A3A3A]"
                                             )}
                                           >
-                                            <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full border border-[#231F20] px-1 text-[10px] font-bold">
-                                              {level.value}
-                                            </span>
                                             <span>{getRubricDescriptor(selectedAssessmentSO.number, row.criterionLabel, level.value)}</span>
                                           </button>
                                         </td>

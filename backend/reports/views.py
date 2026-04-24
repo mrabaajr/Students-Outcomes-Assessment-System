@@ -283,8 +283,15 @@ class ReportViewSet(ViewSet):
                 course = sample_assessment.section.course
                 source_courses.append(course.name)
 
+                course_section_ids = {
+                    assessment.section_id
+                    for assessment in course_assessments
+                }
                 visible_course_sections = list(
-                    scoped_sections.filter(course_id=course.id).prefetch_related("enrollments__student")
+                    scoped_sections.filter(
+                        course_id=course.id,
+                        id__in=course_section_ids,
+                    ).prefetch_related("enrollments__student")
                 )
 
                 enrolled_students = {}

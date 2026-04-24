@@ -260,7 +260,7 @@ class ReportsDashboardTests(TestCase):
         self.assertEqual([row["answered_count"] for row in indicators], [1, 1])
         self.assertEqual([row["satisfactory_count"] for row in indicators], [1, 1])
 
-    def test_dashboard_uses_all_visible_course_sections_for_actual_class_size(self):
+    def test_dashboard_limits_actual_class_size_to_sections_with_so_assessments(self):
         extra_section = Section.objects.create(
             name="CPE11S2",
             course=self.course,
@@ -285,7 +285,7 @@ class ReportsDashboardTests(TestCase):
         payload = response.json()
         course_row = payload["so_summary_tables"][0]["courses"][0]
 
-        self.assertEqual(course_row["actual_class_size"], 2)
+        self.assertEqual(course_row["actual_class_size"], 1)
         self.assertEqual(course_row["answered_count"], 1)
 
     def test_dashboard_applies_cli_to_each_course_weighted_total_before_attainment(self):
