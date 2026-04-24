@@ -586,17 +586,97 @@ export default function FacultyAssessments() {
   }, [studentOutcomes, selectedSOIds]);
 
   // ── Initialize students from section ──
+  const loadGrades = useCallback(async (sectionId, soId, schoolYear, initialStudents = []) => {
+    setIsSaved(false);
+
+    if (!sectionId || !soId) {
+      setStudents(initialStudents);
+      return;
+    }
+
+    try {
+      const headers = await getAuthHeader();
+      const response = await axios.get(`${API_BASE_URL}/assessments/load_grades/`, {
+        params: {
+          section_id: sectionId,
+          so_id: soId,
+          school_year: schoolYear,
+        },
+        headers,
+      });
+
+      const loadedGrades = response.data?.grades || {};
+      const gradeKeyMap = {};
+
+      (so?.performanceIndicators || []).forEach((pi) => {
+        if (pi.performanceCriteria?.length) {
+          pi.performanceCriteria.forEach((criterion) => {
+            gradeKeyMap[`criterion:${criterion.id}`] = `criterion:${criterion.id}`;
+          });
+        } else {
+          gradeKeyMap[`indicator:${pi.id}`] = `indicator:${pi.id}`;
+        }
+      });
+
+      Object.entries(loadedGrades).forEach(([studentId, gradesByBasis]) => {
+        Object.keys(gradesByBasis || {}).forEach((rawKey) => {
+          const normalizedKey = String(rawKey).includes(":")
+            ? String(rawKey)
+            : `criterion:${rawKey}`;
+
+          if (!gradeKeyMap[normalizedKey]) {
+            gradeKeyMap[normalizedKey] = normalizedKey;
+          }
+        });
+      });
+
+      const transformedGrades = {};
+      Object.entries(loadedGrades).forEach(([studentId, gradesByBasis]) => {
+        transformedGrades[String(studentId)] = {};
+        Object.entries(gradesByBasis || {}).forEach(([rawKey, score]) => {
+          const normalizedKey = String(rawKey).includes(":")
+            ? String(rawKey)
+            : `criterion:${rawKey}`;
+          const gradeKey = gradeKeyMap[normalizedKey];
+
+          if (gradeKey) {
+            transformedGrades[String(studentId)][gradeKey] = score;
+          }
+        });
+      });
+
+      setStudents(
+        initialStudents.map((student) => ({
+          ...student,
+          grades: {
+            ...student.grades,
+            ...(transformedGrades[String(student.id)] || {}),
+          },
+        }))
+      );
+    } catch (error) {
+      console.error("Error loading grades for faculty assessment cards:", error);
+      setStudents(initialStudents);
+    }
+  }, [so]);
+
   useEffect(() => {
     const section = selectedSectionForAssessment || activeSection;
     if (!section) {
       setStudents([]);
       return;
     }
-    const sectionStudents = (section.students || []).map(s => {
+    const sectionStudents = (section.students || []).map((s) => {
       const grades = {};
       if (so) {
-        so.performanceIndicators.forEach(pi => {
-          grades[pi.id] = null;
+        so.performanceIndicators.forEach((pi) => {
+          if (pi.performanceCriteria?.length) {
+            pi.performanceCriteria.forEach((criterion) => {
+              grades[`criterion:${criterion.id}`] = null;
+            });
+          } else {
+            grades[`indicator:${pi.id}`] = null;
+          }
         });
       }
       return {
@@ -609,20 +689,12 @@ export default function FacultyAssessments() {
     setStudents(sectionStudents);
     setIsSaved(false);
 
-    // Try to load saved grades from backend
     const sectionId = section?.id;
     const schoolYear = selectedSectionForAssessment?.schoolYear || selectedSchoolYear;
     if (so && sectionId) {
-      loadGrades(sectionId, so.id, schoolYear);
+      loadGrades(sectionId, so.id, schoolYear, sectionStudents);
     }
-  }, [selectedSectionForAssessment?.id ?? activeSection?.id, so?.id, selectedSchoolYear]);
-
-  const loadGrades = async (sectionId, soId, schoolYear) => {
-    void sectionId;
-    void soId;
-    void schoolYear;
-    setIsSaved(false);
-  };
+  }, [loadGrades, selectedSectionForAssessment?.id ?? activeSection?.id, so?.id, selectedSchoolYear]);
 
   // ── Grade change handler ─────────────────────────────
   const handleGradeChange = (studentId, indicatorId, value) => {
