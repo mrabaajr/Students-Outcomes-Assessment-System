@@ -457,16 +457,34 @@ const Courses = () => {
   };
 
   const exportMatrixPdf = () => {
-    const headers = studentOutcomes.map((so) => `<th>SO ${so.number}</th>`).join('');
-    const rows = mappingCourses.map((course) => `
-      <tr>
-        <td>${course.code}</td>
-        <td>${course.name}</td>
-        ${studentOutcomes.map((so) =>
-          `<td>${(course.mappedSOs || []).some((mappedId) => String(mappedId) === String(so.id)) ? 'Mapped' : 'Not Mapped'}</td>`
-        ).join('')}
-      </tr>
-    `).join('');
+    const rows = mappingCourses.map((course) => {
+      const mappedCodes = studentOutcomes
+        .filter((so) => (course.mappedSOs || []).some((mappedId) => String(mappedId) === String(so.id)))
+        .sort((a, b) => a.number - b.number)
+        .map((so) => `SO ${so.number}`)
+        .join(', ');
+
+      return `
+        <tr>
+          <td>${course.code}</td>
+          <td>${course.name}</td>
+          <td>${mappedCodes || 'None'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const hasMappedRows = mappingCourses.some((course) =>
+      (course.mappedSOs || []).length > 0
+    );
+
+    if (!hasMappedRows) {
+      toast({
+        title: 'No mapped SOs',
+        description: 'There are no mapped Student Outcomes to include in the PDF export.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     openPrintWindow(
       'Course SO Mapping Matrix',
@@ -478,7 +496,7 @@ const Courses = () => {
             <tr>
               <th>Course Code</th>
               <th>Course Name</th>
-              ${headers}
+              <th>Mapped SOs</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
