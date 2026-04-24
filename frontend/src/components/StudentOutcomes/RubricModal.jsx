@@ -89,25 +89,26 @@ export function RubricModal({ open, onOpenChange, studentOutcome, onSave }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <style>{scrollbarStyle}</style>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border border-[#D1D5DB] bg-white">
-        <DialogHeader>
-          <DialogTitle className="text-xl text-[#231F20]">
-            <span className="inline-flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[#231F20] text-sm font-bold text-[#FFC20E]">{studentOutcome.number}</span>
-              {studentOutcome.title} - Rubric
-            </span>
-          </DialogTitle>
-          <DialogDescription className="text-sm text-[#6B6B6B]">{studentOutcome.description}</DialogDescription>
-        </DialogHeader>
-        <div className="mt-4">
-          {indicators.length === 0 && !addingPI ? (
-            <div className="rounded-lg border-2 border-dashed border-[#D1D5DB] bg-[#FAFAF7] p-8 text-center">
-              <p className="mb-3 text-[#6B6B6B]">No performance indicators yet.</p>
-              <Button onClick={() => setAddingPI(true)} size="sm" className="bg-[#FFC20E] text-[#231F20] hover:bg-[#FFC20E]/90"><Plus className="mr-1 h-4 w-4" /> Add First Indicator</Button>
-            </div>
-          ) : (
-            <div className="rubric-table-container rounded-lg border border-[#D1D5DB] bg-white" style={{ minHeight: '300px', display: 'block', overflow: 'auto' }}>
-              <table className="border-collapse text-sm" style={{ width: `${(indicators.length * 220) + 140}px`, minWidth: `calc(100% + 20px)` }}>
+      <DialogContent className="flex h-[90vh] w-[min(96vw,1600px)] max-w-[96vw] flex-col overflow-hidden border border-[#D1D5DB] bg-white p-0">
+        <div className="flex-1 overflow-y-auto px-6 py-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-[#231F20]">
+              <span className="inline-flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[#231F20] text-sm font-bold text-[#FFC20E]">{studentOutcome.number}</span>
+                {studentOutcome.title} - Rubric
+              </span>
+            </DialogTitle>
+            <DialogDescription className="text-sm text-[#6B6B6B]">{studentOutcome.description}</DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            {indicators.length === 0 && !addingPI ? (
+              <div className="rounded-lg border-2 border-dashed border-[#D1D5DB] bg-[#FAFAF7] p-8 text-center">
+                <p className="mb-3 text-[#6B6B6B]">No performance indicators yet.</p>
+                <Button onClick={() => setAddingPI(true)} size="sm" className="bg-[#FFC20E] text-[#231F20] hover:bg-[#FFC20E]/90"><Plus className="mr-1 h-4 w-4" /> Add First Indicator</Button>
+              </div>
+            ) : (
+              <div className="rubric-table-container max-h-[calc(90vh-240px)] rounded-lg border border-[#D1D5DB] bg-white">
+                <table className="min-w-max border-collapse text-sm" style={{ width: `${(indicators.length * 220) + 180}px` }}>
                 <thead>
                   <tr className="bg-[#231F20]">
                     <th className="w-[120px] border-b border-r border-[#D1D5DB] px-3 py-2.5 text-left text-xs font-bold text-white">Sub Performance Indicator</th>
@@ -206,24 +207,25 @@ export function RubricModal({ open, onOpenChange, studentOutcome, onSave }) {
                     <td />
                   </tr>
                 </tbody>
-              </table>
-            </div>
-          )}
-          {addingPI && (
-            <div className="mt-4 rounded-lg border border-[#D1D5DB] bg-[#FAFAF7] p-4">
-              <label className="text-sm font-medium text-[#231F20]">New Performance Indicator Description</label>
-              <Textarea value={newPIText} onChange={(e) => setNewPIText(e.target.value)} placeholder="Describe the performance indicator..." className="mt-1 min-h-[80px] border-[#D1D5DB] bg-white text-[#231F20]" />
-              <div className="mt-2 flex gap-2">
-                <Button size="sm" onClick={addPI} disabled={!newPIText.trim()} className="bg-[#FFC20E] text-[#231F20] hover:bg-[#FFC20E]/90"><Check className="mr-1 h-3 w-3" /> Add</Button>
-                <Button size="sm" variant="outline" onClick={() => setAddingPI(false)} className="border-[#D1D5DB] bg-white text-[#231F20] hover:bg-[#F5F5F5]">Cancel</Button>
+                </table>
               </div>
-            </div>
-          )}
+            )}
+            {addingPI && (
+              <div className="mt-4 rounded-lg border border-[#D1D5DB] bg-[#FAFAF7] p-4">
+                <label className="text-sm font-medium text-[#231F20]">New Performance Indicator Description</label>
+                <Textarea value={newPIText} onChange={(e) => setNewPIText(e.target.value)} placeholder="Describe the performance indicator..." className="mt-1 min-h-[80px] border-[#D1D5DB] bg-white text-[#231F20]" />
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" onClick={addPI} disabled={!newPIText.trim()} className="bg-[#FFC20E] text-[#231F20] hover:bg-[#FFC20E]/90"><Check className="mr-1 h-3 w-3" /> Add</Button>
+                  <Button size="sm" variant="outline" onClick={() => setAddingPI(false)} className="border-[#D1D5DB] bg-white text-[#231F20] hover:bg-[#F5F5F5]">Cancel</Button>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="border-[#D1D5DB] bg-white text-[#231F20] hover:bg-[#F5F5F5]">Cancel</Button>
+            <Button onClick={handleSave} className="bg-[#FFC20E] text-[#231F20] hover:bg-[#FFC20E]/90">Save Rubric</Button>
+          </DialogFooter>
         </div>
-        <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="border-[#D1D5DB] bg-white text-[#231F20] hover:bg-[#F5F5F5]">Cancel</Button>
-          <Button onClick={handleSave} className="bg-[#FFC20E] text-[#231F20] hover:bg-[#FFC20E]/90">Save Rubric</Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
